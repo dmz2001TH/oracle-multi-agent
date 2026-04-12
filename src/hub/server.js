@@ -57,6 +57,12 @@ export class HubServer extends EventEmitter {
     });
 
     this.app.use(express.static(join(__dirname, '../dashboard/public')));
+
+    // Phase 5: Watchdog — check agent health every 30s
+    this._watchdogInterval = setInterval(() => this._watchdogTick(), 30000);
+
+    // Phase 5: Auto-save state every 60s
+    this._autosaveInterval = setInterval(() => this._autoSaveAgentStates(), 60000);
   }
 
   _setupRoutes() {
@@ -337,6 +343,75 @@ export class HubServer extends EventEmitter {
     });
 
     // ================================================================
+    // HANDOFF (Phase 2: Session Handoff)
+    // ================================================================
+
+    this.app.post('/api/handoff/create', (req, res) => {
+      const { title, summary, fromSession } = req.body;
+      const sessionData = this.store.generateSessionSummary();
+      const handoffTitle = title || sessionData.title;
+      const handoffSummary = summary || sessionData.summary;
+      const handoff = this.store.createHandoff(handoffTitle, handoffSummary, fromSession, sessionData.context);
+      this._broadcast({ type: 'handoff_created', handoff });
+      res.json(handoff);
+    });
+
+    this.app.get('/api/handoff', (req, res) => {
+      res.json(this.store.getHandoffs(parseInt(req.query.limit || '10')));
+    });
+
+    this.app.put('/api/handoff/:id', (req, res) => {
+      const { status } = req.body;
+      this.store.updateHandoffStatus(parseInt(req.params.id), status);
+      res.json({ ok: true });
+    });
+
+    this.app.get('/api/handoff/summary', (req, res) => {
+      res.json(this.store.generateSessionSummary());
+    });
+
+    // ================================================================
+    // AGENT STATE PERSISTENCE (Phase 5)
+    // ================================================================
+
+    this.app.get('/api/agents/:id/state', (req, res) => {
+      const state = this.store.loadAgentState(req.params.id);
+      if (!state) return res.status(404).json({ error: 'No saved state' });
+      res.json(state);
+    });
+
+    this.app.post('/api/agents/:id/state', (req, res) => {
+      const { name, role, personality, conversationHistory, memoryCache, messageQueue } = req.body;
+      this.store.saveAgentState(req.params.id, name, role, personality, conversationHistory || [], memoryCache || [], messageQueue || []);
+      res.json({ ok: true });
+    });
+
+    this.app.get('/api/agents/states/saved', (req, res) => {
+      res.json(this.store.getAllSavedStates());
+    });
+
+    // ================================================================
+    // AGENT HEALTH CHECK (Phase 5)
+    // ================================================================
+
+    this.app.get('/api/agents/:id/health', (req, res) => {
+      const agentInfo = this.agentManager.agents.get(req.params.id);
+      const dbInfo = this.store.getAgent(req.params.id);
+      if (!agentInfo && !dbInfo) return res.status(404).json({ error: 'Agent not found' });
+
+      res.json({
+        id: req.params.id,
+        name: dbInfo?.name || agentInfo?.config?.name,
+        role: dbInfo?.role || agentInfo?.config?.role,
+        running: !!agentInfo,
+        dbStatus: dbInfo?.status || 'unknown',
+        lastActive: dbInfo?.last_active,
+        pid: agentInfo?.process?.pid || null,
+        memoryCache: agentInfo?.config ? 'available' : 'offline',
+      });
+    });
+
+    // ================================================================
     // DASHBOARD
     // ================================================================
 
@@ -407,10 +482,70 @@ export class HubServer extends EventEmitter {
 
   async stop() {
     console.log('🛑 Graceful shutdown...');
+
+    // Phase 5: Save all agent states before shutdown
+    clearInterval(this._watchdogInterval);
+    clearInterval(this._autosaveInterval);
+    this._autoSaveAgentStates();
+
+    // Phase 2: Auto-create handoff on shutdown
+    try {
+      const summary = this.store.generateSessionSummary();
+      this.store.createHandoff(summary.title, summary.summary, 'shutdown', summary.context);
+      console.log('📄 Session handoff created');
+    } catch (err) {
+      console.warn('⚠️ Could not create handoff:', err.message);
+    }
+
     this.agentManager.stopAll();
     this.store.close();
     this.wss?.close();
     this.server?.close();
     console.log('👋 Oracle Hub stopped.');
+  }
+
+  // ================================================================
+  // WATCHDOG (Phase 5: Reliability)
+  // ================================================================
+
+  _watchdogTick() {
+    const agents = this.agentManager.getRunningAgents();
+    for (const agent of agents) {
+      try {
+        // Check if process is still alive
+        if (agent.process && agent.process.killed) {
+          console.warn(`🐕 Watchdog: Agent "${agent.name}" process dead, cleaning up`);
+          this.agentManager.agents.delete(agent.id);
+          this.store.updateAgentStatus(agent.id, 'stopped');
+          this._broadcast({ type: 'agent_died', agentId: agent.id, name: agent.name });
+        }
+      } catch {}
+    }
+  }
+
+  _autoSaveAgentStates() {
+    try {
+      const runningAgents = this.agentManager.getRunningAgents();
+      for (const agent of runningAgents) {
+        try {
+          this.store.saveAgentState(
+            agent.id,
+            agent.name,
+            agent.role,
+            '', // personality not available from getRunningAgents
+            [], // conversation history lives in child process
+            [], // memory cache lives in child process
+            []
+          );
+        } catch (err) {
+          console.warn(`⚠️ Auto-save failed for ${agent.name}: ${err.message}`);
+        }
+      }
+      if (runningAgents.length > 0) {
+        console.log(`💾 Auto-saved ${runningAgents.length} agent state(s)`);
+      }
+    } catch (err) {
+      console.warn('⚠️ Auto-save tick error:', err.message);
+    }
   }
 }

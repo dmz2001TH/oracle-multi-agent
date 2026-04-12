@@ -188,6 +188,36 @@ export class MemoryStore {
       );
 
       -- ============================================================
+      -- AGENT STATE (Phase 5: Persistence)
+      -- ============================================================
+
+      CREATE TABLE IF NOT EXISTS agent_states (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        role TEXT,
+        personality TEXT,
+        conversation_history TEXT DEFAULT '[]',
+        memory_cache TEXT DEFAULT '[]',
+        message_queue TEXT DEFAULT '[]',
+        saved_at INTEGER DEFAULT (unixepoch())
+      );
+
+      -- ============================================================
+      -- HANDOFFS (Phase 2: Session Handoff)
+      -- ============================================================
+
+      CREATE TABLE IF NOT EXISTS handoffs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        from_session TEXT,
+        to_session TEXT,
+        context TEXT,          -- JSON: agent list, stats, recent tasks
+        status TEXT DEFAULT 'pending',  -- pending, accepted, completed
+        created_at INTEGER DEFAULT (unixepoch())
+      );
+
+      -- ============================================================
       -- INDEXES
       -- ============================================================
 
@@ -202,6 +232,10 @@ export class MemoryStore {
       CREATE INDEX IF NOT EXISTS idx_traces_parent ON traces(parent_trace_id);
       CREATE INDEX IF NOT EXISTS idx_traces_prev ON traces(prev_trace_id);
       CREATE INDEX IF NOT EXISTS idx_threads_status ON threads(status);
+
+      -- Register system agent for handoffs and system memories
+      INSERT OR IGNORE INTO agents (id, name, role, status, personality)
+      VALUES ('system', 'System', 'system', 'active', 'System agent for handoffs and metadata');
     `);
   }
 
@@ -552,5 +586,90 @@ export class MemoryStore {
 
   close() {
     this.db.close();
+  }
+
+  // ================================================================
+  // HANDOFFS (Phase 2: Session Handoff — inspired by oracle_handoff)
+  // ================================================================
+
+  createHandoff(title, summary, fromSession = null, context = null) {
+    const result = this.db.prepare(
+      'INSERT INTO handoffs (title, summary, from_session, context) VALUES (?, ?, ?, ?)'
+    ).run(title, summary, fromSession, context ? JSON.stringify(context) : null);
+
+    // Also store as memory
+    this.addMemory('system', `Handoff: ${title}\n${summary}`, 'handoff', 3, 'handoff,session', 'handoff');
+
+    return { id: result.lastInsertRowid, title, summary };
+  }
+
+  getHandoffs(limit = 10) {
+    return this.db.prepare('SELECT * FROM handoffs ORDER BY created_at DESC LIMIT ?').all(limit);
+  }
+
+  updateHandoffStatus(handoffId, status) {
+    this.db.prepare('UPDATE handoffs SET status = ? WHERE id = ?').run(status, handoffId);
+  }
+
+  generateSessionSummary() {
+    const stats = this.getStats();
+    const recentMessages = this.getMessages(null, 20);
+    const recentMemories = this.getAllMemories(10);
+    const agents = this.listAgents();
+
+    const messagePreview = recentMessages.slice(0, 5).map(m =>
+      `[${m.from_agent}→${m.to_agent || 'all'}]: ${m.content.slice(0, 80)}`
+    ).join('\n');
+
+    const memoryPreview = recentMemories.slice(0, 5).map(m =>
+      `- ${m.category}: ${m.content.slice(0, 80)}`
+    ).join('\n');
+
+    const agentList = agents.map(a => `${a.name}(${a.role}:${a.status})`).join(', ');
+
+    return {
+      title: `Session ${new Date().toISOString().slice(0, 16)}`,
+      summary: `Agents: ${agentList}\nStats: ${stats.memories} memories, ${stats.messages} messages, ${stats.pendingTasks} pending tasks\n\nRecent messages:\n${messagePreview}\n\nKey memories:\n${memoryPreview}`,
+      context: {
+        agents: agents.map(a => ({ name: a.name, role: a.role, status: a.status })),
+        stats,
+        recentMessages: recentMessages.slice(0, 5).map(m => ({ from: m.from_agent, content: m.content.slice(0, 100) })),
+        recentMemories: recentMemories.slice(0, 5).map(m => ({ category: m.category, content: m.content.slice(0, 100) })),
+      }
+    };
+  }
+
+  // ================================================================
+  // AGENT STATE PERSISTENCE (Phase 5)
+  // ================================================================
+
+  saveAgentState(agentId, name, role, personality, conversationHistory, memoryCache, messageQueue) {
+    this.db.prepare(
+      `INSERT OR REPLACE INTO agent_states (id, name, role, personality, conversation_history, memory_cache, message_queue, saved_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())`
+    ).run(agentId, name, role, personality || '', JSON.stringify(conversationHistory), JSON.stringify(memoryCache), JSON.stringify(messageQueue));
+  }
+
+  loadAgentState(agentId) {
+    const row = this.db.prepare('SELECT * FROM agent_states WHERE id = ?').get(agentId);
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      role: row.role,
+      personality: row.personality,
+      conversationHistory: JSON.parse(row.conversation_history || '[]'),
+      memoryCache: JSON.parse(row.memory_cache || '[]'),
+      messageQueue: JSON.parse(row.message_queue || '[]'),
+      savedAt: row.saved_at,
+    };
+  }
+
+  deleteAgentState(agentId) {
+    this.db.prepare('DELETE FROM agent_states WHERE id = ?').run(agentId);
+  }
+
+  getAllSavedStates() {
+    return this.db.prepare('SELECT * FROM agent_states ORDER BY saved_at DESC').all();
   }
 }

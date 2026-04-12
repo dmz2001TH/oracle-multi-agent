@@ -6,13 +6,16 @@
  * Usage: oracle <command> [options]
  * 
  * Commands:
- *   recap          Show last session summary + recent memories
- *   fyi            Search memories by keyword
- *   rrr            Read recent messages (Read Recent Recap)
- *   standup        Generate standup summary from tasks + activity
- *   chat <agent>   Chat with an agent via CLI
- *   team           Show team status / manage team
- *   status         Show hub health + stats
+ *   status           Show hub health + stats
+ *   recap            Last session summary + recent memories
+ *   fyi <query>      Search memories (FTS5)
+ *   rrr [limit]      Read Recent Recap (messages)
+ *   standup          Daily standup summary
+ *   chat <agent>     Chat with an agent via CLI
+ *   team             Manage team (spawn/status/task/chat/templates)
+ *   handoff          Create session handoff
+ *   forward          Show next session summary preview
+ *   health [agent]   Agent health check
  */
 
 const HUB_URL = process.env.ORACLE_HUB_URL || 'http://localhost:3456';
@@ -28,7 +31,7 @@ async function api(method, path, body = null) {
   };
   if (body) opts.body = JSON.stringify(body);
 
-  const res = await fetch(url);
+  const res = await fetch(url, opts);
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`API ${method} ${path} → ${res.status}: ${text}`);
@@ -74,16 +77,19 @@ async function cmdStatus() {
       api('GET', '/stats'),
     ]);
 
-    console.log(`  Hub:        ${health.status === 'ok' ? '✅ Online' : '❌ Down'}`);
-    console.log(`  Version:    ${health.version || 'unknown'}`);
-    console.log(`  Uptime:     ${health.uptime ? Math.floor(health.uptime / 60) + ' min' : '?'}`);
+    const ok = health.status === 'ok';
+    console.log(`  Hub:          ${ok ? '✅ Online' : '❌ Down'}`);
+    console.log(`  Version:      ${health.version || 'unknown'}`);
+    console.log(`  Uptime:       ${health.uptime ? Math.floor(health.uptime / 60) + ' min' : '?'}`);
+    console.log(`  Provider:     ${health.provider || '?'}`);
+    console.log(`  Memory (RSS): ${Math.round((health.memory?.rss || 0) / 1024 / 1024)} MB`);
     console.log();
-    console.log(`  Agents:     ${stats.agents || 0}`);
-    console.log(`  Memories:   ${stats.memories || 0}`);
-    console.log(`  Messages:   ${stats.messages || 0}`);
-    console.log(`  Tasks:      ${stats.tasks || 0}`);
-    console.log(`  Threads:    ${stats.threads || 0}`);
-    console.log(`  Traces:     ${stats.traces || 0}`);
+    console.log(`  🤖 Agents:     ${stats.agents || 0} (active: ${stats.activeAgents || 0})`);
+    console.log(`  🧠 Memories:   ${stats.memories || 0} (superseded: ${stats.superseded || 0})`);
+    console.log(`  💬 Messages:   ${stats.messages || 0}`);
+    console.log(`  📋 Tasks:      ${stats.pendingTasks || 0} pending / ${stats.completedTasks || 0} done`);
+    console.log(`  🧵 Threads:    ${stats.threads || 0}`);
+    console.log(`  🔍 Traces:     ${stats.traces || 0}`);
   } catch (err) {
     console.error(`  ❌ Cannot reach hub: ${err.message}`);
     console.error(`  → Is the server running? (cd oracle-multi-agent && npm start)`);
@@ -94,23 +100,23 @@ async function cmdStatus() {
 async function cmdRecap() {
   header('Session Recap');
   try {
-    // Get handoff/category=handoff memories + recent memories
     const [handoffs, recent, agents] = await Promise.all([
       api('GET', '/memory/search?q=handoff&limit=5'),
       api('GET', '/memory/all?limit=10'),
       api('GET', '/agents'),
     ]);
 
-    // Show active agents
+    // Active agents
     if (agents.length > 0) {
       console.log('  🤖 Active Agents:');
       for (const a of agents) {
-        console.log(`     • ${a.name} (${a.role}) — ${a.status}`);
+        const ago = timeAgo(a.last_active);
+        console.log(`     • ${a.name} (${a.role}) — ${a.status} [${ago}]`);
       }
       console.log();
     }
 
-    // Show recent memories
+    // Recent memories
     if (recent.length > 0) {
       console.log('  📝 Recent Memories:');
       for (const m of recent.slice(0, 8)) {
@@ -120,7 +126,7 @@ async function cmdRecap() {
       console.log();
     }
 
-    // Show handoffs
+    // Handoffs
     if (handoffs.length > 0) {
       console.log('  🔀 Recent Handoffs:');
       for (const h of handoffs) {
@@ -153,8 +159,9 @@ async function cmdFyi(query) {
 
     console.log(`  Found ${results.length} result(s):\n`);
     for (const r of results) {
+      const stars = '⭐'.repeat(Math.min(r.importance || 1, 5));
       console.log(`  📌 [${r.category || 'general'}] ${r.content}`);
-      console.log(`     agent: ${r.agent_id || '—'} | importance: ${r.importance || '—'} | ${timeAgo(r.created_at)}`);
+      console.log(`     agent: ${r.agent_id?.slice(0, 8) || '—'} | ${stars} | ${timeAgo(r.created_at)}`);
       console.log();
     }
   } catch (err) {
@@ -163,7 +170,7 @@ async function cmdFyi(query) {
 }
 
 async function cmdRrr(limit = 20) {
-  header('Recent Messages');
+  header('Read Recent Recap');
   try {
     const msgs = await api('GET', `/messages?limit=${limit}`);
 
@@ -172,11 +179,13 @@ async function cmdRrr(limit = 20) {
       return;
     }
 
+    console.log(`  📨 Last ${msgs.length} messages:\n`);
     for (const m of msgs) {
       const who = m.from_agent || m.role || 'system';
       const to = m.to_agent ? ` → ${m.to_agent}` : '';
       const ago = timeAgo(m.created_at);
-      console.log(`  [${ago}] ${who}${to}: ${truncate(m.content, 60)}`);
+      const thread = m.thread_id ? ` [T#${m.thread_id}]` : '';
+      console.log(`  [${ago}] ${who}${to}${thread}: ${truncate(m.content, 55)}`);
     }
   } catch (err) {
     console.error(`  ❌ Error: ${err.message}`);
@@ -193,7 +202,7 @@ async function cmdStandup() {
       api('GET', '/analytics/search'),
     ]);
 
-    // Active agents
+    // Team
     console.log('  🤖 Team:');
     if (agents.length === 0) {
       console.log('     No agents running.');
@@ -204,10 +213,10 @@ async function cmdStandup() {
     }
     console.log();
 
-    // Tasks summary
+    // Tasks
     const pending = tasks.filter(t => t.status === 'pending');
     const active = tasks.filter(t => t.status === 'active');
-    const done = tasks.filter(t => t.status === 'done' || t.status === 'completed');
+    const done = tasks.filter(t => t.status === 'completed' || t.status === 'done');
 
     console.log('  📋 Tasks:');
     console.log(`     Pending: ${pending.length} | Active: ${active.length} | Done: ${done.length}`);
@@ -219,17 +228,17 @@ async function cmdStandup() {
       }
     }
     if (done.length > 0) {
-      console.log('     Completed:');
+      console.log('     Recently Completed:');
       for (const t of done.slice(0, 5)) {
         console.log(`       ✓ ${truncate(t.title, 50)} (${timeAgo(t.completed_at)})`);
       }
     }
     console.log();
 
-    // Recent activity
+    // Activity
     console.log(`  💬 Recent Activity: ${messages.length} messages in last batch`);
-    if (analytics.search) {
-      console.log(`  🔍 Searches: ${analytics.search.total || 0} total, avg ${(analytics.search.avg_time_ms || 0).toFixed(1)}ms`);
+    if (analytics?.total_searches) {
+      console.log(`  🔍 Searches: ${analytics.total_searches} total, avg ${(analytics.avg_time_ms || 0).toFixed(1)}ms`);
     }
   } catch (err) {
     console.error(`  ❌ Error: ${err.message}`);
@@ -243,7 +252,6 @@ async function cmdChat(agentName, message) {
   }
 
   try {
-    // Find agent by name
     const agents = await api('GET', '/agents');
     const agent = agents.find(a => a.name.toLowerCase() === agentName.toLowerCase());
 
@@ -331,8 +339,10 @@ async function cmdTeam(action, ...args) {
           for (const [name, desc] of Object.entries(templates.templates)) {
             console.log(`     • ${name}: ${desc}`);
           }
-        } else {
-          console.log(JSON.stringify(templates, null, 2));
+        } else if (Array.isArray(templates)) {
+          for (const t of templates) {
+            console.log(`     • ${t.name}: ${t.members?.join(', ')}`);
+          }
         }
         break;
       }
@@ -350,12 +360,100 @@ async function cmdTeam(action, ...args) {
   }
 }
 
+// Phase 2: Handoff
+async function cmdHandoff() {
+  header('Session Handoff');
+  try {
+    console.log('  📄 Creating session handoff...');
+    const handoff = await api('POST', '/handoff/create', {});
+    console.log(`  ✅ Handoff created!`);
+    console.log(`     Title:   ${handoff.title}`);
+    console.log(`     Summary: ${truncate(handoff.summary, 80)}`);
+    console.log();
+    console.log('  💡 Next session: run "oracle recap" to see this handoff');
+  } catch (err) {
+    console.error(`  ❌ Error: ${err.message}`);
+  }
+}
+
+// Phase 2: Forward — preview next session summary
+async function cmdForward() {
+  header('Forward — Next Session Preview');
+  try {
+    const summary = await api('GET', '/handoff/summary');
+    console.log(`  📋 Title: ${summary.title}`);
+    console.log();
+    console.log('  Context:');
+    if (summary.context?.agents) {
+      console.log('    Agents:', summary.context.agents.map(a => `${a.name}(${a.role})`).join(', '));
+    }
+    if (summary.context?.stats) {
+      const s = summary.context.stats;
+      console.log(`    Stats: ${s.memories} memories, ${s.messages} messages, ${s.pendingTasks} pending tasks`);
+    }
+    console.log();
+    if (summary.context?.recentMessages?.length > 0) {
+      console.log('  Recent Messages:');
+      for (const m of summary.context.recentMessages.slice(0, 5)) {
+        console.log(`    [${m.from}]: ${truncate(m.content, 60)}`);
+      }
+    }
+    console.log();
+    if (summary.context?.recentMemories?.length > 0) {
+      console.log('  Key Memories:');
+      for (const m of summary.context.recentMemories.slice(0, 5)) {
+        console.log(`    [${m.category}]: ${truncate(m.content, 60)}`);
+      }
+    }
+  } catch (err) {
+    console.error(`  ❌ Error: ${err.message}`);
+  }
+}
+
+// Phase 5: Health check
+async function cmdHealth(agentName) {
+  header('Agent Health Check');
+  try {
+    const agents = await api('GET', '/agents');
+
+    if (agentName) {
+      const agent = agents.find(a => a.name.toLowerCase() === agentName.toLowerCase());
+      if (!agent) {
+        console.error(`  ❌ Agent "${agentName}" not found`);
+        return;
+      }
+      const health = await api('GET', `/agents/${agent.id}/health`);
+      console.log(`  ${health.name} (${health.role})`);
+      console.log(`    Running:    ${health.running ? '✅' : '❌'}`);
+      console.log(`    DB Status:  ${health.dbStatus}`);
+      console.log(`    PID:        ${health.pid || 'N/A'}`);
+      console.log(`    Last Active: ${timeAgo(health.lastActive)}`);
+    } else {
+      // Show all
+      for (const a of agents) {
+        try {
+          const h = await api('GET', `/agents/${a.id}/health`);
+          const icon = h.running ? '✅' : '❌';
+          console.log(`  ${icon} ${h.name} (${h.role}) — ${h.dbStatus} [${timeAgo(h.lastActive)}]`);
+        } catch {
+          console.log(`  ❓ ${a.name} (${a.role}) — health check failed`);
+        }
+      }
+      if (agents.length === 0) {
+        console.log('  No agents registered.');
+      }
+    }
+  } catch (err) {
+    console.error(`  ❌ Error: ${err.message}`);
+  }
+}
+
 // ─── Main ───────────────────────────────────────────────────────────
 
 function usage() {
   console.log(`
   ╔══════════════════════════════════════════════════╗
-  ║         Oracle Multi-Agent CLI                  ║
+  ║         Oracle Multi-Agent CLI  v2.0            ║
   ╚══════════════════════════════════════════════════╝
 
   Usage: oracle <command> [options]
@@ -363,11 +461,14 @@ function usage() {
   Commands:
     status              Hub health + stats
     recap               Last session summary + recent memories
-    fyi <query>         Search memories
-    rrr [limit]         Read recent messages (default: 20)
+    fyi <query>         Search memories (FTS5)
+    rrr [limit]         Read Recent Recap (default: 20)
     standup             Daily standup summary
     chat <agent> <msg>  Chat with an agent
     team <action>       Manage team (spawn|status|task|chat|templates)
+    handoff             Create session handoff (Phase 2)
+    forward             Preview next session summary (Phase 2)
+    health [agent]      Agent health check (Phase 5)
 
   Environment:
     ORACLE_HUB_URL      Hub URL (default: http://localhost:3456)
@@ -384,34 +485,16 @@ async function main() {
   }
 
   switch (cmd) {
-    case 'status':
-      await cmdStatus();
-      break;
-
-    case 'recap':
-      await cmdRecap();
-      break;
-
-    case 'fyi':
-      await cmdFyi(args.slice(1).join(' '));
-      break;
-
-    case 'rrr':
-      await cmdRrr(parseInt(args[1]) || 20);
-      break;
-
-    case 'standup':
-      await cmdStandup();
-      break;
-
-    case 'chat':
-      await cmdChat(args[1], args.slice(2).join(' '));
-      break;
-
-    case 'team':
-      await cmdTeam(args[1], ...args.slice(2));
-      break;
-
+    case 'status': await cmdStatus(); break;
+    case 'recap': await cmdRecap(); break;
+    case 'fyi': await cmdFyi(args.slice(1).join(' ')); break;
+    case 'rrr': await cmdRrr(parseInt(args[1]) || 20); break;
+    case 'standup': await cmdStandup(); break;
+    case 'chat': await cmdChat(args[1], args.slice(2).join(' ')); break;
+    case 'team': await cmdTeam(args[1], ...args.slice(2)); break;
+    case 'handoff': await cmdHandoff(); break;
+    case 'forward': await cmdForward(); break;
+    case 'health': await cmdHealth(args[1]); break;
     default:
       console.error(`  Unknown command: ${cmd}`);
       usage();

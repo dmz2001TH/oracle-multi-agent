@@ -32,7 +32,50 @@ const loadInitialMemories = async () => {
   }
 };
 
+// Phase 5: Restore saved state
+if (config.savedState) {
+  if (config.savedState.conversationHistory?.length > 0) {
+    agent.conversationHistory = config.savedState.conversationHistory;
+    console.log(`📂 Restored ${agent.conversationHistory.length} conversation entries`);
+  }
+  if (config.savedState.memoryCache?.length > 0) {
+    agent.memoryCache = config.savedState.memoryCache;
+    console.log(`📂 Restored ${agent.memoryCache.length} cached memories`);
+  }
+  if (config.savedState.messageQueue?.length > 0) {
+    agent.messageQueue = config.savedState.messageQueue;
+    console.log(`📂 Restored ${agent.messageQueue.length} queued messages`);
+  }
+}
+
 await loadInitialMemories();
+
+// Phase 3: Message polling — check for new messages every 15s
+let messagePollInterval = setInterval(async () => {
+  try {
+    const unread = await agent._hubGet(`/api/messages?limit=5`);
+    if (Array.isArray(unread) && unread.length > 0) {
+      const recent = unread.filter(m =>
+        m.to_agent === agent.id && !m.read && m.from_agent !== agent.id
+      );
+      if (recent.length > 0) {
+        console.log(`📬 ${agent.name}: ${recent.length} new message(s)`);
+        for (const msg of recent) {
+          agent._callback('thought', { content: `New message from ${msg.from_agent}: ${msg.content.slice(0, 80)}` });
+        }
+      }
+    }
+  } catch {}
+}, 15000);
+
+// Phase 5: Periodic state save every 30s
+let stateSaveInterval = setInterval(() => {
+  process.send({
+    type: 'state_update',
+    conversationHistory: agent.conversationHistory.slice(-20),
+    memoryCache: agent.memoryCache.slice(-20),
+  });
+}, 30000);
 
 // Handle messages from parent (Hub)
 process.on('message', async (msg) => {
@@ -73,8 +116,37 @@ process.on('message', async (msg) => {
       break;
     }
 
+    case 'task': {
+      // Phase 3: Auto-communication — handle assigned task
+      console.log(`📋 ${agent.name} received task: ${msg.title}`);
+      agent._callback('status', { status: 'working' });
+      try {
+        const result = await agent.processMessage(
+          `TASK ASSIGNED: ${msg.title}\n${msg.description || ''}\n\nComplete this task and report your results.`
+        );
+        // Report task completion
+        process.send({
+          type: 'task_completed',
+          taskId: msg.taskId,
+          result: result,
+        });
+        agent._callback('response', { content: result });
+      } catch (err) {
+        process.send({
+          type: 'task_completed',
+          taskId: msg.taskId,
+          result: `Error: ${err.message}`,
+        });
+      } finally {
+        agent._callback('status', { status: 'active' });
+      }
+      break;
+    }
+
     case 'shutdown': {
       console.log(`🤖 Agent "${config.name}" shutting down...`);
+      clearInterval(messagePollInterval);
+      clearInterval(stateSaveInterval);
       agent._callback('status', { status: 'stopped' });
 
       // Save session summary

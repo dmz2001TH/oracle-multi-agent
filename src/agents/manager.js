@@ -61,6 +61,8 @@ export class AgentManager extends EventEmitter {
     this.config = config;
     this.agents = new Map(); // id -> { process, config }
     this.maxAgents = config.maxAgents || 5;
+    this._restartAttempts = new Map(); // id -> count
+    this.MAX_RESTARTS = 3;
   }
 
   async spawnAgent(name, role = 'general', personality = '') {
@@ -82,6 +84,9 @@ export class AgentManager extends EventEmitter {
     // Register in DB
     this.store.registerAgent(id, name, role, personality);
 
+    // Phase 5: Restore saved state if exists
+    const savedState = this.store.loadAgentState(id);
+
     // Fork agent worker process
     const agentConfig = {
       id,
@@ -92,6 +97,11 @@ export class AgentManager extends EventEmitter {
       model: this.config.agentModel || 'gemini-2.0-flash',
       hubUrl: `http://localhost:${this.config.port}`,
       provider: this.config.provider || 'gemini', // 'gemini' or 'promptdee'
+      savedState: savedState ? {
+        conversationHistory: savedState.conversationHistory,
+        memoryCache: savedState.memoryCache,
+        messageQueue: savedState.messageQueue,
+      } : null,
     };
 
     const workerPath = join(dirname(__dirname), 'agents', 'worker.js');
@@ -103,11 +113,29 @@ export class AgentManager extends EventEmitter {
       silent: false,
     });
 
+    // Phase 5: Auto-restart on crash (up to MAX_RESTARTS)
     child.on('exit', (code) => {
       console.log(`🤖 Agent "${name}" exited (code: ${code})`);
       this.agents.delete(id);
       this.store.updateAgentStatus(id, 'stopped');
       this.emit('agentStopped', { id, name });
+
+      // Auto-restart if not a clean shutdown
+      if (code !== 0) {
+        const attempts = this._restartAttempts.get(id) || 0;
+        if (attempts < this.MAX_RESTARTS) {
+          this._restartAttempts.set(id, attempts + 1);
+          console.log(`🔄 Auto-restarting "${name}" (attempt ${attempts + 1}/${this.MAX_RESTARTS})...`);
+          setTimeout(() => {
+            this.spawnAgent(name, role, personality).catch(err => {
+              console.error(`❌ Auto-restart failed for "${name}": ${err.message}`);
+            });
+          }, 2000 * (attempts + 1)); // Exponential backoff
+        } else {
+          console.warn(`⚠️ Agent "${name}" exceeded max restarts (${this.MAX_RESTARTS})`);
+          this._restartAttempts.delete(id);
+        }
+      }
     });
 
     child.on('error', (err) => {
@@ -116,12 +144,29 @@ export class AgentManager extends EventEmitter {
       this.store.updateAgentStatus(id, 'error');
     });
 
+    // Phase 3: Listen for task completion callbacks from agents
+    child.on('message', (msg) => {
+      if (msg && msg.type === 'task_completed') {
+        this._handleTaskCompleted(id, name, msg);
+      }
+      if (msg && msg.type === 'state_update') {
+        // Save agent state when it reports updates
+        try {
+          this.store.saveAgentState(id, name, role, personality,
+            msg.conversationHistory || [], msg.memoryCache || [], []);
+        } catch {}
+      }
+    });
+
     this.agents.set(id, { process: child, config: agentConfig });
     this.store.updateAgentStatus(id, 'active');
     this.emit('agentSpawned', { id, name, role });
 
     // Store birth memory
     this.store.addMemory(id, `I am ${name}, a ${role} agent. ${personality}`, 'identity', 5, 'identity,birth');
+
+    // Clear restart attempts on successful spawn
+    this._restartAttempts.delete(id);
 
     console.log(`🤖 Agent "${name}" spawned (${role}, id: ${id.slice(0, 8)})`);
 
@@ -199,10 +244,42 @@ export class AgentManager extends EventEmitter {
   }
 
   getRunningAgents() {
-    return Array.from(this.agents.entries()).map(([id, { config }]) => ({
+    return Array.from(this.agents.entries()).map(([id, { config, process }]) => ({
       id,
       name: config.name,
       role: config.role,
+      process,
     }));
+  }
+
+  // Phase 3: Auto-communication — handle task completion
+  _handleTaskCompleted(agentId, agentName, msg) {
+    const { taskId, result } = msg;
+    if (taskId) {
+      this.store.updateTaskStatus(taskId, 'completed', result);
+      console.log(`✅ Task ${taskId} completed by ${agentName}`);
+    }
+
+    // If there's a manager, notify them
+    const manager = this.store.listAgents().find(a => a.role === 'manager' && a.status === 'active');
+    if (manager && manager.id !== agentId) {
+      this.agentTellAgent(agentId, manager.id, `Task completed: ${result || 'done'}`).catch(() => {});
+    }
+
+    // Check for next pending task
+    const nextTask = this.store.getNextTask(agentId);
+    if (nextTask) {
+      console.log(`📋 Assigning next task "${nextTask.title}" to ${agentName}`);
+      const agent = this.agents.get(agentId);
+      if (agent) {
+        agent.process.send({
+          type: 'task',
+          taskId: nextTask.id,
+          title: nextTask.title,
+          description: nextTask.description,
+        });
+        this.store.updateTaskStatus(nextTask.id, 'active');
+      }
+    }
   }
 }

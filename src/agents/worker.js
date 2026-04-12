@@ -13,11 +13,14 @@ agent._callback('status', { status: 'active' });
 // Load initial memories
 const loadInitialMemories = async () => {
   try {
-    const memories = await agent._hubGet(`/api/memory/search?q=agent:${config.name}&limit=20`);
+    // Use getRecentMemories directly instead of FTS search at startup
+    const memories = await agent._hubGet(`/api/memory/all?limit=20`);
     if (Array.isArray(memories)) {
       agent.memoryCache = memories.map(m => ({ content: m.content, category: m.category }));
     }
-  } catch {}
+  } catch (err) {
+    console.warn(`⚠️ Could not load memories: ${err.message}`);
+  }
 };
 
 await loadInitialMemories();
@@ -66,14 +69,16 @@ process.on('message', async (msg) => {
       agent._callback('status', { status: 'stopped' });
 
       // Save session summary
-      agent._callback('memory', {
-        content: `Session ended. ${agent.conversationHistory.length} messages exchanged.`,
-        category: 'session',
-        importance: 1,
-        tags: 'session,end',
-      });
+      try {
+        agent._callback('memory', {
+          content: `Session ended. ${agent.conversationHistory.length} messages exchanged.`,
+          category: 'session',
+          importance: 1,
+          tags: 'session,end',
+        });
+      } catch {}
 
-      setTimeout(() => process.exit(0), 1000);
+      setTimeout(() => process.exit(0), 500);
       break;
     }
 

@@ -304,24 +304,38 @@ export class GeminiAgent extends EventEmitter {
 
   async _hubPost(path, body) {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
       const res = await fetch(`${this.hubUrl}${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       return await res.json();
     } catch (err) {
-      console.error(`Hub POST error: ${err.message}`);
+      // Silently ignore during shutdown
+      if (err.name !== 'AbortError') {
+        console.error(`Hub POST error: ${err.message}`);
+      }
       return { error: err.message };
     }
   }
 
   async _hubGet(path) {
     try {
-      const res = await fetch(`${this.hubUrl}${path}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`${this.hubUrl}${path}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
       return await res.json();
     } catch (err) {
-      console.error(`Hub GET error: ${err.message}`);
+      if (err.name !== 'AbortError') {
+        console.error(`Hub GET error: ${err.message}`);
+      }
       return [];
     }
   }

@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
 import { WebSocketServer, WebSocket } from 'ws';
 import express from 'express';
-import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { MemoryStore } from '../memory/store.js';
@@ -36,32 +35,64 @@ export class HubServer extends EventEmitter {
 
   _setupMiddleware() {
     this.app.use(express.json());
-    this.app.use(express.static(join(__dirname, '../dashboard/public')));
 
-    // CORS for development
+    // Security headers (from Oracle)
     this.app.use((req, res, next) => {
-      res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Headers', 'Content-Type');
+      res.header('X-Content-Type-Options', 'nosniff');
+      res.header('X-Frame-Options', 'DENY');
+      res.header('X-XSS-Protection', '1; mode=block');
+      res.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+      next();
+    });
+
+    // CORS (from Oracle — restrict in production)
+    this.app.use((req, res, next) => {
+      const origin = req.headers.origin;
+      if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        res.header('Access-Control-Allow-Origin', origin || '*');
+      }
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
       next();
     });
+
+    this.app.use(express.static(join(__dirname, '../dashboard/public')));
   }
 
   _setupRoutes() {
-    // === Health ===
+    // ================================================================
+    // HEALTH & META
+    // ================================================================
+
     this.app.get('/api/health', (req, res) => {
-      res.json({ status: 'ok', version: '1.0.0', uptime: process.uptime() });
+      res.json({
+        status: 'ok',
+        version: '2.0.0',
+        provider: this.config.provider,
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+      });
     });
 
-    // === Stats ===
     this.app.get('/api/stats', (req, res) => {
       res.json(this.store.getStats());
     });
 
-    // === Agents ===
+    this.app.get('/api/analytics/search', (req, res) => {
+      res.json(this.store.getSearchStats());
+    });
+
+    this.app.get('/api/analytics/timeline', (req, res) => {
+      const hours = parseInt(req.query.hours || '24');
+      res.json(this.store.getActivityTimeline(hours));
+    });
+
+    // ================================================================
+    // AGENTS
+    // ================================================================
+
     this.app.get('/api/agents', (req, res) => {
-      const agents = this.store.listAgents();
-      res.json(agents);
+      res.json(this.store.listAgents());
     });
 
     this.app.post('/api/agents', async (req, res) => {
@@ -84,7 +115,6 @@ export class HubServer extends EventEmitter {
       }
     });
 
-    // === Chat with agent ===
     this.app.post('/api/agents/:id/chat', async (req, res) => {
       const { message } = req.body;
       if (!message) return res.status(400).json({ error: 'message is required' });
@@ -96,77 +126,150 @@ export class HubServer extends EventEmitter {
       }
     });
 
-    // === Messages ===
-    this.app.get('/api/messages/:channel', (req, res) => {
-      const messages = this.store.getMessages(req.params.channel, parseInt(req.query.limit || '50'));
-      res.json(messages.reverse());
-    });
-
-    this.app.post('/api/messages', (req, res) => {
-      const { from, to, channel, content, type } = req.body;
-      this.store.sendMessage(from, content, to, channel || 'general', type || 'message');
-      this._broadcast({ type: 'message', from, to, channel: channel || 'general', content });
-      res.json({ ok: true });
-    });
-
-    // === Agent-to-agent communication ===
+    // Agent-to-agent communication
     this.app.post('/api/agents/:fromId/tell/:toId', async (req, res) => {
       const { message } = req.body;
       try {
-        const result = await this.agentManager.agentTellAgent(
-          req.params.fromId, req.params.toId, message
-        );
+        const result = await this.agentManager.agentTellAgent(req.params.fromId, req.params.toId, message);
         res.json(result);
       } catch (err) {
         res.status(500).json({ error: err.message });
       }
     });
 
-    // === Tasks ===
+    // ================================================================
+    // THREADS (Oracle forum pattern)
+    // ================================================================
+
+    this.app.get('/api/threads', (req, res) => {
+      const { status, limit } = req.query;
+      res.json(this.store.listThreads(status, parseInt(limit || '20')));
+    });
+
+    this.app.post('/api/threads', (req, res) => {
+      const { title, createdBy, assignedTo } = req.body;
+      if (!title) return res.status(400).json({ error: 'title is required' });
+      const thread = this.store.createThread(title, createdBy, assignedTo);
+      this._broadcast({ type: 'thread_created', thread });
+      res.json(thread);
+    });
+
+    this.app.get('/api/threads/:id', (req, res) => {
+      const thread = this.store.getThread(parseInt(req.params.id));
+      if (!thread) return res.status(404).json({ error: 'thread not found' });
+      const messages = this.store.getMessages(thread.id);
+      res.json({ ...thread, messages });
+    });
+
+    this.app.put('/api/threads/:id', (req, res) => {
+      const { status } = req.body;
+      this.store.updateThreadStatus(parseInt(req.params.id), status);
+      res.json({ ok: true });
+    });
+
+    // ================================================================
+    // MESSAGES (threaded + flat)
+    // ================================================================
+
+    this.app.get('/api/messages', (req, res) => {
+      const { threadId, limit } = req.query;
+      res.json(this.store.getMessages(threadId ? parseInt(threadId) : null, parseInt(limit || '50')));
+    });
+
+    this.app.post('/api/messages', (req, res) => {
+      const { from, to, threadId, content, role, metadata } = req.body;
+      const msgId = this.store.sendMessage(from, content, to, threadId, role || 'human', metadata);
+      this._broadcast({ type: 'message', from, to, threadId, content, role });
+      res.json({ id: msgId });
+    });
+
+    this.app.get('/api/messages/search', (req, res) => {
+      const { q, limit } = req.query;
+      res.json(this.store.searchMessages(q, parseInt(limit || '20')));
+    });
+
+    // ================================================================
+    // TASKS
+    // ================================================================
+
     this.app.get('/api/tasks', (req, res) => {
-      const status = req.query.status;
-      if (status === 'pending') {
-        res.json(this.store.getPendingTasks());
-      } else {
-        res.json(this.store.getPendingTasks());
-      }
+      const { status } = req.query;
+      res.json(this.store.getPendingTasks());
     });
 
     this.app.post('/api/tasks', (req, res) => {
-      const { title, description, assignedTo, priority } = req.body;
-      const result = this.store.createTask(title, description, assignedTo, priority);
+      const { title, description, assignedTo, priority, threadId } = req.body;
+      const result = this.store.createTask(title, description, assignedTo, priority, threadId);
       this._broadcast({ type: 'task_created', task: { title, assignedTo } });
-      res.json({ id: result.lastInsertRowid });
+      res.json(result);
     });
 
-    // === Memory ===
+    this.app.put('/api/tasks/:id', (req, res) => {
+      const { status, result } = req.body;
+      this.store.updateTaskStatus(parseInt(req.params.id), status, result);
+      res.json({ ok: true });
+    });
+
+    // ================================================================
+    // MEMORY (with supersede)
+    // ================================================================
+
     this.app.get('/api/memory/search', (req, res) => {
       const { q, agent, limit } = req.query;
-      const results = this.store.searchMemories(q, agent, parseInt(limit || '10'));
-      res.json(results);
+      res.json(this.store.searchMemories(q, agent, parseInt(limit || '10')));
     });
 
     this.app.get('/api/memory/all', (req, res) => {
       res.json(this.store.getAllMemories(parseInt(req.query.limit || '100')));
     });
 
-    // === Agent callback (agents report back here) ===
-    this.app.post('/api/agent-callback/:agentId', (req, res) => {
-      const { type, data } = req.body;
-      this._handleAgentCallback(req.params.agentId, type, data);
+    this.app.post('/api/memory/:id/supersede', (req, res) => {
+      const { newId, reason, agentId } = req.body;
+      this.store.supersedeMemory(parseInt(req.params.id), newId, reason, agentId);
       res.json({ ok: true });
     });
 
-    // === Federation status ===
-    this.app.get('/api/federation/status', (req, res) => {
-      res.json({
-        node: this.config.nodeName || 'local',
-        agents: this.store.listAgents().length,
-        peers: [],
-      });
+    // ================================================================
+    // TRACES (Oracle trace system)
+    // ================================================================
+
+    this.app.get('/api/traces', (req, res) => {
+      const { agentId, limit } = req.query;
+      res.json(this.store.listTraces(agentId, parseInt(limit || '20')));
     });
 
-    // === Team API ===
+    this.app.post('/api/traces', (req, res) => {
+      const { query, queryType, agentId, parentTraceId } = req.body;
+      const traceId = this.store.createTrace(query, queryType, agentId, parentTraceId);
+      this._broadcast({ type: 'trace_created', traceId, query });
+      res.json({ traceId });
+    });
+
+    this.app.get('/api/traces/:traceId', (req, res) => {
+      const trace = this.store.getTrace(req.params.traceId);
+      if (!trace) return res.status(404).json({ error: 'trace not found' });
+      res.json(trace);
+    });
+
+    this.app.put('/api/traces/:traceId', (req, res) => {
+      this.store.updateTrace(req.params.traceId, req.body);
+      res.json({ ok: true });
+    });
+
+    this.app.post('/api/traces/link', (req, res) => {
+      const { prevTraceId, nextTraceId } = req.body;
+      this.store.linkTraces(prevTraceId, nextTraceId);
+      res.json({ ok: true });
+    });
+
+    this.app.get('/api/traces/:traceId/chain', (req, res) => {
+      res.json(this.store.getTraceChain(req.params.traceId));
+    });
+
+    // ================================================================
+    // TEAM
+    // ================================================================
+
     this.app.post('/api/team/spawn', async (req, res) => {
       try {
         const template = req.body.template || 'default';
@@ -180,8 +283,7 @@ export class HubServer extends EventEmitter {
 
     this.app.get('/api/team/status', async (req, res) => {
       try {
-        const status = await this.teamOrchestrator.getTeamStatus();
-        res.json(status);
+        res.json(await this.teamOrchestrator.getTeamStatus());
       } catch (err) {
         res.status(500).json({ error: err.message });
       }
@@ -192,7 +294,6 @@ export class HubServer extends EventEmitter {
         const { task } = req.body;
         if (!task) return res.status(400).json({ error: 'task is required' });
         const result = await this.teamOrchestrator.broadcastTask(task);
-        this._broadcast({ type: 'team_task', task, result });
         res.json(result);
       } catch (err) {
         res.status(500).json({ error: err.message });
@@ -202,9 +303,7 @@ export class HubServer extends EventEmitter {
     this.app.post('/api/team/chat', async (req, res) => {
       try {
         const { message } = req.body;
-        if (!message) return res.status(400).json({ error: 'message is required' });
         const result = await this.teamOrchestrator.teamChat(message);
-        this._broadcast({ type: 'team_chat', message });
         res.json(result);
       } catch (err) {
         res.status(500).json({ error: err.message });
@@ -215,7 +314,32 @@ export class HubServer extends EventEmitter {
       res.json(this.teamOrchestrator.getTemplates());
     });
 
-    // === Dashboard ===
+    // ================================================================
+    // AGENT CALLBACK
+    // ================================================================
+
+    this.app.post('/api/agent-callback/:agentId', (req, res) => {
+      const { type, data } = req.body;
+      this._handleAgentCallback(req.params.agentId, type, data);
+      res.json({ ok: true });
+    });
+
+    // ================================================================
+    // FEDERATION
+    // ================================================================
+
+    this.app.get('/api/federation/status', (req, res) => {
+      res.json({
+        node: this.config.nodeName || 'local',
+        agents: this.store.listAgents().length,
+        peers: [],
+      });
+    });
+
+    // ================================================================
+    // DASHBOARD
+    // ================================================================
+
     this.app.get('/dashboard', (req, res) => {
       res.sendFile(join(__dirname, '../dashboard/public/index.html'));
     });
@@ -230,15 +354,21 @@ export class HubServer extends EventEmitter {
         this._broadcast({ type: 'agent_response', agentId, content: data.content });
         break;
       case 'memory':
-        this.store.addMemory(agentId, data.content, data.category, data.importance, data.tags);
+        this.store.addMemory(agentId, data.content, data.category, data.importance, data.tags, 'agent');
         break;
       case 'message':
-        this.store.sendMessage(agentId, data.content, data.to, data.channel || 'general');
+        this.store.sendMessage(agentId, data.content, data.to, null, 'agent');
         this._broadcast({ type: 'agent_message', from: agentId, ...data });
         break;
       case 'status':
         this.store.updateAgentStatus(agentId, data.status);
         this._broadcast({ type: 'agent_status', agentId, status: data.status });
+        break;
+      case 'trace':
+        const traceId = this.store.createTrace(data.query, data.queryType, agentId);
+        if (data.insight) {
+          this.store.updateTrace(traceId, { insight: data.insight, status: 'distilled' });
+        }
         break;
     }
   }
@@ -255,15 +385,14 @@ export class HubServer extends EventEmitter {
   async start() {
     return new Promise((resolve) => {
       this.server = this.app.listen(this.config.port, this.config.host, () => {
-        console.log(`🧠 Oracle Hub running on http://${this.config.host}:${this.config.port}`);
+        console.log(`🧠 Oracle Hub v2.0 running on http://${this.config.host}:${this.config.port}`);
         console.log(`📊 Dashboard: http://localhost:${this.config.port}/dashboard`);
+        console.log(`🔌 Provider: ${this.config.provider}`);
 
-        // WebSocket server
         this.wss = new WebSocketServer({ server: this.server });
         this.wss.on('connection', (ws) => {
           this.clients.add(ws);
           ws.on('close', () => this.clients.delete(ws));
-          // Send current state
           ws.send(JSON.stringify({
             type: 'init',
             stats: this.store.getStats(),
@@ -277,9 +406,11 @@ export class HubServer extends EventEmitter {
   }
 
   async stop() {
+    console.log('🛑 Graceful shutdown...');
     this.agentManager.stopAll();
     this.store.close();
     this.wss?.close();
     this.server?.close();
+    console.log('👋 Oracle Hub stopped.');
   }
 }

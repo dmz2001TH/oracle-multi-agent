@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import 'dotenv/config';
 import { HubServer } from './server.js';
+import { TeamOrchestrator } from './team.js';
 
 const hub = new HubServer();
 

@@ -7,19 +7,13 @@ import { EventEmitter } from 'events';
 
 const PROMPTDEE_API = 'https://www.promptdee.net/api/ai-chat';
 
-// Simplified tool descriptions for the LLM
-const TOOL_INSTRUCTIONS = `
-You have access to these tools. Call them by responding with JSON:
-{"tool": "remember", "args": {"content": "...", "category": "general", "importance": 1, "tags": "..."}}
-{"tool": "search_memory", "args": {"query": "...", "limit": 5}}
-{"tool": "tell", "args": {"agent_name": "...", "message": "..."}}
-{"tool": "list_agents", "args": {}}
-{"tool": "get_messages", "args": {"channel": "general", "limit": 10}}
-{"tool": "create_task", "args": {"title": "...", "description": "...", "assigned_to": "...", "priority": 1}}
-
-IMPORTANT: When you want to use a tool, respond ONLY with the JSON tool call (no extra text).
-When responding to the user normally, respond with plain text (no JSON).
-`;
+// Simplified tool instructions (short prompt for free tier)
+const TOOL_INSTRUCTIONS = `Tools (reply ONLY JSON to use, plain text to talk):
+{"tool":"remember","args":{"content":"..."}}
+{"tool":"search_memory","args":{"query":"..."}}
+{"tool":"tell","args":{"agent_name":"Name","message":"..."}}
+{"tool":"list_agents","args":{}}
+{"tool":"get_messages","args":{"channel":"general"}}`;
 
 export class PromptDeeAgent extends EventEmitter {
   constructor(config) {
@@ -35,31 +29,26 @@ export class PromptDeeAgent extends EventEmitter {
   }
 
   async _callLLM(userMessage) {
-    // Build context: system prompt + recent history + current message
-    let context = `${this.systemPrompt}\n\n${TOOL_INSTRUCTIONS}`;
+    // Build compact context
+    let context = `${this.systemPrompt}\n${TOOL_INSTRUCTIONS}`;
 
-    // Add recent conversation history (last 5 exchanges)
-    const recentHistory = this.conversationHistory.slice(-10);
-    if (recentHistory.length > 0) {
-      context += '\n\nRecent conversation:\n';
-      for (const msg of recentHistory) {
-        if (msg.role === 'user') {
-          context += `User: ${msg.content}\n`;
-        } else {
-          context += `${this.name}: ${msg.content}\n`;
-        }
+    // Add last 2 exchanges only (keep prompt short for free tier)
+    const recent = this.conversationHistory.slice(-4);
+    if (recent.length > 0) {
+      context += '\nHistory:\n';
+      for (const msg of recent) {
+        context += `${msg.role === 'user' ? 'User' : this.name}: ${msg.content.slice(0, 100)}\n`;
       }
     }
 
-    // Add memories
+    // Add last 3 memories only
     if (this.memoryCache.length > 0) {
-      context += '\n\nYour memories:\n';
-      for (const mem of this.memoryCache.slice(-10)) {
-        context += `- ${mem.content}\n`;
-      }
+      context += 'Memories: ';
+      context += this.memoryCache.slice(-3).map(m => m.content.slice(0, 50)).join(' | ');
+      context += '\n';
     }
 
-    const fullMessage = `${context}\n\nUser: ${userMessage}`;
+    const fullMessage = `${context}\nUser: ${userMessage}`;
 
     const res = await fetch(PROMPTDEE_API, {
       method: 'POST',

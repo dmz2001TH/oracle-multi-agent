@@ -6,6 +6,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { MemoryStore } from '../memory/store.js';
 import { AgentManager } from '../agents/manager.js';
+import { TeamOrchestrator } from './team.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -27,6 +28,7 @@ export class HubServer extends EventEmitter {
     this.app = express();
     this.store = new MemoryStore(this.config.dbPath);
     this.agentManager = new AgentManager(this.store, this.config);
+    this.teamOrchestrator = new TeamOrchestrator(this.agentManager, this.store);
     this.clients = new Set();
     this._setupMiddleware();
     this._setupRoutes();
@@ -162,6 +164,55 @@ export class HubServer extends EventEmitter {
         agents: this.store.listAgents().length,
         peers: [],
       });
+    });
+
+    // === Team API ===
+    this.app.post('/api/team/spawn', async (req, res) => {
+      try {
+        const template = req.body.template || 'default';
+        const result = await this.teamOrchestrator.spawnTeam(template);
+        this._broadcast({ type: 'team_spawned', team: result });
+        res.json(result);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    this.app.get('/api/team/status', async (req, res) => {
+      try {
+        const status = await this.teamOrchestrator.getTeamStatus();
+        res.json(status);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    this.app.post('/api/team/task', async (req, res) => {
+      try {
+        const { task } = req.body;
+        if (!task) return res.status(400).json({ error: 'task is required' });
+        const result = await this.teamOrchestrator.broadcastTask(task);
+        this._broadcast({ type: 'team_task', task, result });
+        res.json(result);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    this.app.post('/api/team/chat', async (req, res) => {
+      try {
+        const { message } = req.body;
+        if (!message) return res.status(400).json({ error: 'message is required' });
+        const result = await this.teamOrchestrator.teamChat(message);
+        this._broadcast({ type: 'team_chat', message });
+        res.json(result);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    this.app.get('/api/team/templates', (req, res) => {
+      res.json(this.teamOrchestrator.getTemplates());
     });
 
     // === Dashboard ===

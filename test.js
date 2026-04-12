@@ -44,18 +44,18 @@ console.log(`✅ Total memories: ${allMems.length}`);
 
 // Test 3: Messages
 console.log('\n--- Messages ---');
-store.sendMessage('agent-1', 'Hey Trinity, found something interesting about the API', 'agent-2', 'direct');
-store.sendMessage('agent-2', 'What did you find?', 'agent-1', 'direct');
-store.sendMessage('agent-1', 'Response time varies by 50ms depending on time of day', 'agent-2', 'direct');
-store.sendMessage('human', 'Good work team, keep investigating', null, 'general');
+store.sendMessage('agent-1', 'Hey Trinity, found something interesting about the API', 'agent-2', null, 'agent');
+store.sendMessage('agent-2', 'What did you find?', 'agent-1', null, 'agent');
+store.sendMessage('agent-1', 'Response time varies by 50ms depending on time of day', 'agent-2', null, 'agent');
+store.sendMessage('human', 'Good work team, keep investigating', null, null, 'human');
 console.log('✅ Sent 4 messages (3 direct + 1 channel)');
 
 const dm = store.getDirectMessages('agent-1', 'agent-2');
 console.log(`✅ Direct messages between Neo ↔ Trinity: ${dm.length}`);
 dm.forEach(m => console.log(`   [${m.from_agent}→${m.to_agent}]: ${m.content.slice(0, 60)}`));
 
-const channel = store.getMessages('general');
-console.log(`✅ General channel messages: ${channel.length}`);
+const channel = store.getMessages(null);
+console.log(`✅ General messages: ${channel.length}`);
 
 // Test 4: Tasks
 console.log('\n--- Tasks ---');

@@ -45,7 +45,7 @@ for (const m of memories) {
 }
 
 console.log('\n5. Checking messages...');
-const msgs = hub.store.getMessages('general', 10);
+const msgs = hub.store.getMessages(null, 10);
 for (const m of msgs) {
   console.log(`   💬 [${m.from_agent}→${m.to_agent || 'all'}]: ${m.content.slice(0, 80)}`);
 }

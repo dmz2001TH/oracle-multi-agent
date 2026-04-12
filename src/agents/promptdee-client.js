@@ -121,8 +121,7 @@ export class PromptDeeAgent extends EventEmitter {
       }
 
       case 'get_messages': {
-        const channel = args.channel || 'general';
-        const messages = await this._hubGet(`/api/messages/${channel}?limit=${args.limit || 10}`);
+        const messages = await this._hubGet(`/api/messages?limit=${args.limit || 10}`);
         if (Array.isArray(messages) && messages.length > 0) {
           return messages.map(m => `[${m.from_agent}]: ${m.content}`).join('\n');
         }

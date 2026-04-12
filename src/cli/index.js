@@ -50,7 +50,8 @@ function truncate(str, max = 60) {
 
 function timeAgo(dateStr) {
   if (!dateStr) return '?';
-  const diff = Date.now() - new Date(dateStr).getTime();
+  const ts = typeof dateStr === 'number' ? dateStr * 1000 : dateStr;
+  const diff = Date.now() - new Date(ts).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;

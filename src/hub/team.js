@@ -88,7 +88,7 @@ export class TeamOrchestrator {
     // Announce team formation in general channel
     this.store.sendMessage('system',
       `🏢 Team "${teamId}" formed! Members: ${members.map(m => `${m.name} (${m.role})`).join(', ')}`,
-      null, 'general', 'system'
+      null, null, 'system'
     );
 
     return { teamId, members };
@@ -125,14 +125,14 @@ export class TeamOrchestrator {
         createdAt: team.createdAt,
       })),
       stats,
-      recentMessages: this.store.getMessages('general', 5),
+      recentMessages: this.store.getMessages(null, 5),
       pendingTasks: this.store.getPendingTasks(),
     };
   }
 
   async teamChat(message) {
     // Send message to team general channel — all agents can see it
-    this.store.sendMessage('human', message, null, 'general');
+    this.store.sendMessage('human', message, null, null, 'human');
 
     // If there's a manager, send directly
     const manager = this.store.listAgents().find(a => a.role === 'manager' && a.status === 'active');

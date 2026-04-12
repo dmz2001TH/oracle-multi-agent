@@ -187,9 +187,8 @@ export class GeminiAgent extends EventEmitter {
       }
 
       case 'get_messages': {
-        const channel = args.channel || 'general';
-        const messages = await this._hubGet(`/api/messages/${channel}?limit=${args.limit || 10}`);
-        return { messages, channel };
+        const messages = await this._hubGet(`/api/messages?limit=${args.limit || 10}`);
+        return { messages };
       }
 
       case 'create_task': {

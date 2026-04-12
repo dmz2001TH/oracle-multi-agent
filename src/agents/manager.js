@@ -206,7 +206,7 @@ export class AgentManager extends EventEmitter {
     if (!fromAgent) throw new Error(`Agent ${fromId} is not running`);
 
     // Store the message
-    this.store.sendMessage(fromId, message, toId, 'direct');
+    this.store.sendMessage(fromId, message, toId, null, 'agent');
 
     // If target agent is running, deliver directly
     const toAgent = this.agents.get(toId);

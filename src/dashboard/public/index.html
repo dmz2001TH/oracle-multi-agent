@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oracle Multi-Agent Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --border: #1e1e2e;
+      --text: #e0e0e0;
+      --text-dim: #888;
+      --accent: #7c3aed;
+      --accent-glow: rgba(124, 58, 237, 0.3);
+      --green: #22c55e;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --blue: #3b82f6;
+    }
+    body {
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 {
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header .status {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+    .status .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      padding: 16px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .stat-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      text-align: center;
+    }
+    .stat-card .value {
+      font-size: 28px;
+      font-weight: bold;
+      color: var(--accent);
+    }
+    .stat-card .label {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      padding: 16px 24px;
+      height: calc(100vh - 160px);
+    }
+    @media (max-width: 900px) {
+      .main { grid-template-columns: 1fr; }
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .panel-body::-webkit-scrollbar { width: 6px; }
+    .panel-body::-webkit-scrollbar-track { background: transparent; }
+    .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Agents list */
+    .agent-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: border-color 0.2s;
+    }
+    .agent-card:hover { border-color: var(--accent); }
+    .agent-card .avatar {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .agent-card .info { flex: 1; }
+    .agent-card .name { font-weight: bold; font-size: 14px; }
+    .agent-card .role { font-size: 11px; color: var(--text-dim); }
+    .agent-card .status-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+    .status-active { background: rgba(34,197,94,0.2); color: var(--green); }
+    .status-thinking { background: rgba(234,179,8,0.2); color: var(--yellow); }
+    .status-idle { background: rgba(136,136,136,0.2); color: var(--text-dim); }
+    .status-stopped { background: rgba(239,68,68,0.2); color: var(--red); }
+
+    /* Feed */
+    .feed-item {
+      padding: 8px 12px;
+      border-left: 3px solid var(--border);
+      margin-bottom: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .feed-item.thought { border-color: var(--yellow); }
+    .feed-item.response { border-color: var(--green); }
+    .feed-item.message { border-color: var(--blue); }
+    .feed-item .meta {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+    .feed-item .meta .agent-name { color: var(--accent); font-weight: bold; }
+
+    /* Chat */
+    .chat-input-area {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+    }
+    .chat-input-area select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 13px;
+    }
+    .chat-input-area input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+    }
+    .chat-input-area input:focus { border-color: var(--accent); }
+    .chat-input-area button {
+      background: var(--accent);
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: bold;
+      font-size: 13px;
+    }
+    .chat-input-area button:hover { opacity: 0.9; }
+
+    /* Buttons */
+    .btn {
+      background: var(--accent);
+      border: none;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
+    .btn-danger { background: var(--red); }
+
+    .empty-state {
+      text-align: center;
+      color: var(--text-dim);
+      padding: 40px 20px;
+      font-size: 13px;
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🧠 Oracle Multi-Agent Dashboard</h1>
+    <div class="status">
+      <span><span class="dot"></span> Connected</span>
+      <span id="uptime">Uptime: --</span>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-card"><div class="value" id="stat-agents">0</div><div class="label">Agents</div></div>
+    <div class="stat-card"><div class="value" id="stat-active">0</div><div class="label">Active</div></div>
+    <div class="stat-card"><div class="value" id="stat-memories">0</div><div class="label">Memories</div></div>
+    <div class="stat-card"><div class="value" id="stat-messages">0</div><div class="label">Messages</div></div>
+    <div class="stat-card"><div class="value" id="stat-tasks">0</div><div class="label">Tasks</div></div>
+    <div class="stat-card"><div class="value" id="stat-done">0</div><div class="label">Done</div></div>
+  </div>
+
+  <div class="main">
+    <!-- Left: Agents + Chat -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>🤖 Agents</span>
+        <button class="btn btn-sm" onclick="showSpawnModal()">+ Spawn</button>
+      </div>
+      <div class="panel-body" id="agents-list">
+        <div class="empty-state">
+          <div class="icon">🤖</div>
+          No agents yet. Click "+ Spawn" to create one.
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <select id="chat-agent">
+          <option value="">Select agent...</option>
+        </select>
+        <input type="text" id="chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button onclick="sendChat()">Send</button>
+      </div>
+    </div>
+
+    <!-- Right: Activity Feed -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>📡 Activity Feed</span>
+        <button class="btn btn-sm" onclick="clearFeed()">Clear</button>
+      </div>
+      <div class="panel-body" id="feed">
+        <div class="empty-state">
+          <div class="icon">📡</div>
+          Activity will appear here.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Spawn Modal -->
+  <div id="spawn-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:100; display:none; align-items:center; justify-content:center;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; width:400px;">
+      <h3 style="margin-bottom:16px;">🤖 Spawn New Agent</h3>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px; color:var(--text-dim); display:block; margin-bottom:4px;">Name</label>
+        <input id="spawn-name" type="text" placeholder="e.g. Neo, Trinity, Morpheus" style="width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 12px; border-radius:6px; font-family:inherit;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px; color:var(--text-dim); display:block; margin-bottom:4px;">Role</label>
+        <select id="spawn-role" style="width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 12px; border-radius:6px; font-family:inherit;">
+          <option value="general">General Assistant</option>
+          <option value="researcher">Researcher</option>
+          <option value="coder">Coder</option>
+          <option value="writer">Writer</option>
+          <option value="manager">Manager</option>
+        </select>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px; color:var(--text-dim); display:block; margin-bottom:4px;">Personality (optional)</label>
+        <input id="spawn-personality" type="text" placeholder="e.g. Curious, detail-oriented, likes to joke" style="width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 12px; border-radius:6px; font-family:inherit;">
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button class="btn" style="background:var(--border);" onclick="closeSpawnModal()">Cancel</button>
+        <button class="btn" onclick="spawnAgent()">Spawn</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = window.location.origin;
+    let ws;
+    let agents = [];
+    let feedItems = [];
+
+    // WebSocket connection
+    function connectWS() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${proto}//${location.host}`);
+
+      ws.onopen = () => console.log('Connected');
+      ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+      ws.onclose = () => setTimeout(connectWS, 3000);
+      ws.onerror = () => ws.close();
+    }
+
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'init':
+          agents = msg.agents || [];
+          updateStats(msg.stats);
+          renderAgents();
+          break;
+        case 'agent_thought':
+          addFeed('thought', msg.agentId, msg.content);
+          break;
+        case 'agent_response':
+          addFeed('response', msg.agentId, msg.content);
+          break;
+        case 'agent_message':
+          addFeed('message', msg.from, msg.content);
+          break;
+        case 'agent_status':
+          updateAgentStatus(msg.agentId, msg.status);
+          break;
+        case 'message':
+          addFeed('message', msg.from || 'system', msg.content);
+          break;
+        case 'task_created':
+          addFeed('thought', 'system', `📋 Task created: ${msg.task.title}`);
+          break;
+      }
+      refreshStats();
+    }
+
+    // Render agents
+    function renderAgents() {
+      const container = document.getElementById('agents-list');
+      const select = document.getElementById('chat-agent');
+
+      if (agents.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="icon">🤖</div>No agents yet. Click "+ Spawn" to create one.</div>';
+        select.innerHTML = '<option value="">Select agent...</option>';
+        return;
+      }
+
+      const emoji = { general: '🤖', researcher: '🔬', coder: '💻', writer: '✍️', manager: '👔' };
+
+      container.innerHTML = agents.map(a => `
+        <div class="agent-card" id="agent-${a.id}">
+          <div class="avatar">${emoji[a.role] || '🤖'}</div>
+          <div class="info">
+            <div class="name">${a.name}</div>
+            <div class="role">${a.role} • ${a.id.slice(0, 8)}</div>
+          </div>
+          <span class="status-badge status-${a.status}">${a.status}</span>
+          <button class="btn btn-sm btn-danger" onclick="stopAgent('${a.id}')">×</button>
+        </div>
+      `).join('');
+
+      select.innerHTML = '<option value="">Select agent...</option>' +
+        agents.filter(a => a.status !== 'stopped').map(a =>
+          `<option value="${a.id}">${a.name}</option>`
+        ).join('');
+    }
+
+    function updateAgentStatus(id, status) {
+      const agent = agents.find(a => a.id === id);
+      if (agent) agent.status = status;
+      renderAgents();
+    }
+
+    // Feed
+    function addFeed(type, agentId, content) {
+      const agent = agents.find(a => a.id === agentId);
+      const name = agent?.name || agentId?.slice(0, 8) || 'system';
+      const time = new Date().toLocaleTimeString();
+
+      feedItems.unshift({ type, name, content, time });
+      if (feedItems.length > 100) feedItems.pop();
+      renderFeed();
+    }
+
+    function renderFeed() {
+      const container = document.getElementById('feed');
+      if (feedItems.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="icon">📡</div>Activity will appear here.</div>';
+        return;
+      }
+      container.innerHTML = feedItems.map(item => `
+        <div class="feed-item ${item.type}">
+          <div class="meta">
+            <span class="agent-name">${item.name}</span> • ${item.time} • ${item.type}
+          </div>
+          <div>${escapeHtml(item.content).slice(0, 500)}</div>
+        </div>
+      `).join('');
+    }
+
+    function clearFeed() { feedItems = []; renderFeed(); }
+
+    // Stats
+    async function refreshStats() {
+      try {
+        const res = await fetch(`${API}/api/stats`);
+        updateStats(await res.json());
+      } catch {}
+    }
+
+    function updateStats(stats) {
+      if (!stats) return;
+      document.getElementById('stat-agents').textContent = stats.agents || 0;
+      document.getElementById('stat-active').textContent = stats.activeAgents || 0;
+      document.getElementById('stat-memories').textContent = stats.memories || 0;
+      document.getElementById('stat-messages').textContent = stats.messages || 0;
+      document.getElementById('stat-tasks').textContent = stats.pendingTasks || 0;
+      document.getElementById('stat-done').textContent = stats.completedTasks || 0;
+    }
+
+    // Chat
+    async function sendChat() {
+      const select = document.getElementById('chat-agent');
+      const input = document.getElementById('chat-input');
+      const agentId = select.value;
+      const message = input.value.trim();
+
+      if (!agentId || !message) return;
+
+      input.value = '';
+      addFeed('message', 'you', message);
+
+      try {
+        const res = await fetch(`${API}/api/agents/${agentId}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message }),
+        });
+        const data = await res.json();
+        if (data.response) {
+          addFeed('response', agentId, data.response);
+        }
+      } catch (err) {
+        addFeed('thought', 'system', `Error: ${err.message}`);
+      }
+    }
+
+    // Spawn
+    function showSpawnModal() {
+      const modal = document.getElementById('spawn-modal');
+      modal.style.display = 'flex';
+    }
+    function closeSpawnModal() {
+      document.getElementById('spawn-modal').style.display = 'none';
+    }
+    async function spawnAgent() {
+      const name = document.getElementById('spawn-name').value.trim();
+      const role = document.getElementById('spawn-role').value;
+      const personality = document.getElementById('spawn-personality').value.trim();
+
+      if (!name) return alert('Name is required');
+
+      try {
+        await fetch(`${API}/api/agents`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, role, personality }),
+        });
+        closeSpawnModal();
+        document.getElementById('spawn-name').value = '';
+        document.getElementById('spawn-personality').value = '';
+        setTimeout(refreshStats, 1000);
+
+        // Refresh agents list
+        const res = await fetch(`${API}/api/agents`);
+        agents = await res.json();
+        renderAgents();
+      } catch (err) {
+        alert(`Error: ${err.message}`);
+      }
+    }
+
+    async function stopAgent(id) {
+      if (!confirm('Stop this agent?')) return;
+      try {
+        await fetch(`${API}/api/agents/${id}`, { method: 'DELETE' });
+        setTimeout(async () => {
+          const res = await fetch(`${API}/api/agents`);
+          agents = await res.json();
+          renderAgents();
+          refreshStats();
+        }, 1000);
+      } catch (err) {
+        alert(`Error: ${err.message}`);
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // Init
+    connectWS();
+    refreshStats();
+    setInterval(refreshStats, 10000);
+
+    // Load agents
+    fetch(`${API}/api/agents`).then(r => r.json()).then(a => { agents = a; renderAgents(); });
+  </script>
+</body>
+</html>

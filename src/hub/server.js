@@ -36,7 +36,6 @@ export class HubServer extends EventEmitter {
   _setupMiddleware() {
     this.app.use(express.json());
 
-    // Security headers (from Oracle)
     this.app.use((req, res, next) => {
       res.header('X-Content-Type-Options', 'nosniff');
       res.header('X-Frame-Options', 'DENY');
@@ -45,7 +44,6 @@ export class HubServer extends EventEmitter {
       next();
     });
 
-    // CORS (from Oracle — restrict in production)
     this.app.use((req, res, next) => {
       const origin = req.headers.origin;
       if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
@@ -58,10 +56,7 @@ export class HubServer extends EventEmitter {
 
     this.app.use(express.static(join(__dirname, '../dashboard/public')));
 
-    // Phase 5: Watchdog — check agent health every 30s
     this._watchdogInterval = setInterval(() => this._watchdogTick(), 30000);
-
-    // Phase 5: Auto-save state every 60s
     this._autosaveInterval = setInterval(() => this._autoSaveAgentStates(), 60000);
   }
 
@@ -69,14 +64,14 @@ export class HubServer extends EventEmitter {
     // ================================================================
     // HEALTH & META
     // ================================================================
-
     this.app.get('/api/health', (req, res) => {
       res.json({
         status: 'ok',
-        version: '2.0.0',
+        version: '3.0.0',
         provider: this.config.provider,
         uptime: process.uptime(),
         memory: process.memoryUsage(),
+        agents: this.store.listAgents().length,
       });
     });
 
@@ -96,7 +91,6 @@ export class HubServer extends EventEmitter {
     // ================================================================
     // AGENTS
     // ================================================================
-
     this.app.get('/api/agents', (req, res) => {
       res.json(this.store.listAgents());
     });
@@ -106,6 +100,7 @@ export class HubServer extends EventEmitter {
       if (!name) return res.status(400).json({ error: 'name is required' });
       try {
         const agent = await this.agentManager.spawnAgent(name, role, personality);
+        this._broadcast({ type: 'agent_spawned', agent });
         res.json(agent);
       } catch (err) {
         res.status(500).json({ error: err.message });
@@ -115,6 +110,7 @@ export class HubServer extends EventEmitter {
     this.app.delete('/api/agents/:id', async (req, res) => {
       try {
         await this.agentManager.stopAgent(req.params.id);
+        this._broadcast({ type: 'agent_died', agentId: req.params.id });
         res.json({ ok: true });
       } catch (err) {
         res.status(500).json({ error: err.message });
@@ -124,6 +120,13 @@ export class HubServer extends EventEmitter {
     this.app.post('/api/agents/:id/chat', async (req, res) => {
       const { message } = req.body;
       if (!message) return res.status(400).json({ error: 'message is required' });
+
+      // Handle slash commands
+      const slashResult = this._handleSlashCommand(message, req.params.id);
+      if (slashResult) {
+        return res.json({ response: slashResult, slash: true });
+      }
+
       try {
         const result = await this.agentManager.chatWithAgent(req.params.id, message);
         res.json(result);
@@ -132,7 +135,6 @@ export class HubServer extends EventEmitter {
       }
     });
 
-    // Agent-to-agent communication
     this.app.post('/api/agents/:fromId/tell/:toId', async (req, res) => {
       const { message } = req.body;
       try {
@@ -144,9 +146,8 @@ export class HubServer extends EventEmitter {
     });
 
     // ================================================================
-    // THREADS (Oracle forum pattern)
+    // THREADS
     // ================================================================
-
     this.app.get('/api/threads', (req, res) => {
       const { status, limit } = req.query;
       res.json(this.store.listThreads(status, parseInt(limit || '20')));
@@ -174,9 +175,8 @@ export class HubServer extends EventEmitter {
     });
 
     // ================================================================
-    // MESSAGES (threaded + flat)
+    // MESSAGES
     // ================================================================
-
     this.app.get('/api/messages', (req, res) => {
       const { threadId, limit } = req.query;
       res.json(this.store.getMessages(threadId ? parseInt(threadId) : null, parseInt(limit || '50')));
@@ -197,10 +197,9 @@ export class HubServer extends EventEmitter {
     // ================================================================
     // TASKS
     // ================================================================
-
     this.app.get('/api/tasks', (req, res) => {
       const { status } = req.query;
-      res.json(this.store.getPendingTasks());
+      res.json(status ? this.store.getPendingTasks() : this.store.getAllTasks());
     });
 
     this.app.post('/api/tasks', (req, res) => {
@@ -217,9 +216,8 @@ export class HubServer extends EventEmitter {
     });
 
     // ================================================================
-    // MEMORY (with supersede)
+    // MEMORY
     // ================================================================
-
     this.app.get('/api/memory/search', (req, res) => {
       const { q, agent, limit } = req.query;
       res.json(this.store.searchMemories(q, agent, parseInt(limit || '10')));
@@ -236,9 +234,8 @@ export class HubServer extends EventEmitter {
     });
 
     // ================================================================
-    // TRACES (Oracle trace system)
+    // TRACES
     // ================================================================
-
     this.app.get('/api/traces', (req, res) => {
       const { agentId, limit } = req.query;
       res.json(this.store.listTraces(agentId, parseInt(limit || '20')));
@@ -275,7 +272,6 @@ export class HubServer extends EventEmitter {
     // ================================================================
     // TEAM
     // ================================================================
-
     this.app.post('/api/team/spawn', async (req, res) => {
       try {
         const template = req.body.template || 'default';
@@ -288,32 +284,21 @@ export class HubServer extends EventEmitter {
     });
 
     this.app.get('/api/team/status', async (req, res) => {
-      try {
-        res.json(await this.teamOrchestrator.getTeamStatus());
-      } catch (err) {
-        res.status(500).json({ error: err.message });
-      }
+      try { res.json(await this.teamOrchestrator.getTeamStatus()); }
+      catch (err) { res.status(500).json({ error: err.message }); }
     });
 
     this.app.post('/api/team/task', async (req, res) => {
       try {
         const { task } = req.body;
         if (!task) return res.status(400).json({ error: 'task is required' });
-        const result = await this.teamOrchestrator.broadcastTask(task);
-        res.json(result);
-      } catch (err) {
-        res.status(500).json({ error: err.message });
-      }
+        res.json(await this.teamOrchestrator.broadcastTask(task));
+      } catch (err) { res.status(500).json({ error: err.message }); }
     });
 
     this.app.post('/api/team/chat', async (req, res) => {
-      try {
-        const { message } = req.body;
-        const result = await this.teamOrchestrator.teamChat(message);
-        res.json(result);
-      } catch (err) {
-        res.status(500).json({ error: err.message });
-      }
+      try { res.json(await this.teamOrchestrator.teamChat(req.body.message)); }
+      catch (err) { res.status(500).json({ error: err.message }); }
     });
 
     this.app.get('/api/team/templates', (req, res) => {
@@ -323,7 +308,6 @@ export class HubServer extends EventEmitter {
     // ================================================================
     // AGENT CALLBACK
     // ================================================================
-
     this.app.post('/api/agent-callback/:agentId', (req, res) => {
       const { type, data } = req.body;
       this._handleAgentCallback(req.params.agentId, type, data);
@@ -333,7 +317,6 @@ export class HubServer extends EventEmitter {
     // ================================================================
     // FEDERATION
     // ================================================================
-
     this.app.get('/api/federation/status', (req, res) => {
       res.json({
         node: this.config.nodeName || 'local',
@@ -343,15 +326,17 @@ export class HubServer extends EventEmitter {
     });
 
     // ================================================================
-    // HANDOFF (Phase 2: Session Handoff)
+    // HANDOFF
     // ================================================================
-
     this.app.post('/api/handoff/create', (req, res) => {
       const { title, summary, fromSession } = req.body;
       const sessionData = this.store.generateSessionSummary();
-      const handoffTitle = title || sessionData.title;
-      const handoffSummary = summary || sessionData.summary;
-      const handoff = this.store.createHandoff(handoffTitle, handoffSummary, fromSession, sessionData.context);
+      const handoff = this.store.createHandoff(
+        title || sessionData.title,
+        summary || sessionData.summary,
+        fromSession,
+        sessionData.context
+      );
       this._broadcast({ type: 'handoff_created', handoff });
       res.json(handoff);
     });
@@ -371,9 +356,8 @@ export class HubServer extends EventEmitter {
     });
 
     // ================================================================
-    // AGENT STATE PERSISTENCE (Phase 5)
+    // AGENT STATE PERSISTENCE
     // ================================================================
-
     this.app.get('/api/agents/:id/state', (req, res) => {
       const state = this.store.loadAgentState(req.params.id);
       if (!state) return res.status(404).json({ error: 'No saved state' });
@@ -391,14 +375,12 @@ export class HubServer extends EventEmitter {
     });
 
     // ================================================================
-    // AGENT HEALTH CHECK (Phase 5)
+    // AGENT HEALTH
     // ================================================================
-
     this.app.get('/api/agents/:id/health', (req, res) => {
       const agentInfo = this.agentManager.agents.get(req.params.id);
       const dbInfo = this.store.getAgent(req.params.id);
       if (!agentInfo && !dbInfo) return res.status(404).json({ error: 'Agent not found' });
-
       res.json({
         id: req.params.id,
         name: dbInfo?.name || agentInfo?.config?.name,
@@ -407,19 +389,234 @@ export class HubServer extends EventEmitter {
         dbStatus: dbInfo?.status || 'unknown',
         lastActive: dbInfo?.last_active,
         pid: agentInfo?.process?.pid || null,
-        memoryCache: agentInfo?.config ? 'available' : 'offline',
       });
+    });
+
+    // ================================================================
+    // ψ/ INBOX
+    // ================================================================
+    this.app.get('/api/psi/inbox', (req, res) => {
+      res.json(this.store.psiInboxList(req.query.status, parseInt(req.query.limit || '50')));
+    });
+
+    this.app.post('/api/psi/inbox', (req, res) => {
+      const { title, content, priority, createdBy } = req.body;
+      if (!title) return res.status(400).json({ error: 'title required' });
+      const item = this.store.psiInboxAdd(title, content, priority, createdBy);
+      this._broadcast({ type: 'inbox_added', item });
+      res.json(item);
+    });
+
+    this.app.put('/api/psi/inbox/:id', (req, res) => {
+      this.store.psiInboxUpdate(parseInt(req.params.id), req.body);
+      res.json({ ok: true });
+    });
+
+    // ================================================================
+    // ψ/ WRITING
+    // ================================================================
+    this.app.get('/api/psi/writing', (req, res) => {
+      res.json(this.store.psiWritingList(parseInt(req.query.limit || '50')));
+    });
+
+    this.app.post('/api/psi/writing', (req, res) => {
+      const { title, content, category } = req.body;
+      if (!title || !content) return res.status(400).json({ error: 'title and content required' });
+      res.json(this.store.psiWritingSave(title, content, category));
+    });
+
+    this.app.get('/api/psi/writing/:title', (req, res) => {
+      const doc = this.store.psiWritingGet(req.params.title);
+      if (!doc) return res.status(404).json({ error: 'not found' });
+      res.json(doc);
+    });
+
+    // ================================================================
+    // ψ/ LAB
+    // ================================================================
+    this.app.get('/api/psi/lab', (req, res) => {
+      res.json(this.store.psiLabList(parseInt(req.query.limit || '20')));
+    });
+
+    this.app.post('/api/psi/lab', (req, res) => {
+      const { experiment, hypothesis } = req.body;
+      if (!experiment) return res.status(400).json({ error: 'experiment required' });
+      res.json(this.store.psiLabAdd(experiment, hypothesis));
+    });
+
+    this.app.put('/api/psi/lab/:id', (req, res) => {
+      const { result, status } = req.body;
+      this.store.psiLabComplete(parseInt(req.params.id), result, status);
+      res.json({ ok: true });
+    });
+
+    // ================================================================
+    // FLEET CONFIGS
+    // ================================================================
+    this.app.get('/api/fleet', (req, res) => {
+      res.json(this.store.listFleetConfigs());
+    });
+
+    this.app.post('/api/fleet', (req, res) => {
+      const { name, template } = req.body;
+      if (!name || !template) return res.status(400).json({ error: 'name and template required' });
+      this.store.saveFleetConfig(name, template);
+      res.json({ ok: true });
+    });
+
+    this.app.get('/api/fleet/:name', (req, res) => {
+      const config = this.store.getFleetConfig(req.params.name);
+      if (!config) return res.status(404).json({ error: 'not found' });
+      res.json(config);
+    });
+
+    // ================================================================
+    // SLASH COMMANDS (API endpoint)
+    // ================================================================
+    this.app.post('/api/slash', (req, res) => {
+      const { command, agentId } = req.body;
+      const result = this._handleSlashCommand(command, agentId);
+      if (result) {
+        res.json({ response: result });
+      } else {
+        res.status(400).json({ error: 'Unknown command' });
+      }
     });
 
     // ================================================================
     // DASHBOARD
     // ================================================================
-
     this.app.get('/dashboard', (req, res) => {
       res.sendFile(join(__dirname, '../dashboard/public/index.html'));
     });
   }
 
+  // ================================================================
+  // SLASH COMMAND HANDLER
+  // ================================================================
+  _handleSlashCommand(message, agentId) {
+    const cmd = message.trim();
+    if (!cmd.startsWith('/')) return null;
+
+    const parts = cmd.split(/\s+/);
+    const command = parts[0].toLowerCase();
+    const args = parts.slice(1).join(' ');
+
+    switch (command) {
+      case '/recap':
+        return this.store.generateRecap();
+
+      case '/rrr':
+        return this.store.generateRRR();
+
+      case '/standup':
+        return this.store.generateStandup();
+
+      case '/fyi': {
+        if (!args) return 'Usage: /fyi <information to remember>';
+        const agent = agentId || 'human';
+        this.store.addMemory(agent, args, 'manual', 2, 'fyi', 'manual');
+        this.store.sendMessage('system', `📝 Noted: "${args.slice(0, 80)}"`, null, null, 'system');
+        return `✅ Remembered: "${args.slice(0, 100)}${args.length > 100 ? '...' : ''}"`;
+      }
+
+      case '/trace': {
+        if (!args) return 'Usage: /trace <query>';
+        const memories = this.store.searchMemories(args, null, 5);
+        const messages = this.store.searchMessages(args, 5);
+        const traceId = this.store.createTrace(args, 'search', agentId || 'human');
+        let result = `🔍 **Trace: "${args}"**\n\n`;
+        if (memories.length > 0) {
+          result += `**Memories (${memories.length}):**\n`;
+          memories.forEach(m => result += `- [${m.category}] ${m.content.slice(0, 100)}\n`);
+          result += '\n';
+        }
+        if (messages.length > 0) {
+          result += `**Messages (${messages.length}):**\n`;
+          messages.forEach(m => result += `- ${m.from_agent}: ${m.content.slice(0, 80)}\n`);
+        }
+        if (memories.length === 0 && messages.length === 0) {
+          result += 'No results found.';
+        }
+        this.store.updateTrace(traceId, {
+          found_memories: JSON.stringify(memories.map(m => m.id)),
+          found_messages: JSON.stringify(messages.map(m => m.id)),
+          memory_count: memories.length,
+          message_count: messages.length,
+          status: 'distilled',
+          insight: `Found ${memories.length} memories, ${messages.length} messages`,
+        });
+        return result;
+      }
+
+      case '/learn': {
+        if (!args) return 'Usage: /learn <topic>';
+        const memories = this.store.searchMemories(args, null, 10);
+        let result = `📚 **Learn: "${args}"**\n\n`;
+        if (memories.length > 0) {
+          for (const m of memories) {
+            result += `**[${m.category}]** ${m.content}\n`;
+            if (m.tags) result += `  Tags: ${m.tags}\n`;
+            result += '\n';
+          }
+        } else {
+          result += 'No knowledge found on this topic yet.';
+        }
+        return result;
+      }
+
+      case '/feel': {
+        if (!args) return 'Usage: /feel <mood/energy level>';
+        this.store.addMemory(agentId || 'human', `Feeling: ${args}`, 'state', 1, 'feel,mood', 'manual');
+        return `🎭 Noted: ${args}`;
+      }
+
+      case '/forward': {
+        const summary = this.store.generateSessionSummary();
+        const handoff = this.store.createHandoff(summary.title, summary.summary, 'manual', summary.context);
+        return `🔀 Handoff created: ${handoff.title}\n\n${summary.summary.slice(0, 300)}`;
+      }
+
+      case '/who-are-you': {
+        const agents = this.store.listAgents();
+        if (agents.length === 0) return 'No agents running.';
+        return agents.map(a => `**${a.name}** — ${a.role} (${a.status})`).join('\n');
+      }
+
+      case '/inbox': {
+        if (args) {
+          this.store.psiInboxAdd(args, '', 1, 'human');
+          return `📥 Added to inbox: "${args}"`;
+        }
+        const items = this.store.psiInboxList('open', 10);
+        if (items.length === 0) return 'Inbox is empty.';
+        return `📥 **Inbox:**\n${items.map(i => `- [P${i.priority}] ${i.title}`).join('\n')}`;
+      }
+
+      case '/help':
+        return `**Oracle Commands:**
+/recap — Session summary
+/rrr — Retrospective
+/standup — Daily standup
+/fyi <info> — Remember something
+/trace <query> — Search everything
+/learn <topic> — Explore knowledge
+/feel <mood> — Log energy level
+/forward — Create handoff
+/who-are-you — List agents
+/inbox [item] — View/add to inbox
+/help — This message
+
+Or just type normally to chat with agents!`;
+
+      default:
+        return null;
+    }
+  }
+
+  // ================================================================
+  // CALLBACKS & BROADCAST
+  // ================================================================
   _handleAgentCallback(agentId, type, data) {
     switch (type) {
       case 'thought':
@@ -460,7 +657,7 @@ export class HubServer extends EventEmitter {
   async start() {
     return new Promise((resolve) => {
       this.server = this.app.listen(this.config.port, this.config.host, () => {
-        console.log(`🧠 Oracle Hub v2.0 running on http://${this.config.host}:${this.config.port}`);
+        console.log(`🧠 ARRA Office v3.0 running on http://${this.config.host}:${this.config.port}`);
         console.log(`📊 Dashboard: http://localhost:${this.config.port}/dashboard`);
         console.log(`🔌 Provider: ${this.config.provider}`);
 
@@ -475,9 +672,7 @@ export class HubServer extends EventEmitter {
           }));
         });
 
-        // Auto-respawn agents that were previously active
         this._respawnAgents();
-
         resolve(this);
       });
     });
@@ -487,9 +682,7 @@ export class HubServer extends EventEmitter {
     try {
       const savedStates = this.store.getAllSavedStates();
       if (savedStates.length === 0) return;
-
       console.log(`\n🔄 Auto-respawning ${savedStates.length} agent(s) from last session...`);
-
       for (const state of savedStates) {
         try {
           console.log(`   ↳ Respawning ${state.name} (${state.role})...`);
@@ -498,7 +691,6 @@ export class HubServer extends EventEmitter {
           console.warn(`   ⚠️ Could not respawn ${state.name}: ${err.message}`);
         }
       }
-
       console.log(`✅ Auto-respawn complete\n`);
     } catch (err) {
       console.warn(`⚠️ Auto-respawn failed: ${err.message}`);
@@ -507,13 +699,10 @@ export class HubServer extends EventEmitter {
 
   async stop() {
     console.log('🛑 Graceful shutdown...');
-
-    // Phase 5: Save all agent states before shutdown
     clearInterval(this._watchdogInterval);
     clearInterval(this._autosaveInterval);
     this._autoSaveAgentStates();
 
-    // Phase 2: Auto-create handoff on shutdown
     try {
       const summary = this.store.generateSessionSummary();
       this.store.createHandoff(summary.title, summary.summary, 'shutdown', summary.context);
@@ -526,18 +715,13 @@ export class HubServer extends EventEmitter {
     this.store.close();
     this.wss?.close();
     this.server?.close();
-    console.log('👋 Oracle Hub stopped.');
+    console.log('👋 ARRA Office stopped.');
   }
-
-  // ================================================================
-  // WATCHDOG (Phase 5: Reliability)
-  // ================================================================
 
   _watchdogTick() {
     const agents = this.agentManager.getRunningAgents();
     for (const agent of agents) {
       try {
-        // Check if process is still alive
         if (agent.process && agent.process.killed) {
           console.warn(`🐕 Watchdog: Agent "${agent.name}" process dead, cleaning up`);
           this.agentManager.agents.delete(agent.id);
@@ -553,15 +737,7 @@ export class HubServer extends EventEmitter {
       const runningAgents = this.agentManager.getRunningAgents();
       for (const agent of runningAgents) {
         try {
-          this.store.saveAgentState(
-            agent.id,
-            agent.name,
-            agent.role,
-            '', // personality not available from getRunningAgents
-            [], // conversation history lives in child process
-            [], // memory cache lives in child process
-            []
-          );
+          this.store.saveAgentState(agent.id, agent.name, agent.role, '', [], [], []);
         } catch (err) {
           console.warn(`⚠️ Auto-save failed for ${agent.name}: ${err.message}`);
         }

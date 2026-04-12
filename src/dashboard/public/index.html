@@ -804,6 +804,8 @@
     <button class="nav-btn" data-view="memory"><span>🧠</span><span>Memory</span></button>
     <button class="nav-btn" data-view="traces"><span>🔍</span><span>Traces</span></button>
     <button class="nav-btn" data-view="handoffs"><span>🔀</span><span>Handoffs</span></button>
+    <button class="nav-btn" data-view="inbox"><span>📥</span><span>Inbox</span></button>
+    <button class="nav-btn" data-view="team"><span>🏢</span><span>Team</span></button>
   </div>
   <div class="statusbar-meta">
     <span><span class="ws-dot" id="ws-dot"></span> <span id="ws-label">Connecting</span></span>
@@ -897,6 +899,36 @@
         <button class="btn btn-primary" onclick="createHandoff()">+ Create Handoff</button>
       </div>
       <div id="handoffs-list"></div>
+    </div>
+  </div>
+
+  <!-- ψ/ INBOX VIEW -->
+  <div class="view" id="view-inbox">
+    <div class="view-scroll">
+      <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
+        <h3 style="font-size:13px;color:var(--text-dim);">📥 ψ/ Inbox</h3>
+        <span class="spacer" style="flex:1"></span>
+        <button class="btn btn-primary" onclick="addInboxItem()">+ Add Item</button>
+      </div>
+      <div id="inbox-list"></div>
+    </div>
+  </div>
+
+  <!-- TEAM VIEW -->
+  <div class="view" id="view-team">
+    <div class="view-scroll">
+      <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">
+        <h3 style="font-size:13px;color:var(--text-dim);">🏢 Team Orchestrator</h3>
+        <span class="spacer" style="flex:1"></span>
+        <select id="team-template" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-family:inherit;font-size:11px;">
+          <option value="default">Default (Manager + Coder + Researcher)</option>
+          <option value="full">Full (Manager + Coder + Researcher + Writer)</option>
+          <option value="dev">Dev (TechLead + Frontend + Backend)</option>
+          <option value="minimal">Minimal (Manager + Worker)</option>
+        </select>
+        <button class="btn btn-primary" onclick="spawnTeam()">🚀 Spawn Team</button>
+      </div>
+      <div id="team-status"></div>
     </div>
   </div>
 
@@ -1027,6 +1059,8 @@ function loadView(view) {
     case 'memory': loadMemory(); break;
     case 'traces': loadTraces(); break;
     case 'handoffs': loadHandoffs(); break;
+    case 'inbox': loadInbox(); break;
+    case 'team': loadTeam(); break;
   }
 }
 
@@ -1370,6 +1404,92 @@ async function loadHandoffs() {
 async function createHandoff() {
   await apiPost('/api/handoff/create', {title:'Manual handoff', summary:'User-created handoff'});
   loadHandoffs();
+}
+
+// ═══════════════════════════════════════════════════════
+// ψ/ INBOX
+// ═══════════════════════════════════════════════════════
+async function loadInbox() {
+  const items = await api('/api/psi/inbox');
+  const el = document.getElementById('inbox-list');
+  if (items.length===0) { el.innerHTML='<div class="empty-state"><span class="icon">📥</span>Inbox is empty — add tasks and ideas here</div>'; return; }
+  el.innerHTML = items.map(i => {
+    const statusColor = i.status==='done'?'var(--green)':i.status==='in_progress'?'var(--yellow)':'var(--text-dim)';
+    return `<div class="card" style="display:flex;gap:12px;align-items:flex-start;">
+      <div style="flex:1">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;">
+          <h4 style="font-size:13px;flex:1">${esc(i.title)}</h4>
+          <span style="font-size:10px;color:${statusColor};padding:2px 8px;border-radius:4px;background:${statusColor}15">${i.status}</span>
+          <span style="font-size:10px;color:var(--text-muted)">P${i.priority}</span>
+        </div>
+        ${i.content ? `<p style="font-size:11px;color:var(--text-dim)">${esc(i.content)}</p>` : ''}
+        <div class="meta"><span>${timeAgo(i.created_at)}</span><span>${esc(i.created_by)}</span></div>
+      </div>
+      <div style="display:flex;gap:4px;">
+        ${i.status!=='done'?`<button class="btn btn-sm" onclick="updateInbox(${i.id},'in_progress')">▶</button>`:''}
+        ${i.status!=='done'?`<button class="btn btn-sm" onclick="updateInbox(${i.id},'done')">✅</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+async function addInboxItem() {
+  const title = prompt('Inbox item title:');
+  if (!title) return;
+  await apiPost('/api/psi/inbox', { title, content:'', priority:1, createdBy:'human' });
+  loadInbox();
+}
+async function updateInbox(id, status) {
+  await apiPost(`/api/psi/inbox/${id}`, { status });
+  loadInbox();
+}
+
+// ═══════════════════════════════════════════════════════
+// TEAM
+// ═══════════════════════════════════════════════════════
+async function loadTeam() {
+  try {
+    const status = await api('/api/team/status');
+    const el = document.getElementById('team-status');
+    if (!status.teams || status.teams.length===0) {
+      el.innerHTML='<div class="empty-state"><span class="icon">🏢</span>No teams yet — select a template and spawn one</div>';
+      return;
+    }
+    el.innerHTML = status.teams.map(t => `
+      <div class="card">
+        <h4>Team ${t.id} <span style="font-size:10px;color:var(--text-muted)">${timeAgo(t.createdAt)}</span></h4>
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;">
+          ${t.members.map(m => {
+            const dotColor = m.status==='active'?'var(--green)':m.status==='stopped'?'var(--red)':'var(--text-dim)';
+            return `<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;">
+              <div style="width:8px;height:8px;border-radius:50%;background:${dotColor}"></div>
+              <span style="font-size:12px;font-weight:600">${esc(m.name)}</span>
+              <span style="font-size:10px;color:var(--text-dim)">${esc(m.role)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
+
+    // Show pending tasks
+    if (status.pendingTasks && status.pendingTasks.length > 0) {
+      el.innerHTML += `<div class="card"><h4>📋 Pending Tasks</h4>${status.pendingTasks.map(t=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)">${esc(t.title)} → ${esc(t.assigned_to||'unassigned')}</div>`).join('')}</div>`;
+    }
+  } catch {
+    document.getElementById('team-status').innerHTML='<div class="empty-state"><span class="icon">🔌</span>Hub not reachable</div>';
+  }
+}
+async function spawnTeam() {
+  const template = document.getElementById('team-template').value;
+  if (!confirm(`Spawn team (${template})? This will create 3-4 agents.`)) return;
+  try {
+    const r = await apiPost('/api/team/spawn', { template });
+    if (r.error) alert('Error: '+r.error);
+    else {
+      await loadAgents();
+      renderOffice();
+      renderChatSidebar();
+      loadTeam();
+    }
+  } catch(e) { alert('Failed: '+e.message); }
 }
 
 // ═══════════════════════════════════════════════════════

@@ -1,7 +1,7 @@
 {
   "name": "oracle-multi-agent",
-  "version": "2.1.0",
-  "description": "🧠 Oracle Multi-Agent System — memory, communication, collaboration for AI agents. Spawn specialized agents, chat with them, and watch them collaborate.",
+  "version": "3.0.0",
+  "description": "🧠 ARRA Office — Oracle Multi-Agent System with memory, chat, and team orchestration",
   "bin": {
     "oracle": "./bin/oracle"
   },
@@ -12,9 +12,15 @@
     "setup": "node scripts/setup.js",
     "chat": "node bin/oracle chat",
     "status": "node bin/oracle status",
-    "team": "node bin/oracle team"
+    "team": "node bin/oracle team",
+    "recap": "node bin/oracle recap",
+    "rrr": "node bin/oracle rrr",
+    "standup": "node bin/oracle standup",
+    "daemon": "pm2 start ecosystem.config.cjs",
+    "daemon:stop": "pm2 stop oracle-hub",
+    "daemon:logs": "pm2 logs oracle-hub"
   },
-  "keywords": ["ai", "multi-agent", "gemini", "llm", "agents", "memory", "sqlite"],
+  "keywords": ["ai", "multi-agent", "gemini", "llm", "agents", "memory", "sqlite", "oracle"],
   "dependencies": {
     "better-sqlite3": "^11.0.0",
     "express": "^4.21.0",

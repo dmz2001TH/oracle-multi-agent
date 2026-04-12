@@ -1,65 +1,71 @@
-# 🧠 Oracle Multi-Agent System
+# 🧠 ARRA Office — Oracle Multi-Agent System
 
-AI agents that remember, communicate, and collaborate — built for Gemini API.
+AI agents that remember, communicate, and collaborate — with a real-time web dashboard inspired by [Soul-Brews-Studio/maw-ui](https://github.com/Soul-Brews-Studio/maw-ui).
 
-![Dashboard](https://img.shields.io/badge/dashboard-OLED-dark-brightgreen)
+![Dashboard](https://img.shields.io/badge/dashboard-ARRA%20Office-dark-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
 
 ## ✨ Features
 
-- 🤖 **Multi-Agent System** — Spawn specialized agents (Researcher, Coder, Writer, Manager)
-- 💬 **Chat Interface** — Talk to agents directly from the web dashboard
+- 🏢 **ARRA Office Dashboard** — Agent grid with chibi avatars, status auras, real-time updates
+- 💬 **Chat Interface** — Chat-style conversation with any agent, grouped bubbles, typing indicators
+- 🤖 **Multi-Agent System** — Spawn specialized agents (Researcher, Coder, Writer, Manager, General)
 - 💾 **Persistent Memory** — SQLite FTS5 full-text search across all memories
-- 🔌 **Agent Communication** — Agents can talk to each other and collaborate
-- 📋 **Task Queue** — Assign tasks to agents, track progress
-- 📊 **Web Dashboard** — Real-time OLED dark mode dashboard with chat
-- 🪟 **Windows Support** — Works on Windows natively (WSL2 optional)
+- 🔌 **Agent Communication** — Agents can talk to each other and collaborate on tasks
+- 📋 **Task Queue** — Kanban board: Pending → Active → Done
+- 📊 **Real-time Dashboard** — Metrics, activity timeline, WebSocket live updates
+- 🔍 **Trace System** — Track query chains and reasoning
+- 🔀 **Session Handoffs** — Save and restore session context
+- 🪟 **Windows Native** — Double-click setup and start, no WSL required
 
 ## 🚀 Quick Start (Windows)
 
 1. **Download** this repo (Code → Download ZIP)
 2. **Extract** to any folder
 3. **Double-click `setup.bat`**
-4. **Edit `.env`** → add your API key
+4. **Edit `.env`** → add your API key (see below)
 5. **Double-click `start.bat`**
 6. **Open** [http://localhost:3456/dashboard](http://localhost:3456/dashboard)
-7. Click **"+ New"** to spawn an agent and start chatting!
+7. Click **"+ Spawn Agent"** and start chatting!
 
 ### API Key Setup
 
+**Option A: PromptDee (Free, default)**
+- No API key needed! Works out of the box.
+- Free tier: 5 credits/day
+
+**Option B: Google Gemini**
 1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
-2. Click "Create API Key"
-3. Copy the key
-4. Paste into `.env`:
+2. Create an API key
+3. In `.env`, set:
    ```
+   LLM_PROVIDER=gemini
    GEMINI_API_KEY=AIza...
    ```
-
-Free tier: 60 requests/minute — more than enough for 3-5 agents.
+4. Free tier: 60 requests/minute
 
 ## 🖥️ Dashboard
 
 Open [http://localhost:3456/dashboard](http://localhost:3456/dashboard)
 
-### Tabs
+### Views
 
-| Tab | Description |
-|-----|-------------|
-| 📊 Overview | Stats, activity timeline |
-| 💬 **Chat** | **Talk to agents directly** — select agent, type message, get response |
-| 🤖 Agents | Manage agents — spawn, stop, view status |
-| 🧵 Threads | Threaded conversations |
-| 📨 Messages | All messages with search |
-| 📋 Tasks | Kanban board (pending → active → done) |
-| 🧠 Memory | FTS5 full-text memory search |
-| 🔍 Traces | Query traces and chains |
-| 🔀 Handoffs | Session handoffs between runs |
+| View | Icon | Description |
+|------|------|-------------|
+| **Office** | 🏢 | Agent grid with chibi avatars, status, quick actions |
+| **Chat** | 💬 | Talk to agents — select agent, type message, get response |
+| Dashboard | 📊 | System metrics, activity timeline |
+| Tasks | 📋 | Kanban board (pending → active → done) |
+| Memory | 🧠 | FTS5 full-text memory search |
+| Traces | 🔍 | Query traces and chains |
+| Handoffs | 🔀 | Session handoffs between runs |
 
 ### Chat
 
-The **Chat tab** lets you:
+The **Chat** view lets you:
 - Select any running agent from the sidebar
-- Type messages and get real-time responses
+- Type messages and get real-time responses (Enter to send, Shift+Enter for newline)
 - Watch agents use tools (remember, search, tell other agents)
 - Spawn new agents with the "+ New" button
 
@@ -101,32 +107,17 @@ oracle health [agent]      # Agent health check
 |----------|--------|-------------|
 | `/api/health` | GET | Health check |
 | `/api/stats` | GET | System statistics |
-| `/api/agents` | GET | List all agents |
-| `/api/agents` | POST | Spawn new agent |
+| `/api/agents` | GET/POST | List/spawn agents |
 | `/api/agents/:id` | DELETE | Stop agent |
 | `/api/agents/:id/chat` | POST | Chat with agent |
 | `/api/agents/:from/tell/:to` | POST | Agent-to-agent message |
-| `/api/messages` | GET | Get messages |
-| `/api/messages` | POST | Send message |
-| `/api/tasks` | GET | List tasks |
-| `/api/tasks` | POST | Create task |
+| `/api/messages` | GET/POST | Messages |
+| `/api/tasks` | GET/POST | Tasks |
 | `/api/memory/search?q=` | GET | Search memories |
 | `/api/memory/all` | GET | List all memories |
+| `/api/traces` | GET/POST | Traces |
+| `/api/handoff` | GET/POST | Session handoffs |
 | `/dashboard` | GET | Web dashboard |
-
-### Chat Example
-
-```bash
-# Spawn an agent
-curl -X POST http://localhost:3456/api/agents \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Neo", "role": "coder", "personality": "Curious, clean code"}'
-
-# Chat with it
-curl -X POST http://localhost:3456/api/agents/<agent-id>/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "What is the best way to handle errors in Node.js?"}'
-```
 
 ## 📁 Project Structure
 
@@ -146,7 +137,7 @@ oracle-multi-agent/
 │   │   └── store.js          # SQLite FTS5 memory store
 │   ├── dashboard/
 │   │   └── public/
-│   │       └── index.html    # Web dashboard with chat
+│   │       └── index.html    # ARRA Office dashboard
 │   └── cli/
 │       └── index.js          # CLI commands
 ├── scripts/
@@ -162,22 +153,14 @@ oracle-multi-agent/
 ## 🔧 Windows Notes
 
 - **Native support** — Works directly on Windows with `start.bat`
-- **WSL2 optional** — For better compatibility if needed
+- **No WSL needed** — Pure Node.js, runs natively
 - **Node.js 18+** required — Download from [nodejs.org](https://nodejs.org/)
 
-### WSL2 (Optional)
+## 🙏 Credits
 
-```powershell
-# In PowerShell (one-time):
-wsl --install
-
-# In WSL terminal:
-cd /mnt/c/Users/YourName/path/to/oracle-multi-agent
-npm install
-cp .env.example .env
-# Edit .env → add GEMINI_API_KEY
-npm start
-```
+- UI inspired by [Soul-Brews-Studio/maw-ui](https://github.com/Soul-Brews-Studio/maw-ui) (ARRA Office)
+- Chibi avatar system based on [Soul-Brews-Studio](https://github.com/Soul-Brews-Studio) design
+- Oracle framework patterns from [arra-oracle-v3](https://github.com/Soul-Brews-Studio/arra-oracle-v3)
 
 ## 📝 License
 

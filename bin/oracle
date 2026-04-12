@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+
+/**
+ * Oracle CLI entry point
+ * 
+ * Usage:
+ *   oracle status          — hub health + stats
+ *   oracle recap           — session recap
+ *   oracle fyi <query>     — search memories
+ *   oracle rrr [limit]     — read recent messages
+ *   oracle standup         — daily standup
+ *   oracle chat <agent> <msg> — chat with agent
+ *   oracle team <action>   — team management
+ */
+
+import '../src/cli/index.js';

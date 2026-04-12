@@ -2,6 +2,9 @@
   "name": "oracle-multi-agent",
   "version": "1.0.0",
   "description": "Oracle Multi-Agent System — memory, communication, collaboration for AI agents",
+  "bin": {
+    "oracle": "./bin/oracle"
+  },
   "main": "src/hub/server.js",
   "type": "module",
   "scripts": {

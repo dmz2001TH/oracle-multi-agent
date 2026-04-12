@@ -1,7 +1,7 @@
 {
   "name": "oracle-multi-agent",
-  "version": "3.0.0",
-  "description": "🧠 ARRA Office — Oracle Multi-Agent System with memory, chat, and team orchestration",
+  "version": "4.0.0",
+  "description": "🧠 ARRA Office — Oracle Multi-Agent System with memory, federation, transport, plugins, and team orchestration",
   "bin": {
     "oracle": "./bin/oracle"
   },
@@ -10,17 +10,30 @@
   "scripts": {
     "start": "node src/hub/index.js",
     "setup": "node scripts/setup.js",
+    "dev": "node --watch src/hub/index.js",
     "chat": "node bin/oracle chat",
     "status": "node bin/oracle status",
     "team": "node bin/oracle team",
     "recap": "node bin/oracle recap",
     "rrr": "node bin/oracle rrr",
     "standup": "node bin/oracle standup",
+    "overview": "node bin/oracle overview",
+    "feed": "node bin/oracle feed",
+    "vault": "node bin/oracle vault",
+    "fleet": "node bin/oracle fleet",
+    "costs": "node bin/oracle costs",
+    "help": "node bin/oracle help",
     "daemon": "pm2 start ecosystem.config.cjs",
     "daemon:stop": "pm2 stop oracle-hub",
-    "daemon:logs": "pm2 logs oracle-hub"
+    "daemon:logs": "pm2 logs oracle-hub",
+    "dashboard:build": "cd src/dashboard && npm run build",
+    "dashboard:dev": "cd src/dashboard && npm run dev"
   },
-  "keywords": ["ai", "multi-agent", "gemini", "llm", "agents", "memory", "sqlite", "oracle"],
+  "keywords": [
+    "ai", "multi-agent", "gemini", "llm", "agents", "memory",
+    "sqlite", "oracle", "federation", "transport", "plugins",
+    "maw", "arra", "office", "team", "orchestration"
+  ],
   "dependencies": {
     "better-sqlite3": "^11.0.0",
     "express": "^4.21.0",
@@ -28,6 +41,7 @@
     "uuid": "^10.0.0",
     "dotenv": "^16.4.0"
   },
+  "devDependencies": {},
   "engines": {
     "node": ">=18.0.0"
   },

@@ -1,86 +1,84 @@
 @echo off
-title Oracle Multi-Agent Setup
+chcp 65001 >nul 2>&1
+title ARRA Office — Oracle Multi-Agent Setup
+
 echo.
-echo  ╔══════════════════════════════════════════════════╗
-echo  ║         Oracle Multi-Agent Setup  v2.1          ║
-echo  ╚══════════════════════════════════════════════════╝
+echo  ╔══════════════════════════════════════════════╗
+echo  ║  🧠 ARRA Office — Oracle Multi-Agent v4.0    ║
+echo  ║  Setup for Windows                           ║
+echo  ╚══════════════════════════════════════════════╝
 echo.
 
-REM Check Node.js
-node --version >nul 2>&1
-if errorlevel 1 (
-    echo  [X] Node.js not found! Download from https://nodejs.org/
-    echo      Recommended: Node.js 18+ LTS
+:: Check Node.js
+where node >nul 2>&1
+if %errorlevel% neq 0 (
+    echo  ❌ Node.js not found!
+    echo  📥 Download from https://nodejs.org/ (v18+)
+    echo  Then run this script again.
     pause
     exit /b 1
 )
-for /f "tokens=*" %%i in ('node --version') do set NODE_VER=%%i
-echo  [OK] Node.js %NODE_VER%
 
-REM Create directories
-if not exist data mkdir data
-if not exist logs mkdir data
-echo  [OK] Directories ready
+for /f "tokens=*" %%i in ('node -v') do set NODE_VERSION=%%i
+echo  ✅ Node.js %NODE_VERSION% found
 
-REM Create .env from .env.example
-if not exist .env (
-    if exist .env.example (
-        copy .env.example .env >nul
-        echo  [OK] Created .env from .env.example
-        echo.
-        echo  ════════════════════════════════════════════════
-        echo   IMPORTANT: Edit .env and add your API key!
-        echo  ════════════════════════════════════════════════
-        echo.
-        echo   LLM_PROVIDER=promptdee  (or gemini)
-        echo   GEMINI_API_KEY=your-key-here
-        echo.
-        echo   Get Gemini key: https://aistudio.google.com/apikey
-        echo   Free tier: 60 requests/min — plenty for 3-5 agents
-        echo.
-    ) else (
-        echo  [!] .env.example not found, creating default .env
-        echo LLM_PROVIDER=promptdee> .env
-        echo GEMINI_API_KEY=>> .env
-        echo HUB_PORT=3456>> .env
-        echo DB_PATH=./data/oracle.db>> .env
-    )
-) else (
-    echo  [OK] .env already exists
+:: Check npm
+where npm >nul 2>&1
+if %errorlevel% neq 0 (
+    echo  ❌ npm not found! Please install Node.js from https://nodejs.org/
+    pause
+    exit /b 1
 )
 
-REM Install dependencies
-echo  [..] Installing dependencies...
+echo  ✅ npm found
+
+:: Install dependencies
+echo.
+echo  📦 Installing dependencies...
 call npm install
-if errorlevel 1 (
-    echo  [X] npm install failed!
-    echo      Try: npm install --force
+if %errorlevel% neq 0 (
+    echo  ❌ npm install failed!
     pause
     exit /b 1
 )
-echo  [OK] Dependencies installed
+
+echo  ✅ Dependencies installed
+
+:: Create directories
+if not exist "data" mkdir data
+if not exist "logs" mkdir logs
+if not exist "plugins" mkdir plugins
+if not exist "ψ\inbox" mkdir "ψ\inbox"
+if not exist "ψ\memory" mkdir "ψ\memory"
+if not exist "ψ\writing" mkdir "ψ\writing"
+if not exist "ψ\lab" mkdir "ψ\lab"
+if not exist "ψ\outbox" mkdir "ψ\outbox"
+if not exist "ψ\sessions" mkdir "ψ\sessions"
+if not exist "ψ\traces" mkdir "ψ\traces"
+if not exist "ψ\threads" mkdir "ψ\threads"
+echo  ✅ Directory structure created
+
+:: Create .env if not exists
+if not exist ".env" (
+    copy ".env.example" ".env"
+    echo  ✅ .env created from template
+    echo.
+    echo  ⚠️  IMPORTANT: Edit .env and add your API key!
+    echo     - For Gemini: set GEMINI_API_KEY=your-key
+    echo     - For PromptDee: no key needed (free)
+    echo.
+) else (
+    echo  ℹ️  .env already exists, skipping
+)
 
 echo.
-echo  ════════════════════════════════════════════════
-echo   Setup complete!
-echo  ════════════════════════════════════════════════
-echo.
-echo   1. Edit .env and add your API key
-echo   2. Double-click start.bat (or run: npm start)
-echo   3. Open http://localhost:3456/dashboard
-echo   4. Click "+ New" to spawn an agent
-echo   5. Chat with your agent!
-echo.
-echo   Available agent roles:
-echo     🤖 General     - All-purpose assistant
-echo     🔬 Researcher   - Analysis & patterns
-echo     💻 Coder        - Write & debug code
-echo     ✍️  Writer       - Docs & content
-echo     👔 Manager      - Coordinate agents
-echo.
-echo   CLI commands (after starting the hub):
-echo     node bin/oracle status
-echo     node bin/oracle chat Neo "hello"
-echo     node bin/oracle team spawn
+echo  ╔══════════════════════════════════════════════╗
+echo  ║  ✅ Setup complete!                          ║
+echo  ║                                              ║
+echo  ║  Next steps:                                 ║
+echo  ║  1. Edit .env → add your API key             ║
+echo  ║  2. Double-click start.bat                   ║
+echo  ║  3. Open http://localhost:3456/dashboard      ║
+echo  ╚══════════════════════════════════════════════╝
 echo.
 pause

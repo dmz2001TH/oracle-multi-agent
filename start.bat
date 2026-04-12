@@ -1,39 +1,50 @@
 @echo off
-title Oracle Multi-Agent Hub
+chcp 65001 >nul 2>&1
+title ARRA Office — Oracle Multi-Agent v4.0
+
 echo.
-echo  ╔══════════════════════════════════════════════════╗
-echo  ║         Oracle Multi-Agent System  v2.1         ║
-echo  ╚══════════════════════════════════════════════════╝
+echo  ╔══════════════════════════════════════════════╗
+echo  ║  🧠 ARRA Office — Oracle Multi-Agent v4.0    ║
+echo  ║  Starting...                                 ║
+echo  ╚══════════════════════════════════════════════╝
 echo.
 
-REM Check if .env exists
-if not exist .env (
-    echo  [!] .env not found! Running setup first...
-    echo.
-    call "%~dp0setup.bat"
-    if not exist .env (
-        echo  [X] Setup failed. Please create .env manually.
-        pause
-        exit /b 1
-    )
+:: Check if .env exists
+if not exist ".env" (
+    echo  ❌ .env not found!
+    echo  Run setup.bat first.
+    pause
+    exit /b 1
 )
 
-REM Check if node_modules exists
-if not exist node_modules (
-    echo  [!] Installing dependencies...
+:: Check if node_modules exists
+if not exist "node_modules" (
+    echo  📦 Installing dependencies first...
     call npm install
-    if errorlevel 1 (
-        echo  [X] npm install failed!
-        pause
-        exit /b 1
-    )
 )
 
-echo  [OK] Starting Oracle Hub...
-echo  [OK] Dashboard: http://localhost:3456/dashboard
+:: Create data dir if missing
+if not exist "data" mkdir data
+if not exist "ψ" mkdir "ψ"
+
+echo  🚀 Launching Oracle Hub...
 echo.
-echo  Press Ctrl+C to stop.
+echo  📊 Dashboard: http://localhost:3456/dashboard
+echo  🌐 React App: http://localhost:3456/app
+echo  🔌 API:       http://localhost:3456/api/health
+echo.
+echo  Press Ctrl+C to stop
 echo.
 
 node src/hub/index.js
-pause
+
+if %errorlevel% neq 0 (
+    echo.
+    echo  ❌ Hub crashed! Check the error above.
+    echo  Common fixes:
+    echo    - Check your API key in .env
+    echo    - Make sure port 3456 is free
+    echo    - Run: npm install
+    echo.
+    pause
+)

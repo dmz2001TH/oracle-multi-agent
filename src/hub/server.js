@@ -4,8 +4,13 @@ import express from 'express';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { MemoryStore } from '../memory/store.js';
+import { OracleVault } from '../memory/vault.js';
 import { AgentManager } from '../agents/manager.js';
 import { TeamOrchestrator } from './team.js';
+import { OracleEngine } from '../engine/index.js';
+import { TransportRouter, LocalTransport, HttpTransport, WsTransport } from '../transport/index.js';
+import { FederationManager, signPayload, verifySignature } from '../federation/index.js';
+import { PluginSystem, loggerPlugin, statsPlugin } from '../plugins/index.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -21,6 +26,7 @@ export class HubServer extends EventEmitter {
       geminiApiKey: process.env.GEMINI_API_KEY || '',
       agentModel: process.env.AGENT_MODEL || 'gemini-2.0-flash',
       provider: process.env.LLM_PROVIDER || 'promptdee',
+      vaultPath: process.env.VAULT_PATH || './ψ',
       ...config,
     };
 
@@ -28,9 +34,22 @@ export class HubServer extends EventEmitter {
     this.store = new MemoryStore(this.config.dbPath);
     this.agentManager = new AgentManager(this.store, this.config);
     this.teamOrchestrator = new TeamOrchestrator(this.agentManager, this.store);
+
+    // New subsystems (from Soul-Brews-Studio architecture)
+    this.engine = new OracleEngine({ feedMax: 500 });
+    this.vault = new OracleVault(this.config.vaultPath);
+    this.federation = new FederationManager({
+      nodeName: process.env.NODE_NAME || 'local',
+      federationToken: process.env.FEDERATION_TOKEN || ''
+    });
+    this.plugins = new PluginSystem();
+    this.transportRouter = new TransportRouter();
+    this.costs = { totalTokens: 0, totalRequests: 0, byAgent: {} };
+
     this.clients = new Set();
     this._setupMiddleware();
     this._setupRoutes();
+    this._initSubsystems();
   }
 
   _setupMiddleware() {
@@ -484,11 +503,224 @@ export class HubServer extends EventEmitter {
     });
 
     // ================================================================
+    // FEED (real-time event stream, from maw-js)
+    // ================================================================
+    this.app.get('/api/feed', (req, res) => {
+      const limit = parseInt(req.query.limit || '50');
+      res.json({ events: this.engine.getFeed(limit) });
+    });
+
+    // ================================================================
+    // VAULT (ψ/ file management, from arra-oracle-v3)
+    // ================================================================
+    this.app.get('/api/vault/status', async (req, res) => {
+      try {
+        const status = await this.vault.status();
+        res.json(status);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    this.app.get('/api/vault/:section', async (req, res) => {
+      try {
+        const items = await this.vault.list(req.params.section, { limit: parseInt(req.query.limit || '50') });
+        res.json({ items });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    this.app.post('/api/vault/:section', async (req, res) => {
+      try {
+        const { title, content, tags } = req.body;
+        const result = await this.vault.write(req.params.section, title || `item-${Date.now()}`, content || '', { tags });
+        this.engine.addFeedEvent({ type: 'vault_write', section: req.params.section, name: result.name });
+        res.json(result);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    this.app.get('/api/vault/:section/:name', async (req, res) => {
+      try {
+        const content = await this.vault.read(req.params.section, req.params.name);
+        if (!content) return res.status(404).json({ error: 'Not found' });
+        res.json({ content });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    // ================================================================
+    // FEDERATION PEER MANAGEMENT (from maw-js federation)
+    // ================================================================
+    this.app.get('/api/federation/peers', (req, res) => {
+      res.json({ peers: this.federation.listNodes() });
+    });
+
+    this.app.post('/api/federation/peers', (req, res) => {
+      const { name, url, federationToken } = req.body;
+      if (!name || !url) return res.status(400).json({ error: 'name and url required' });
+      const node = this.federation.addNode({ name, url, federationToken });
+      // Also add to HTTP transport
+      const httpTransport = this.transportRouter.getTransport('http');
+      if (httpTransport) httpTransport.addPeer(name, url);
+      this.engine.addFeedEvent({ type: 'federation_peer_add', peer: name });
+      res.json(node.toJSON());
+    });
+
+    this.app.delete('/api/federation/peers/:name', (req, res) => {
+      this.federation.removeNode(req.params.name);
+      const httpTransport = this.transportRouter.getTransport('http');
+      if (httpTransport) httpTransport.removePeer(req.params.name);
+      res.json({ ok: true });
+    });
+
+    this.app.post('/api/federation/ping', async (req, res) => {
+      const results = await this.federation.pingAll();
+      res.json({ results });
+    });
+
+    // ================================================================
+    // PEER EXEC (cross-machine command execution, from maw-js)
+    // ================================================================
+    this.app.post('/api/peer/exec',
+      this.federation.authMiddleware(),
+      async (req, res) => {
+        try {
+          const { command, args = [] } = req.body;
+          this.engine.addFeedEvent({ type: 'peer_exec', command, from: req.headers['x-signature'] ? 'authenticated' : 'local' });
+
+          // Execute supported commands
+          switch (command) {
+            case 'status':
+              return res.json({ ok: true, result: this.engine.getStats() });
+            case 'agents':
+              return res.json({ ok: true, result: this.store.listAgents() });
+            case 'feed':
+              return res.json({ ok: true, result: this.engine.getFeed(args[0] || 20) });
+            default:
+              return res.status(400).json({ error: `Unknown command: ${command}` });
+          }
+        } catch (err) {
+          res.status(500).json({ error: err.message });
+        }
+      }
+    );
+
+    // ================================================================
+    // BROADCAST (send message to all agents)
+    // ================================================================
+    this.app.post('/api/broadcast', async (req, res) => {
+      const { message } = req.body;
+      if (!message) return res.status(400).json({ error: 'message required' });
+      const agents = this.agentManager.getRunningAgents();
+      let recipients = 0;
+      for (const agent of agents) {
+        try {
+          this._handleAgentCallback(agent.id, 'message', { content: `[Broadcast] ${message}`, to: 'all' });
+          recipients++;
+        } catch {}
+      }
+      this.engine.addFeedEvent({ type: 'broadcast', message: message.slice(0, 100), recipients });
+      this.store.sendMessage('system', `📢 Broadcast: ${message}`, null, null, 'system');
+      res.json({ ok: true, recipients });
+    });
+
+    // ================================================================
+    // COSTS TRACKING (from maw-js)
+    // ================================================================
+    this.app.get('/api/costs', (req, res) => {
+      res.json(this.costs);
+    });
+
+    this.app.post('/api/costs/track', (req, res) => {
+      const { agentId, tokens, model } = req.body;
+      this.costs.totalTokens += tokens || 0;
+      this.costs.totalRequests += 1;
+      if (agentId) {
+        if (!this.costs.byAgent[agentId]) {
+          this.costs.byAgent[agentId] = { tokens: 0, requests: 0, model: model || 'unknown' };
+        }
+        this.costs.byAgent[agentId].tokens += tokens || 0;
+        this.costs.byAgent[agentId].requests += 1;
+      }
+      res.json({ ok: true });
+    });
+
+    // ================================================================
+    // PLUGINS
+    // ================================================================
+    this.app.get('/api/plugins', (req, res) => {
+      res.json({ plugins: this.plugins.list() });
+    });
+
+    // ================================================================
+    // ENGINE STATS
+    // ================================================================
+    this.app.get('/api/engine', (req, res) => {
+      res.json(this.engine.getStats());
+    });
+
+    // ================================================================
     // DASHBOARD
     // ================================================================
     this.app.get('/dashboard', (req, res) => {
       res.sendFile(join(__dirname, '../dashboard/public/index.html'));
     });
+
+    // React SPA dashboard (if built)
+    this.app.use('/app', express.static(join(__dirname, '../dashboard/dist')));
+    this.app.get('/app/*', (req, res) => {
+      res.sendFile(join(__dirname, '../dashboard/dist/index.html'));
+    });
+  }
+
+  // ================================================================
+  // SUBSYSTEM INITIALIZATION
+  // ================================================================
+  async _initSubsystems() {
+    // Initialize vault
+    try {
+      await this.vault.init();
+      console.log('[vault] ψ/ structure initialized');
+    } catch (err) {
+      console.warn('[vault] Init failed:', err.message);
+    }
+
+    // Register built-in plugins
+    this.plugins.register('logger', loggerPlugin);
+    this.plugins.register('stats', statsPlugin);
+
+    // Load user plugins from ./plugins/ directory
+    await this.plugins.loadFromDir(join(process.cwd(), 'plugins'));
+
+    // Setup transport router
+    this.transportRouter.register('local', new LocalTransport(this));
+    this.transportRouter.register('ws', new WsTransport(null)); // set after WS init
+    const httpTransport = new HttpTransport({
+      federationToken: process.env.FEDERATION_TOKEN || ''
+    });
+    this.transportRouter.register('http', httpTransport);
+
+    // Connect engine feed to WebSocket broadcast
+    this.engine.onFeed((event) => {
+      this._broadcast({ type: 'feed_event', event });
+    });
+
+    // Connect agent manager callbacks to engine
+    this.agentManager.on('agent_spawned', (agent) => {
+      this.engine.registerAgent(agent.id, { name: agent.name, role: agent.role });
+      this.plugins.runHook('agent_spawn', { agentId: agent.id, role: agent.role });
+    });
+
+    this.agentManager.on('agent_stopped', (agent) => {
+      this.engine.unregisterAgent(agent.id);
+    });
+
+    console.log('[engine] Oracle Engine initialized');
+    console.log('[plugins] Loaded:', this.plugins.list().map(p => p.name).join(', '));
   }
 
   // ================================================================
@@ -657,22 +889,46 @@ Or just type normally to chat with agents!`;
   async start() {
     return new Promise((resolve) => {
       this.server = this.app.listen(this.config.port, this.config.host, () => {
-        console.log(`🧠 ARRA Office v3.0 running on http://${this.config.host}:${this.config.port}`);
-        console.log(`📊 Dashboard: http://localhost:${this.config.port}/dashboard`);
-        console.log(`🔌 Provider: ${this.config.provider}`);
+        console.log(`\n🧠 ARRA Office v4.0 — Oracle Multi-Agent System`);
+        console.log(`   URL: http://${this.config.host}:${this.config.port}`);
+        console.log(`   Dashboard: http://localhost:${this.config.port}/dashboard`);
+        console.log(`   Provider: ${this.config.provider}`);
+        console.log(`   Node: ${process.env.NODE_NAME || 'local'}\n`);
 
         this.wss = new WebSocketServer({ server: this.server });
         this.wss.on('connection', (ws) => {
           this.clients.add(ws);
           ws.on('close', () => this.clients.delete(ws));
+          // Send initial state including feed
           ws.send(JSON.stringify({
             type: 'init',
             stats: this.store.getStats(),
             agents: this.store.listAgents(),
+            engine: this.engine.getStats(),
+            feed: this.engine.getFeed(20),
           }));
         });
 
+        // Set WS transport with actual server
+        const wsTransport = this.transportRouter.getTransport('ws');
+        if (wsTransport) wsTransport.wsServer = this.wss;
+
+        // Connect all transports
+        this.transportRouter.connectAll().catch(err => {
+          console.warn('[transport] Some transports failed:', err.message);
+        });
+
+        // Start engine health checks
+        this.engine.startHealthCheck();
+
+        // Start federation health monitor
+        this.federation.startHealthMonitor();
+
+        // Run startup hooks
+        this.plugins.runHook('startup', { hub: this });
+
         this._respawnAgents();
+        this.engine.addFeedEvent({ type: 'hub_start', port: this.config.port });
         resolve(this);
       });
     });
@@ -711,11 +967,19 @@ Or just type normally to chat with agents!`;
       console.warn('⚠️ Could not create handoff:', err.message);
     }
 
+    // Shutdown new subsystems
+    this.engine.addFeedEvent({ type: 'hub_shutdown' });
+    await this.engine.shutdown();
+    this.federation.stopHealthMonitor();
+    await this.transportRouter.disconnectAll();
+    await this.plugins.runHook('shutdown');
+    await this.plugins.shutdown();
+
     this.agentManager.stopAll();
     this.store.close();
     this.wss?.close();
     this.server?.close();
-    console.log('👋 ARRA Office stopped.');
+    console.log('👋 ARRA Office v4.0 stopped.');
   }
 
   _watchdogTick() {

@@ -1,9 +1,19 @@
 #!/usr/bin/env node
-import { GeminiAgent } from './gemini-client.js';
-
 const config = JSON.parse(process.env.AGENT_CONFIG);
 
-const agent = new GeminiAgent(config);
+// Select LLM provider
+let Agent;
+if (config.provider === 'promptdee') {
+  const mod = await import('./promptdee-client.js');
+  Agent = mod.PromptDeeAgent;
+  console.log(`🤖 Agent "${config.name}" using PromptDee API (gpt-4o-mini)`);
+} else {
+  const mod = await import('./gemini-client.js');
+  Agent = mod.GeminiAgent;
+  console.log(`🤖 Agent "${config.name}" using Gemini API (${config.model})`);
+}
+
+const agent = new Agent(config);
 
 console.log(`🤖 Agent "${config.name}" (${config.role}) starting...`);
 
@@ -13,7 +23,6 @@ agent._callback('status', { status: 'active' });
 // Load initial memories
 const loadInitialMemories = async () => {
   try {
-    // Use getRecentMemories directly instead of FTS search at startup
     const memories = await agent._hubGet(`/api/memory/all?limit=20`);
     if (Array.isArray(memories)) {
       agent.memoryCache = memories.map(m => ({ content: m.content, category: m.category }));

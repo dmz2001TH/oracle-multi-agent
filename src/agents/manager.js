@@ -91,6 +91,7 @@ export class AgentManager extends EventEmitter {
       geminiApiKey: this.config.geminiApiKey,
       model: this.config.agentModel || 'gemini-2.0-flash',
       hubUrl: `http://localhost:${this.config.port}`,
+      provider: this.config.provider || 'gemini', // 'gemini' or 'promptdee'
     };
 
     const workerPath = join(dirname(__dirname), 'agents', 'worker.js');

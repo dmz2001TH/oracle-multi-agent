@@ -20,6 +20,7 @@ export class HubServer extends EventEmitter {
       maxAgents: parseInt(process.env.MAX_CONCURRENT_AGENTS || '5'),
       geminiApiKey: process.env.GEMINI_API_KEY || '',
       agentModel: process.env.AGENT_MODEL || 'gemini-2.0-flash',
+      provider: process.env.LLM_PROVIDER || 'promptdee',
       ...config,
     };
 

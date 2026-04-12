@@ -475,9 +475,34 @@ export class HubServer extends EventEmitter {
           }));
         });
 
+        // Auto-respawn agents that were previously active
+        this._respawnAgents();
+
         resolve(this);
       });
     });
+  }
+
+  async _respawnAgents() {
+    try {
+      const savedStates = this.store.getAllSavedStates();
+      if (savedStates.length === 0) return;
+
+      console.log(`\n🔄 Auto-respawning ${savedStates.length} agent(s) from last session...`);
+
+      for (const state of savedStates) {
+        try {
+          console.log(`   ↳ Respawning ${state.name} (${state.role})...`);
+          await this.agentManager.spawnAgent(state.name, state.role, state.personality || '');
+        } catch (err) {
+          console.warn(`   ⚠️ Could not respawn ${state.name}: ${err.message}`);
+        }
+      }
+
+      console.log(`✅ Auto-respawn complete\n`);
+    } catch (err) {
+      console.warn(`⚠️ Auto-respawn failed: ${err.message}`);
+    }
   }
 
   async stop() {

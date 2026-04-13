@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🤖 Agents — Oracle Multi-Agent</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root{--bg:#0a0a0a;--surface:#111;--surface2:#161616;--border:#222;--text:#e0e0e0;--dim:#888;--accent:#6366f1;--accent2:#818cf8;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--blue:#3b82f6;--cyan:#06b6d4}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  .header{display:flex;align-items:center;gap:1rem;padding:0.6rem 1.2rem;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10}
+  .header h1{font-size:1rem;font-weight:500}
+  .badge{background:var(--accent);color:white;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.7rem}
+  .nav{display:flex;gap:0.25rem;margin-left:auto;flex-wrap:wrap}
+  .nav a{color:var(--dim);text-decoration:none;font-size:0.78rem;padding:0.3rem 0.55rem;border-radius:4px;border:1px solid transparent;white-space:nowrap}
+  .nav a:hover{border-color:var(--border);color:var(--text)}
+  .nav a.active{border-color:var(--accent);color:var(--accent)}
+  .page{max-width:1200px;margin:0 auto;padding:1.5rem}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem}
+  .grid-full{grid-column:1/-1}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.2rem}
+  .card h3{font-size:0.8rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.5rem}
+  .count{background:var(--accent);color:white;padding:0.1rem 0.4rem;border-radius:8px;font-size:0.65rem}
+  .agent-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;cursor:pointer;transition:border-color 0.2s}
+  .agent-card:hover{border-color:var(--accent)}
+  .agent-card.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .agent-card .name{font-size:1rem;font-weight:600;display:flex;align-items:center;gap:0.5rem}
+  .agent-card .role{font-size:0.8rem;color:var(--dim);margin-top:0.2rem}
+  .agent-card .meta{font-size:0.75rem;color:var(--dim);margin-top:0.5rem;display:flex;gap:1rem}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .dot.active{background:var(--green);box-shadow:0 0 6px var(--green)}
+  .dot.idle{background:var(--yellow)}
+  .dot.off{background:var(--dim)}
+  .agent-actions{display:flex;gap:0.4rem;margin-top:0.8rem;flex-wrap:wrap}
+  .agent-actions button{padding:0.3rem 0.6rem;border-radius:4px;font-size:0.75rem;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text)}
+  .agent-actions button:hover{border-color:var(--accent)}
+  .agent-actions button.danger{color:var(--red)}
+  .agent-actions button.danger:hover{border-color:var(--red)}
+  .spawn-form{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap}
+  .spawn-form input,.spawn-form select{padding:0.4rem 0.6rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;outline:none}
+  .spawn-form input:focus{border-color:var(--accent)}
+  .spawn-form button{padding:0.4rem 1rem;background:var(--accent);border:none;color:white;border-radius:4px;cursor:pointer;font-size:0.85rem}
+  .spawn-form button:hover{background:var(--accent2)}
+  .detail-panel{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.2rem;display:none}
+  .detail-panel.show{display:block}
+  .detail-row{display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--border);font-size:0.85rem}
+  .detail-row:last-child{border-bottom:none}
+  .detail-label{color:var(--dim)}
+  .detail-value{font-weight:500}
+  .chat-log{max-height:200px;overflow-y:auto;background:#080808;border-radius:4px;padding:0.6rem;margin-top:0.8rem;font-family:monospace;font-size:0.8rem;line-height:1.5}
+  .chat-log .msg-user{color:var(--cyan)}
+  .chat-log .msg-agent{color:var(--accent)}
+  .ws-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .ws-dot.on{background:var(--green)} .ws-dot.off{background:var(--red)}
+  .loading{color:var(--dim);font-style:italic;padding:1rem}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🤖 Agents</h1><span class="badge">v5.0</span><span class="ws-dot off" id="ws-dot"></span>
+  <div class="nav"><a href="/">🏠 Home</a><a href="/terminal">🖥️ Terminal</a><a href="/mission">📋 Mission</a><a href="/inbox">📬 Inbox</a><a href="/agents" class="active">🤖 Agents</a><a href="/fleet">🚢 Fleet</a><a href="/workspace">🏗️ Workspace</a><a href="/config">⚙️ Config</a><a href="/vault">🔐 Vault</a></div>
+</div>
+<div class="page">
+  <div class="spawn-form" style="margin-bottom:1rem">
+    <input id="spawn-name" placeholder="Agent name...">
+    <select id="spawn-role">
+      <option value="general">General</option><option value="researcher">Researcher</option><option value="coder">Coder</option>
+      <option value="writer">Writer</option><option value="manager">Manager</option><option value="data-analyst">Data Analyst</option>
+      <option value="devops">DevOps</option><option value="qa-tester">QA Tester</option><option value="translator">Translator</option>
+    </select>
+    <button onclick="spawnAgent()">⚡ Spawn</button>
+    <button onclick="loadAgents()" style="background:var(--surface2);border:1px solid var(--border)">🔄 Refresh</button>
+  </div>
+
+  <div class="detail-panel" id="detail-panel">
+    <h3 style="font-size:0.8rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.8rem">📋 Agent Detail</h3>
+    <div id="detail-content"></div>
+    <div class="chat-log" id="detail-log"></div>
+    <div style="display:flex;gap:0.5rem;margin-top:0.8rem">
+      <input id="detail-chat-input" placeholder="Message agent..." style="flex:1;padding:0.4rem 0.6rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;outline:none" onkeydown="if(event.key==='Enter')chatDetailAgent()">
+      <button onclick="chatDetailAgent()" style="padding:0.4rem 0.8rem;background:var(--accent);border:none;color:white;border-radius:4px;cursor:pointer;font-size:0.8rem">Send</button>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:1rem" id="agent-grid"><div class="loading">Loading agents...</div></div>
+</div>
+<script>
+const API=window.location.origin;let agents=[],detailAgent=null;
+function connectWS(){const p=location.protocol==='https:'?'wss:':'ws:';const ws=new WebSocket(`${p}//${location.host}/ws`);ws.onopen=()=>document.getElementById('ws-dot').className='ws-dot on';ws.onclose=()=>{document.getElementById('ws-dot').className='ws-dot off';setTimeout(connectWS,3000)};ws.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='init'||m.type==='sessions')loadAgents();if(m.type==='agent_spawned'||m.type==='agent_died')loadAgents()}catch{}};setInterval(()=>{if(ws.readyState===1)ws.send(JSON.stringify({type:'ping'}))},30000)}
+async function loadAgents(){try{const r=await fetch(`${API}/api/v2/agents`);const d=await r.json();agents=d.agents||[];renderAgents()}catch{document.getElementById('agent-grid').innerHTML='<div class="loading">Failed to load</div>'}}
+function renderAgents(){const el=document.getElementById('agent-grid');if(!agents.length){el.innerHTML='<div class="loading" style="grid-column:1/-1;text-align:center;padding:2rem">No agents — spawn one above</div>';return}el.innerHTML=agents.map(a=>`<div class="agent-card ${detailAgent===a.id?'selected':''}" onclick="selectDetail('${a.id}')"><div class="name"><span class="dot ${a.running?'active':'idle'}"></span>${esc(a.name)}</div><div class="role">${a.role}${a.status?' · '+a.status:''}</div><div class="meta">${a.id?'<span>ID: '+a.id.slice(0,8)+'</span>':''}${a.createdAt?'<span>Created: '+new Date(a.createdAt).toLocaleTimeString()+'</span>':''}</div><div class="agent-actions"><button onclick="event.stopPropagation();agentAction('${a.id}','restart')">🔄 Restart</button><button onclick="event.stopPropagation();agentAction('${a.id}','sleep')">💤 Sleep</button><button class="danger" onclick="event.stopPropagation();agentAction('${a.id}','stop')">⏹ Stop</button></div></div>`).join('')}
+async function selectDetail(id){detailAgent=id;const a=agents.find(x=>x.id===id);if(!a)return;document.getElementById('detail-panel').classList.add('show');document.getElementById('detail-content').innerHTML=`<div class="detail-row"><span class="detail-label">Name</span><span class="detail-value">${esc(a.name)}</span></div><div class="detail-row"><span class="detail-label">Role</span><span class="detail-value">${a.role}</span></div><div class="detail-row"><span class="detail-label">ID</span><span class="detail-value" style="font-family:monospace;font-size:0.75rem">${a.id}</span></div><div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${a.running?'🟢 Running':'🟡 Idle'}</span></div>`;document.getElementById('detail-log').innerHTML='<div style="color:var(--dim)">Chat log for '+esc(a.name)+'</div>';renderAgents()}
+async function chatDetailAgent(){if(!detailAgent)return;const input=document.getElementById('detail-chat-input'),text=input.value.trim();if(!text)return;input.value='';const log=document.getElementById('detail-log');log.innerHTML+=`<div class="msg-user">> ${esc(text)}</div>`;try{const r=await fetch(`${API}/api/v2/agents/${detailAgent}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});const d=await r.json();log.innerHTML+=`<div class="msg-agent">${esc(d.response||d.message||'No response')}</div>`;log.scrollTop=log.scrollHeight}catch(e){log.innerHTML+=`<div style="color:var(--red)">Error: ${e.message}</div>`}}
+async function spawnAgent(){const name=document.getElementById('spawn-name').value||`Agent${Date.now().toString(36)}`;const role=document.getElementById('spawn-role').value;try{await fetch(`${API}/api/v2/agents/spawn`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,role})});document.getElementById('spawn-name').value='';setTimeout(loadAgents,1000)}catch(e){alert('Spawn failed: '+e.message)}}
+async function agentAction(id,action){try{if(action==='stop'||action==='sleep'){await fetch(`${API}/api/v2/agents/${id}`,{method:'DELETE'})}else if(action==='restart'){await fetch(`${API}/api/v2/agents/${id}`,{method:'DELETE'});setTimeout(loadAgents,1000)}setTimeout(loadAgents,500)}catch(e){alert('Action failed: '+e.message)}}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+connectWS();loadAgents();setInterval(loadAgents,10000);
+</script>
+</body>
+</html>

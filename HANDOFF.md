@@ -10,6 +10,24 @@
 
 ## ✅ สิ่งที่เสร็จแล้วทั้งหมด
 
+### Dashboard Pages (7 หน้าใหม่ — inspired by Soul-Brews-Studio/maw-ui)
+| # | Route | Description |
+|---|-------|-------------|
+| 1 | `/terminal` | Agent terminal — sidebar เลือก agent/session, terminal output + command input, WebSocket real-time |
+| 2 | `/mission` | Mission Control — Pulse stats, task progress bars, task list CRUD, workflow templates |
+| 3 | `/inbox` | Inbox dashboard — messages/handoffs/FYI/resonance แบบ filterable, stats, quick actions |
+| 4 | `/agents` | Agent detail — card grid, spawn form, restart/sleep/stop actions, per-agent chat, detail panel |
+| 5 | `/fleet` | Fleet overview — big-number stats, agent grid, sessions, health checks, system pulse |
+| 6 | `/workspace` | Workspace — workspace configs, agent overview, skills overview, broadcast |
+| 7 | `/config` | Config viewer — system info, agent config, plugins, commands list, fleet config JSON, env vars |
+
+### Dashboard Navigation
+- ทุกหน้ามี nav bar เชื่อมถึงกัน: Home → Terminal → Mission → Inbox → Agents → Fleet → Workspace → Config → Vault
+- `index.html` (Home) เพิ่ม nav links ไปทุกหน้า
+- `vault.html` เพิ่ม nav links ไปทุกหน้า
+- Routing: `src/index.ts` เพิ่ม 7 routes ใหม่ (app.get('/terminal'), etc.)
+- TypeScript: 0 errors
+
 ### Batch 1: Core CLI Commands (16)
 | # | Command | Description |
 |---|---------|-------------|

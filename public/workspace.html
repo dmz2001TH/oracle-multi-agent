@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🏗️ Workspace — Oracle Multi-Agent</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root{--bg:#0a0a0a;--surface:#111;--surface2:#161616;--border:#222;--text:#e0e0e0;--dim:#888;--accent:#6366f1;--accent2:#818cf8;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--blue:#3b82f6;--cyan:#06b6d4}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  .header{display:flex;align-items:center;gap:1rem;padding:0.6rem 1.2rem;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10}
+  .header h1{font-size:1rem;font-weight:500}
+  .badge{background:var(--accent);color:white;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.7rem}
+  .nav{display:flex;gap:0.25rem;margin-left:auto;flex-wrap:wrap}
+  .nav a{color:var(--dim);text-decoration:none;font-size:0.78rem;padding:0.3rem 0.55rem;border-radius:4px;border:1px solid transparent;white-space:nowrap}
+  .nav a:hover{border-color:var(--border);color:var(--text)}
+  .nav a.active{border-color:var(--accent);color:var(--accent)}
+  .page{max-width:1200px;margin:0 auto;padding:1.5rem}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .grid-full{grid-column:1/-1}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.2rem}
+  .card h3{font-size:0.8rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.5rem}
+  .count{background:var(--accent);color:white;padding:0.1rem 0.4rem;border-radius:8px;font-size:0.65rem}
+  .ws-chip{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.8rem;margin-bottom:0.6rem}
+  .ws-name{font-weight:600;font-size:0.9rem;display:flex;align-items:center;gap:0.5rem}
+  .ws-desc{font-size:0.8rem;color:var(--dim);margin-top:0.3rem}
+  .ws-meta{font-size:0.75rem;color:var(--dim);margin-top:0.4rem;display:flex;gap:1rem}
+  .ws-actions{display:flex;gap:0.4rem;margin-top:0.6rem}
+  .ws-actions button{padding:0.3rem 0.6rem;border-radius:4px;font-size:0.75rem;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text)}
+  .ws-actions button:hover{border-color:var(--accent)}
+  .send-form{display:flex;gap:0.5rem;margin-top:0.8rem}
+  .send-form input{flex:1;padding:0.4rem 0.6rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;outline:none}
+  .send-form input:focus{border-color:var(--accent)}
+  .send-form button{padding:0.4rem 0.8rem;background:var(--accent);border:none;color:white;border-radius:4px;cursor:pointer;font-size:0.8rem}
+  .agent-list-mini{display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.5rem}
+  .agent-chip-mini{background:var(--bg);padding:0.2rem 0.5rem;border-radius:3px;font-size:0.75rem;display:flex;align-items:center;gap:0.3rem}
+  .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+  .dot.active{background:var(--green)}
+  .dot.idle{background:var(--yellow)}
+  .ws-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .ws-dot.on{background:var(--green)} .ws-dot.off{background:var(--red)}
+  .loading{color:var(--dim);font-style:italic;padding:1rem}
+  .stat-row{display:flex;justify-content:space-between;padding:0.3rem 0;font-size:0.85rem;border-bottom:1px solid var(--border)}
+  .stat-row:last-child{border-bottom:none}
+  .stat-label{color:var(--dim)}
+  .stat-value{font-weight:600}
+  .stat-value.green{color:var(--green)} .stat-value.accent{color:var(--accent)}
+  @media(max-width:768px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🏗️ Workspace</h1><span class="badge">v5.0</span><span class="ws-dot off" id="ws-dot"></span>
+  <div class="nav"><a href="/">🏠 Home</a><a href="/terminal">🖥️ Terminal</a><a href="/mission">📋 Mission</a><a href="/inbox">📬 Inbox</a><a href="/agents">🤖 Agents</a><a href="/fleet">🚢 Fleet</a><a href="/workspace" class="active">🏗️ Workspace</a><a href="/config">⚙️ Config</a><a href="/vault">🔐 Vault</a></div>
+</div>
+<div class="page">
+  <div class="grid">
+    <div class="card">
+      <h3>🏗️ Workspaces</h3>
+      <div id="workspace-list"><div class="loading">Loading...</div></div>
+    </div>
+    <div class="card">
+      <h3>📊 Overview</h3>
+      <div class="stat-row"><span class="stat-label">Workspaces</span><span class="stat-value accent" id="ws-count">—</span></div>
+      <div class="stat-row"><span class="stat-label">Active Agents</span><span class="stat-value green" id="ws-agents">—</span></div>
+      <div class="stat-row"><span class="stat-label">Skills Loaded</span><span class="stat-value" id="ws-skills">—</span></div>
+      <div class="stat-row"><span class="stat-label">ψ/ Files</span><span class="stat-value" id="ws-psi">—</span></div>
+      <div class="stat-row"><span class="stat-label">Memory Entries</span><span class="stat-value" id="ws-mem">—</span></div>
+    </div>
+    <!-- Active agents for multi-agent send -->
+    <div class="card grid-full">
+      <h3>🤖 Active Agents <span class="count" id="agent-count">0</span></h3>
+      <div class="agent-list-mini" id="agent-chips"><div class="loading">Loading...</div></div>
+      <div class="send-form">
+        <input id="broadcast-input" placeholder="Broadcast to all agents..." onkeydown="if(event.key==='Enter')broadcast()">
+        <button onclick="broadcast()">📢 Broadcast</button>
+      </div>
+    </div>
+    <!-- Skills overview -->
+    <div class="card grid-full">
+      <h3>⚡ Skills Overview</h3>
+      <div id="skills-list"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+</div>
+<script>
+const API=window.location.origin;let agents=[];
+function connectWS(){const p=location.protocol==='https:'?'wss:':'ws:';const ws=new WebSocket(`${p}//${location.host}/ws`);ws.onopen=()=>document.getElementById('ws-dot').className='ws-dot on';ws.onclose=()=>{document.getElementById('ws-dot').className='ws-dot off';setTimeout(connectWS,3000)};ws.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='init'||m.type==='sessions')loadAgents()}catch{}};setInterval(()=>{if(ws.readyState===1)ws.send(JSON.stringify({type:'ping'}))},30000)}
+async function loadWorkspaces(){try{const r=await fetch(`${API}/api/workspace`);const d=await r.json();const ws=d.workspaces||d||[];document.getElementById('ws-count').textContent=ws.length;document.getElementById('workspace-list').innerHTML=ws.length?ws.map(w=>`<div class="ws-chip"><div class="ws-name">📁 ${esc(w.name||w.id||'Workspace')}</div>${w.description?`<div class="ws-desc">${esc(w.description)}</div>`:''}<div class="ws-meta">${w.path?`<span>Path: ${esc(w.path)}</span>`:''}${w.agents?`<span>Agents: ${w.agents}</span>`:''}</div></div>`).join(''):'<div style="color:var(--dim);font-size:0.85rem;padding:0.5rem">No workspaces configured</div>'}catch{document.getElementById('workspace-list').innerHTML='<div class="loading">Failed to load</div>'}}
+async function loadAgents(){try{const r=await fetch(`${API}/api/v2/agents`);const d=await r.json();agents=d.agents||[];const a=agents.filter(x=>x.role!=='human'&&x.role!=='system');document.getElementById('agent-count').textContent=a.length;document.getElementById('ws-agents').textContent=a.filter(x=>x.running).length;document.getElementById('agent-chips').innerHTML=a.length?a.map(x=>`<div class="agent-chip-mini"><span class="dot ${x.running?'active':'idle'}"></span>${esc(x.name)} <span style="color:var(--dim)">(${x.role})</span></div>`).join(''):'<div style="color:var(--dim);font-size:0.85rem;padding:0.5rem">No agents</div>'}catch{}}
+async function loadStats(){try{const[sk,vm,mm]=await Promise.all([fetch(`${API}/api/skills`).then(r=>r.json()).catch(()=>({})),fetch(`${API}/api/vault/stats`).then(r=>r.json()).catch(()=>({})),fetch(`${API}/api/v2/memory/stats`).then(r=>r.json()).catch(()=>({}))]);if(sk.count)document.getElementById('ws-skills').textContent=sk.count;else if(sk.skills)document.getElementById('ws-skills').textContent=sk.skills.length;if(vm.totalFiles!==undefined)document.getElementById('ws-psi').textContent=vm.totalFiles;if(mm.total!==undefined)document.getElementById('ws-mem').textContent=mm.total}catch{}}
+async function loadSkills(){try{const r=await fetch(`${API}/api/skills`);const d=await r.json();const skills=d.skills||[];document.getElementById('skills-list').innerHTML=skills.length?`<div style="display:flex;flex-wrap:wrap;gap:0.3rem">${skills.slice(0,30).map(s=>`<span style="background:var(--surface2);padding:0.2rem 0.5rem;border-radius:3px;font-size:0.75rem">${esc(typeof s==='string'?s:s.name||'')}</span>`).join('')}${skills.length>30?`<span style="color:var(--dim);font-size:0.75rem;padding:0.2rem 0.5rem">+${skills.length-30} more</span>`:''}</div>`:'<div style="color:var(--dim);font-size:0.85rem">No skills loaded</div>'}catch{document.getElementById('skills-list').innerHTML='<div class="loading">Failed</div>'}}
+async function broadcast(){const input=document.getElementById('broadcast-input'),text=input.value.trim();if(!text)return;input.value='';try{await fetch(`${API}/api/v2/agents/broadcast`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});alert('Broadcast sent')}catch(e){alert('Error: '+e.message)}}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+connectWS();loadWorkspaces();loadAgents();loadStats();loadSkills();setInterval(loadAgents,15000);
+</script>
+</body>
+</html>

@@ -72,6 +72,48 @@ if (hasDist) {
     return c.text('Vault dashboard not found', 404);
   });
 
+  app.get('/terminal', (c) => {
+    const f = join(PUBLIC_DIR, 'terminal.html');
+    if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
+    return c.text('Not found', 404);
+  });
+
+  app.get('/mission', (c) => {
+    const f = join(PUBLIC_DIR, 'mission.html');
+    if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
+    return c.text('Not found', 404);
+  });
+
+  app.get('/inbox', (c) => {
+    const f = join(PUBLIC_DIR, 'inbox.html');
+    if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
+    return c.text('Not found', 404);
+  });
+
+  app.get('/agents', (c) => {
+    const f = join(PUBLIC_DIR, 'agents.html');
+    if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
+    return c.text('Not found', 404);
+  });
+
+  app.get('/fleet', (c) => {
+    const f = join(PUBLIC_DIR, 'fleet.html');
+    if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
+    return c.text('Not found', 404);
+  });
+
+  app.get('/workspace', (c) => {
+    const f = join(PUBLIC_DIR, 'workspace.html');
+    if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
+    return c.text('Not found', 404);
+  });
+
+  app.get('/config', (c) => {
+    const f = join(PUBLIC_DIR, 'config.html');
+    if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
+    return c.text('Not found', 404);
+  });
+
   app.get('/favicon.ico', (c) => c.redirect('/favicon.svg', 301));
 
   app.get('/', (c) => {
@@ -202,8 +244,8 @@ app.get('/api/maw-log', (c) => {
   return c.redirect(`/api/logs${qs}`, 307);
 });
 
-// Redirect /agents.html → / (agents panel is in main dashboard now)
-app.get('/agents.html', (c) => c.redirect('/', 301));
+// Redirect /agents.html → /agents (dedicated agents page)
+app.get('/agents.html', (c) => c.redirect('/agents', 301));
 
 // GET /api/plugins — list loaded plugins
 app.get('/api/plugins', async (c) => {

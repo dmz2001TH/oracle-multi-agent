@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🚢 Fleet — Oracle Multi-Agent</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root{--bg:#0a0a0a;--surface:#111;--surface2:#161616;--border:#222;--text:#e0e0e0;--dim:#888;--accent:#6366f1;--accent2:#818cf8;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--blue:#3b82f6;--cyan:#06b6d4}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  .header{display:flex;align-items:center;gap:1rem;padding:0.6rem 1.2rem;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10}
+  .header h1{font-size:1rem;font-weight:500}
+  .badge{background:var(--accent);color:white;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.7rem}
+  .nav{display:flex;gap:0.25rem;margin-left:auto;flex-wrap:wrap}
+  .nav a{color:var(--dim);text-decoration:none;font-size:0.78rem;padding:0.3rem 0.55rem;border-radius:4px;border:1px solid transparent;white-space:nowrap}
+  .nav a:hover{border-color:var(--border);color:var(--text)}
+  .nav a.active{border-color:var(--accent);color:var(--accent)}
+  .page{max-width:1200px;margin:0 auto;padding:1.5rem}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .grid-full{grid-column:1/-1}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.2rem}
+  .card h3{font-size:0.8rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.5rem}
+  .count{background:var(--accent);color:white;padding:0.1rem 0.4rem;border-radius:8px;font-size:0.65rem}
+  .stat-row{display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;border-bottom:1px solid var(--border)}
+  .stat-row:last-child{border-bottom:none}
+  .stat-label{font-size:0.85rem;color:var(--dim)}
+  .stat-value{font-size:1rem;font-weight:600}
+  .stat-value.green{color:var(--green)} .stat-value.yellow{color:var(--yellow)} .stat-value.red{color:var(--red)} .stat-value.accent{color:var(--accent)} .stat-value.blue{color:var(--blue)} .stat-value.cyan{color:var(--cyan)}
+  .big-number{font-size:2.5rem;font-weight:700;line-height:1}
+  .agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.8rem}
+  .agent-chip{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0.8rem;display:flex;align-items:center;gap:0.5rem;font-size:0.85rem}
+  .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .dot.active{background:var(--green);box-shadow:0 0 6px var(--green)}
+  .dot.idle{background:var(--yellow)}
+  .dot.off{background:var(--dim)}
+  .role-tag{font-size:0.7rem;color:var(--dim)}
+  .session-row{display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid var(--border);font-size:0.85rem}
+  .session-row:last-child{border-bottom:none}
+  .ws-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .ws-dot.on{background:var(--green)} .ws-dot.off{background:var(--red)}
+  .loading{color:var(--dim);font-style:italic;padding:1rem}
+  .progress-bar{width:100%;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:0.3rem}
+  .progress-fill{height:100%;border-radius:4px}
+  .progress-fill.green{background:var(--green)} .progress-fill.accent{background:var(--accent)} .progress-fill.yellow{background:var(--yellow)}
+  @media(max-width:768px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🚢 Fleet Overview</h1><span class="badge">v5.0</span><span class="ws-dot off" id="ws-dot"></span>
+  <div class="nav"><a href="/">🏠 Home</a><a href="/terminal">🖥️ Terminal</a><a href="/mission">📋 Mission</a><a href="/inbox">📬 Inbox</a><a href="/agents">🤖 Agents</a><a href="/fleet" class="active">🚢 Fleet</a><a href="/workspace">🏗️ Workspace</a><a href="/config">⚙️ Config</a><a href="/vault">🔐 Vault</a></div>
+</div>
+<div class="page">
+  <!-- Overview cards -->
+  <div class="grid" style="margin-bottom:1rem">
+    <div class="card" style="text-align:center">
+      <div class="big-number accent" id="total-agents">0</div>
+      <div style="color:var(--dim);font-size:0.85rem;margin-top:0.3rem">Total Agents</div>
+      <div style="display:flex;justify-content:center;gap:1.5rem;margin-top:0.8rem">
+        <div><div class="big-number green" style="font-size:1.5rem" id="active-agents">0</div><div style="color:var(--dim);font-size:0.75rem">Active</div></div>
+        <div><div class="big-number yellow" style="font-size:1.5rem" id="idle-agents">0</div><div style="color:var(--dim);font-size:0.75rem">Idle</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>💓 System Pulse</h3>
+      <div class="stat-row"><span class="stat-label">Node</span><span class="stat-value" id="f-node">—</span></div>
+      <div class="stat-row"><span class="stat-label">Sessions</span><span class="stat-value accent" id="f-sessions">—</span></div>
+      <div class="stat-row"><span class="stat-label">Windows</span><span class="stat-value blue" id="f-windows">—</span></div>
+      <div class="stat-row"><span class="stat-label">Panes</span><span class="stat-value green" id="f-panes">—</span></div>
+      <div class="stat-row"><span class="stat-label">Uptime</span><span class="stat-value green" id="f-uptime">—</span></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Agent Grid -->
+    <div class="card grid-full">
+      <h3>🤖 Fleet Agents <span class="count" id="fleet-count">0</span></h3>
+      <div class="agent-grid" id="fleet-agents"><div class="loading">Loading...</div></div>
+    </div>
+
+    <!-- Sessions -->
+    <div class="card">
+      <h3>📡 Sessions</h3>
+      <div id="session-list"><div class="loading">Loading...</div></div>
+    </div>
+
+    <!-- Health -->
+    <div class="card">
+      <h3>🏥 Health</h3>
+      <div id="health-list">
+        <div class="stat-row"><span class="stat-label">API</span><span class="stat-value green" id="h-api">—</span></div>
+        <div class="stat-row"><span class="stat-label">WebSocket</span><span class="stat-value" id="h-ws">—</span></div>
+        <div class="stat-row"><span class="stat-label">Memory Store</span><span class="stat-value" id="h-mem">—</span></div>
+        <div class="stat-row"><span class="stat-label">Provider</span><span class="stat-value cyan" id="h-provider">—</span></div>
+        <div class="stat-row"><span class="stat-label">Model</span><span class="stat-value cyan" id="h-model">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const API=window.location.origin;
+function connectWS(){const p=location.protocol==='https:'?'wss:':'ws:';const ws=new WebSocket(`${p}//${location.host}/ws`);ws.onopen=()=>{document.getElementById('ws-dot').className='ws-dot on';document.getElementById('h-ws').textContent='✅ Connected';document.getElementById('h-ws').className='stat-value green'};ws.onclose=()=>{document.getElementById('ws-dot').className='ws-dot off';document.getElementById('h-ws').textContent='❌ Disconnected';document.getElementById('h-ws').className='stat-value red';setTimeout(connectWS,3000)};ws.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='sessions'){renderSessions(m.sessions||[]);renderAgents(m.agents||[])}if(m.type==='init')renderAgents(m.agents||[])}catch{}};setInterval(()=>{if(ws.readyState===1)ws.send(JSON.stringify({type:'ping'}))},30000)}
+async function loadAll(){try{const[r1,r2]=await Promise.all([fetch(`${API}/api/v2/agents`),fetch(`${API}/api/pulse`)]);const agents=await r1.json();const pulse=await r2.json();renderAgents(agents.agents||[]);updatePulse(pulse)}catch{}}
+function renderAgents(list){const a=list.filter(x=>x.role!=='human'&&x.role!=='system');document.getElementById('total-agents').textContent=a.length;document.getElementById('fleet-count').textContent=a.length;document.getElementById('active-agents').textContent=a.filter(x=>x.running).length;document.getElementById('idle-agents').textContent=a.filter(x=>!x.running).length;document.getElementById('fleet-agents').innerHTML=a.length?a.map(x=>`<div class="agent-chip"><span class="dot ${x.running?'active':'idle'}"></span><div><div>${esc(x.name)}</div><div class="role-tag">${x.role}</div></div></div>`).join(''):'<div style="color:var(--dim);font-size:0.85rem;padding:0.5rem">No agents</div>'}
+function renderSessions(sessions){document.getElementById('session-list').innerHTML=sessions.length?sessions.map(s=>`<div class="session-row"><span class="dot ${s.attached?'active':'idle'}"></span><span>${s.name}</span><span style="margin-left:auto;font-size:0.75rem;color:var(--dim)">${s.attached?'attached':'detached'}</span></div>`).join(''):'<div style="color:var(--dim);font-size:0.85rem;padding:0.5rem">No sessions</div>'}
+function updatePulse(d){document.getElementById('f-node').textContent=d.node||'local';document.getElementById('f-sessions').textContent=d.sessions||0;document.getElementById('f-windows').textContent=d.windows||0;document.getElementById('f-panes').textContent=d.panes||0;document.getElementById('f-uptime').textContent=fmtU(d.uptime||0)}
+async function loadHealth(){try{const r=await fetch(`${API}/health`);const d=await r.json();document.getElementById('h-api').textContent='✅ OK';document.getElementById('h-provider').textContent=d.agents?.provider||'—';document.getElementById('h-model').textContent=d.agents?.model||'—';const mr=await fetch(`${API}/api/v2/memory/stats`).catch(()=>null);if(mr){const md=await mr.json();document.getElementById('h-mem').textContent=md.total!==undefined?md.total+' entries':'OK';document.getElementById('h-mem').className='stat-value green'}}catch{document.getElementById('h-api').textContent='❌ Error';document.getElementById('h-api').className='stat-value red'}}
+function fmtU(s){if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m'}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+connectWS();loadAll();loadHealth();setInterval(loadAll,15000);setInterval(loadHealth,30000);
+</script>
+</body>
+</html>

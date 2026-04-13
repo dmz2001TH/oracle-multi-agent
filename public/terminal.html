@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🖥️ Terminal — Oracle Multi-Agent</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #0a0a0a; --surface: #111; --surface2: #161616; --border: #222;
+    --text: #e0e0e0; --dim: #888; --accent: #6366f1; --accent2: #818cf8;
+    --green: #22c55e; --red: #ef4444; --yellow: #eab308; --blue: #3b82f6;
+    --cyan: #06b6d4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+
+  .header { display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1.2rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .header h1 { font-size: 1rem; font-weight: 500; }
+  .header .badge { background: var(--accent); color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; }
+  .nav { display: flex; gap: 0.25rem; margin-left: auto; flex-wrap: wrap; }
+  .nav a { color: var(--dim); text-decoration: none; font-size: 0.78rem; padding: 0.3rem 0.55rem; border-radius: 4px; border: 1px solid transparent; white-space: nowrap; }
+  .nav a:hover { border-color: var(--border); color: var(--text); }
+  .nav a.active { border-color: var(--accent); color: var(--accent); }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  .sidebar { width: 240px; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--surface); }
+  .sidebar-section { padding: 0.8rem; border-bottom: 1px solid var(--border); }
+  .sidebar-section h3 { font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+  .agent-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+  .agent-item:hover { background: var(--surface2); }
+  .agent-item.active { background: rgba(99,102,241,0.15); }
+  .agent-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .agent-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .agent-dot.idle { background: var(--yellow); }
+  .agent-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .agent-role { font-size: 0.7rem; color: var(--dim); }
+
+  .terminal-area { flex: 1; display: flex; flex-direction: column; }
+  .terminal-header { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); background: var(--surface); font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center; }
+  .terminal-output { flex: 1; overflow-y: auto; padding: 0.8rem 1rem; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 0.82rem; line-height: 1.6; background: #080808; }
+  .term-line { white-space: pre-wrap; word-break: break-all; }
+  .term-line.cmd { color: var(--cyan); }
+  .term-line.agent { color: var(--accent); }
+  .term-line.error { color: var(--red); }
+  .term-line.info { color: var(--dim); }
+  .term-line.system { color: var(--yellow); }
+
+  .terminal-input-area { padding: 0.6rem 1rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; background: var(--surface); }
+  .terminal-input-area input { flex: 1; padding: 0.5rem 0.8rem; background: #080808; border: 1px solid var(--border); border-radius: 4px; color: var(--green); font-family: 'SF Mono', monospace; font-size: 0.85rem; outline: none; }
+  .terminal-input-area input:focus { border-color: var(--accent); }
+  .terminal-input-area button { padding: 0.5rem 1rem; background: var(--accent); border: none; color: white; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+  .terminal-input-area button:hover { background: var(--accent2); }
+
+  .ws-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .ws-dot.on { background: var(--green); }
+  .ws-dot.off { background: var(--red); }
+  .empty-state { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--dim); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🖥️ Terminal</h1>
+  <span class="badge">v5.0</span>
+  <span class="ws-dot off" id="ws-dot" title="WebSocket"></span>
+  <div class="nav">
+    <a href="/">🏠 Home</a>
+    <a href="/terminal" class="active">🖥️ Terminal</a>
+    <a href="/mission">📋 Mission</a>
+    <a href="/inbox">📬 Inbox</a>
+    <a href="/agents">🤖 Agents</a>
+    <a href="/fleet">🚢 Fleet</a>
+    <a href="/workspace">🏗️ Workspace</a>
+    <a href="/config">⚙️ Config</a>
+    <a href="/vault">🔐 Vault</a>
+  </div>
+</div>
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>🤖 Agents</h3>
+      <div id="agent-list"></div>
+    </div>
+    <div class="sidebar-section">
+      <h3>📡 Sessions</h3>
+      <div id="session-list"></div>
+    </div>
+  </div>
+  <div class="terminal-area">
+    <div class="terminal-header">
+      <span id="term-title">Select an agent or session</span>
+      <button onclick="clearTerm()" style="background:none;border:1px solid var(--border);color:var(--dim);padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.75rem">Clear</button>
+    </div>
+    <div class="terminal-output" id="terminal-output">
+      <div class="empty-state">Select an agent from the sidebar to open terminal</div>
+    </div>
+    <div class="terminal-input-area">
+      <input id="term-input" placeholder="Type /command or message..." onkeydown="if(event.key==='Enter')sendTerm()">
+      <button onclick="sendTerm()">Send</button>
+    </div>
+  </div>
+</div>
+<script>
+const API = window.location.origin;
+let ws = null, selectedTarget = null, selectedType = null;
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen = () => { document.getElementById('ws-dot').className = 'ws-dot on'; appendLine('system', '🔌 WebSocket connected'); };
+  ws.onclose = () => { document.getElementById('ws-dot').className = 'ws-dot off'; appendLine('error', '🔌 Disconnected — reconnecting...'); setTimeout(connectWS, 3000); };
+  ws.onmessage = (e) => { try { handleWS(JSON.parse(e.data)); } catch {} };
+  setInterval(() => { if (ws?.readyState === 1) ws.send(JSON.stringify({type:'ping'})); }, 30000);
+}
+function handleWS(msg) {
+  if (msg.type === 'pong') return;
+  if (msg.type === 'sessions') { renderSessions(msg.sessions||[]); renderAgents(msg.agents||[]); }
+  if (msg.type === 'init') renderAgents(msg.agents||[]);
+  if (msg.type === 'reply' || msg.type === 'agent_reply') appendLine(msg.cmd ? 'cmd' : 'agent', `[${msg.role||'oracle'}] ${msg.message||''}`);
+  if (msg.type === 'agent_output') appendLine('info', msg.output||'');
+  if (msg.type === 'agent_spawned') { appendLine('system', `🤖 Agent spawned: ${msg.name||msg.id}`); loadAgents(); }
+  if (msg.type === 'agent_died') { appendLine('system', `💀 Agent died: ${msg.name||msg.id}`); loadAgents(); }
+}
+function appendLine(cls, text) {
+  const out = document.getElementById('terminal-output');
+  const empty = out.querySelector('.empty-state'); if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = `term-line ${cls}`;
+  div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+  out.appendChild(div);
+  out.scrollTop = out.scrollHeight;
+}
+function clearTerm() { document.getElementById('terminal-output').innerHTML = ''; }
+async function loadAgents() {
+  try {
+    const res = await fetch(`${API}/api/v2/agents`);
+    const data = await res.json();
+    renderAgents(data.agents||[]);
+  } catch {}
+}
+function renderAgents(list) {
+  const a = list.filter(x => x.role !== 'human' && x.role !== 'system');
+  document.getElementById('agent-list').innerHTML = a.length ? a.map(x => `
+    <div class="agent-item ${selectedTarget===x.id&&selectedType==='agent'?'active':''}" onclick="selectAgent('${x.id}','${esc(x.name)}','${x.role}')">
+      <span class="agent-dot ${x.running?'active':'idle'}"></span>
+      <span class="agent-name">${esc(x.name)}</span>
+      <span class="agent-role">${x.role}</span>
+    </div>`).join('') : '<div style="font-size:0.8rem;color:var(--dim);padding:0.5rem">No agents</div>';
+}
+function renderSessions(sessions) {
+  document.getElementById('session-list').innerHTML = sessions.length ? sessions.map(s => `
+    <div class="agent-item ${selectedTarget===s.name&&selectedType==='session'?'active':''}" onclick="selectSession('${s.name}')">
+      <span class="agent-dot ${s.attached?'active':'idle'}"></span>
+      <span class="agent-name">${s.name}</span>
+    </div>`).join('') : '<div style="font-size:0.8rem;color:var(--dim);padding:0.5rem">No sessions</div>';
+}
+function selectAgent(id, name, role) { selectedTarget = id; selectedType = 'agent'; document.getElementById('term-title').textContent = `🤖 ${name} (${role})`; clearTerm(); appendLine('system', `Connected to agent: ${name}`); loadAgents(); }
+function selectSession(name) { selectedTarget = name; selectedType = 'session'; document.getElementById('term-title').textContent = `📡 Session: ${name}`; clearTerm(); appendLine('system', `Connected to session: ${name}`); }
+async function sendTerm() {
+  const input = document.getElementById('term-input'), text = input.value.trim();
+  if (!text) return; input.value = '';
+  appendLine('cmd', `> ${text}`);
+  if (text.startsWith('/')) {
+    try { const res = await fetch(`${API}/api/commands/execute`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({input:text}) }); const d = await res.json(); appendLine('agent', d.message||'No response'); } catch(e) { appendLine('error', '❌ '+e.message); }
+    return;
+  }
+  if (selectedTarget && selectedType==='agent') {
+    try { const res = await fetch(`${API}/api/v2/agents/${selectedTarget}/chat`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message:text}) }); const d = await res.json(); appendLine('agent', `[${d.agent||'agent'}] ${d.response||d.message||'No response'}`); } catch(e) { appendLine('error', '❌ '+e.message); }
+    return;
+  }
+  if (selectedTarget && selectedType==='session') {
+    try { await fetch(`${API}/api/send`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({target:selectedTarget,text}) }); appendLine('info', 'Sent to session'); } catch(e) { appendLine('error', '❌ '+e.message); }
+    return;
+  }
+  appendLine('error', 'Select an agent or session first');
+}
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+connectWS(); loadAgents();
+</script>
+</body>
+</html>

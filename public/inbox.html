@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📬 Inbox — Oracle Multi-Agent</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root{--bg:#0a0a0a;--surface:#111;--surface2:#161616;--border:#222;--text:#e0e0e0;--dim:#888;--accent:#6366f1;--accent2:#818cf8;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--blue:#3b82f6;--cyan:#06b6d4;--orange:#f97316}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  .header{display:flex;align-items:center;gap:1rem;padding:0.6rem 1.2rem;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10}
+  .header h1{font-size:1rem;font-weight:500}
+  .badge{background:var(--accent);color:white;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.7rem}
+  .nav{display:flex;gap:0.25rem;margin-left:auto;flex-wrap:wrap}
+  .nav a{color:var(--dim);text-decoration:none;font-size:0.78rem;padding:0.3rem 0.55rem;border-radius:4px;border:1px solid transparent;white-space:nowrap}
+  .nav a:hover{border-color:var(--border);color:var(--text)}
+  .nav a.active{border-color:var(--accent);color:var(--accent)}
+  .page{max-width:1200px;margin:0 auto;padding:1.5rem}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .grid-full{grid-column:1/-1}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.2rem}
+  .card h3{font-size:0.8rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.5rem}
+  .count{background:var(--accent);color:white;padding:0.1rem 0.4rem;border-radius:8px;font-size:0.65rem}
+  .inbox-item{padding:0.7rem 0;border-bottom:1px solid var(--border);font-size:0.85rem}
+  .inbox-item:last-child{border-bottom:none}
+  .inbox-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem}
+  .inbox-type{display:inline-block;padding:0.1rem 0.4rem;border-radius:3px;font-size:0.7rem;font-weight:500}
+  .inbox-type.task{background:rgba(99,102,241,0.15);color:var(--accent)}
+  .inbox-type.handoff{background:rgba(6,182,212,0.15);color:var(--cyan)}
+  .inbox-type.focus{background:rgba(34,197,94,0.15);color:var(--green)}
+  .inbox-type.fyi{background:rgba(234,179,8,0.15);color:var(--yellow)}
+  .inbox-type.resonance{background:rgba(249,115,22,0.15);color:var(--orange)}
+  .inbox-type.inbox{background:rgba(59,130,246,0.15);color:var(--blue)}
+  .inbox-time{font-size:0.7rem;color:var(--dim)}
+  .inbox-text{color:var(--text);line-height:1.5}
+  .inbox-source{font-size:0.75rem;color:var(--dim);margin-top:0.2rem}
+  .filter-bar{display:flex;gap:0.3rem;margin-bottom:1rem;flex-wrap:wrap}
+  .filter-btn{padding:0.25rem 0.6rem;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--dim);font-size:0.8rem;cursor:pointer}
+  .filter-btn:hover{border-color:var(--accent);color:var(--text)}
+  .filter-btn.active{background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent)}
+  .stat-row{display:flex;justify-content:space-between;padding:0.3rem 0;font-size:0.85rem}
+  .stat-label{color:var(--dim)}
+  .stat-value{font-weight:600}
+  .stat-value.green{color:var(--green)} .stat-value.yellow{color:var(--yellow)} .stat-value.accent{color:var(--accent)}
+  .ws-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .ws-dot.on{background:var(--green)} .ws-dot.off{background:var(--red)}
+  .loading{color:var(--dim);font-style:italic}
+  .scroll-list{max-height:500px;overflow-y:auto}
+  .quick-btn{width:100%;padding:0.5rem;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;cursor:pointer;font-size:0.85rem;text-align:left}
+  .quick-btn:hover{border-color:var(--accent)}
+  .quick-btn.primary{background:var(--accent);border-color:var(--accent);color:white}
+  @media(max-width:768px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>📬 Inbox</h1><span class="badge">v5.0</span><span class="ws-dot off" id="ws-dot"></span>
+  <div class="nav"><a href="/">🏠 Home</a><a href="/terminal">🖥️ Terminal</a><a href="/mission">📋 Mission</a><a href="/inbox" class="active">📬 Inbox</a><a href="/agents">🤖 Agents</a><a href="/fleet">🚢 Fleet</a><a href="/workspace">🏗️ Workspace</a><a href="/config">⚙️ Config</a><a href="/vault">🔐 Vault</a></div>
+</div>
+<div class="page">
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterItems('all',this)">All</button>
+    <button class="filter-btn" onclick="filterItems('task',this)">Tasks</button>
+    <button class="filter-btn" onclick="filterItems('handoff',this)">Handoffs</button>
+    <button class="filter-btn" onclick="filterItems('focus',this)">Focus</button>
+    <button class="filter-btn" onclick="filterItems('fyi',this)">FYI</button>
+    <button class="filter-btn" onclick="filterItems('resonance',this)">Resonance</button>
+  </div>
+  <div class="grid">
+    <div class="card grid-full">
+      <h3>📬 All Messages <span class="count" id="msg-count">0</span></h3>
+      <div class="scroll-list" id="inbox-feed"><div class="loading">Loading...</div></div>
+    </div>
+    <div class="card">
+      <h3>📊 Stats</h3>
+      <div class="stat-row"><span class="stat-label">Total</span><span class="stat-value accent" id="stat-total">—</span></div>
+      <div class="stat-row"><span class="stat-label">Tasks</span><span class="stat-value" id="stat-tasks">—</span></div>
+      <div class="stat-row"><span class="stat-label">Handoffs</span><span class="stat-value" id="stat-handoffs">—</span></div>
+      <div class="stat-row"><span class="stat-label">Focus</span><span class="stat-value green" id="stat-focus">—</span></div>
+      <div class="stat-row"><span class="stat-label">Unread</span><span class="stat-value yellow" id="stat-unread">—</span></div>
+    </div>
+    <div class="card">
+      <h3>⚡ Quick Actions</h3>
+      <div style="display:flex;flex-direction:column;gap:0.5rem">
+        <button class="quick-btn primary" onclick="runCmd('/inbox')">📥 Refresh Inbox</button>
+        <button class="quick-btn" onclick="runCmd('/forward')">➡️ Create Handoff</button>
+        <button class="quick-btn" onclick="runCmd('/fyi')">📝 Add FYI</button>
+        <button class="quick-btn" onclick="runCmd('/feel')">💭 Log Mood</button>
+        <button class="quick-btn" onclick="runCmd('/recap')">📖 Session Recap</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const API=window.location.origin;let allItems=[],currentFilter='all';
+function connectWS(){const p=location.protocol==='https:'?'wss:':'ws:';const ws=new WebSocket(`${p}//${location.host}/ws`);ws.onopen=()=>document.getElementById('ws-dot').className='ws-dot on';ws.onclose=()=>{document.getElementById('ws-dot').className='ws-dot off';setTimeout(connectWS,3000)};ws.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='inbox_update'||m.type==='reply')loadInbox()}catch{}};setInterval(()=>{if(ws.readyState===1)ws.send(JSON.stringify({type:'ping'}))},30000)}
+async function loadInbox(){try{const r=await fetch(`${API}/api/inbox`);const d=await r.json();allItems=d.items||d.inbox||d||[];renderInbox()}catch{document.getElementById('inbox-feed').innerHTML='<div class="loading">Failed to load</div>'}}
+function renderInbox(){const f=currentFilter==='all'?allItems:allItems.filter(i=>(i.type||'inbox').toLowerCase()===currentFilter);const el=document.getElementById('inbox-feed');document.getElementById('msg-count').textContent=f.length;document.getElementById('stat-total').textContent=allItems.length;document.getElementById('stat-tasks').textContent=allItems.filter(i=>(i.type||'').toLowerCase()==='task').length;document.getElementById('stat-handoffs').textContent=allItems.filter(i=>(i.type||'').toLowerCase()==='handoff').length;document.getElementById('stat-focus').textContent=allItems.filter(i=>(i.type||'').toLowerCase()==='focus').length;document.getElementById('stat-unread').textContent=allItems.filter(i=>!i.read).length;if(!f.length){el.innerHTML='<div style="color:var(--dim);font-size:0.85rem;padding:1rem;text-align:center">No items</div>';return}el.innerHTML=f.map(i=>{const t=(i.type||'inbox').toLowerCase();const time=i.ts||i.createdAt||i.timestamp?`<span class="inbox-time">${new Date(i.ts||i.createdAt||i.timestamp).toLocaleString()}</span>`:'';const text=i.message||i.text||i.content||i.summary||JSON.stringify(i);const src=i.from||i.source||i.agent||'';return`<div class="inbox-item"><div class="inbox-header"><span class="inbox-type ${t}">${t}</span>${time}</div><div class="inbox-text">${esc(text)}</div>${src?`<div class="inbox-source">from: ${esc(src)}</div>`:''}</div>`}).join('')}
+function filterItems(t,btn){currentFilter=t;document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderInbox()}
+async function runCmd(cmd){try{const r=await fetch(`${API}/api/commands/execute`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input:cmd})});const d=await r.json();alert(d.message||'Done');setTimeout(loadInbox,500)}catch(e){alert('Error: '+e.message)}}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+connectWS();loadInbox();setInterval(loadInbox,20000);
+</script>
+</body>
+</html>

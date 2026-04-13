@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📋 Mission Control — Oracle Multi-Agent</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root { --bg:#0a0a0a;--surface:#111;--surface2:#161616;--border:#222;--text:#e0e0e0;--dim:#888;--accent:#6366f1;--accent2:#818cf8;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--blue:#3b82f6;--cyan:#06b6d4;--orange:#f97316; }
+  * { margin:0;padding:0;box-sizing:border-box; }
+  body { font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh; }
+  .header { display:flex;align-items:center;gap:1rem;padding:0.6rem 1.2rem;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10; }
+  .header h1 { font-size:1rem;font-weight:500; }
+  .badge { background:var(--accent);color:white;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.7rem; }
+  .nav { display:flex;gap:0.25rem;margin-left:auto;flex-wrap:wrap; }
+  .nav a { color:var(--dim);text-decoration:none;font-size:0.78rem;padding:0.3rem 0.55rem;border-radius:4px;border:1px solid transparent;white-space:nowrap; }
+  .nav a:hover { border-color:var(--border);color:var(--text); }
+  .nav a.active { border-color:var(--accent);color:var(--accent); }
+  .page { max-width:1200px;margin:0 auto;padding:1.5rem; }
+  .grid { display:grid;grid-template-columns:1fr 1fr;gap:1rem; }
+  .grid-full { grid-column:1/-1; }
+  .card { background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.2rem; }
+  .card h3 { font-size:0.8rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.5rem; }
+  .count { background:var(--accent);color:white;padding:0.1rem 0.4rem;border-radius:8px;font-size:0.65rem; }
+  .stat-row { display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0;border-bottom:1px solid var(--border); }
+  .stat-row:last-child { border-bottom:none; }
+  .stat-label { font-size:0.85rem;color:var(--dim); }
+  .stat-value { font-size:1rem;font-weight:600; }
+  .stat-value.green { color:var(--green); } .stat-value.yellow { color:var(--yellow); } .stat-value.red { color:var(--red); } .stat-value.accent { color:var(--accent); } .stat-value.blue { color:var(--blue); }
+  .progress-bar { width:100%;height:6px;background:var(--border);border-radius:3px;margin-top:0.3rem;overflow:hidden; }
+  .progress-fill { height:100%;border-radius:3px;transition:width 0.3s; }
+  .progress-fill.green { background:var(--green); } .progress-fill.accent { background:var(--accent); } .progress-fill.yellow { background:var(--yellow); }
+  .task-list { list-style:none; }
+  .task-item { display:flex;align-items:center;gap:0.8rem;padding:0.6rem 0;border-bottom:1px solid var(--border);font-size:0.85rem; }
+  .task-item:last-child { border-bottom:none; }
+  .task-status { font-size:1rem; }
+  .task-text { flex:1; }
+  .task-meta { font-size:0.75rem;color:var(--dim); }
+  .status-badge { display:inline-block;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.7rem;font-weight:500; }
+  .status-badge.active { background:rgba(34,197,94,0.15);color:var(--green); }
+  .status-badge.pending { background:rgba(234,179,8,0.15);color:var(--yellow); }
+  .status-badge.done { background:rgba(99,102,241,0.15);color:var(--accent); }
+  .status-badge.blocked { background:rgba(239,68,68,0.15);color:var(--red); }
+  .wf-item { padding:0.6rem 0;border-bottom:1px solid var(--border); }
+  .wf-item:last-child { border-bottom:none; }
+  .wf-name { font-weight:500;font-size:0.85rem; }
+  .wf-desc { font-size:0.75rem;color:var(--dim);margin-top:0.2rem; }
+  .wf-steps { display:flex;gap:0.3rem;margin-top:0.4rem;flex-wrap:wrap; }
+  .wf-step { background:var(--surface2);padding:0.15rem 0.5rem;border-radius:3px;font-size:0.7rem;color:var(--dim); }
+  .wf-arrow { color:var(--dim);font-size:0.7rem;display:flex;align-items:center; }
+  .add-task { display:flex;gap:0.5rem;margin-top:0.8rem; }
+  .add-task input { flex:1;padding:0.4rem 0.6rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.85rem;outline:none; }
+  .add-task input:focus { border-color:var(--accent); }
+  .add-task button { padding:0.4rem 0.8rem;background:var(--accent);border:none;color:white;border-radius:4px;cursor:pointer;font-size:0.8rem; }
+  .add-task button:hover { background:var(--accent2); }
+  .loading { color:var(--dim);font-style:italic;padding:1rem; }
+  .ws-dot { width:8px;height:8px;border-radius:50%;display:inline-block; }
+  .ws-dot.on { background:var(--green); } .ws-dot.off { background:var(--red); }
+  @media(max-width:768px){ .grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>📋 Mission Control</h1>
+  <span class="badge">v5.0</span>
+  <span class="ws-dot off" id="ws-dot"></span>
+  <div class="nav"><a href="/">🏠 Home</a><a href="/terminal">🖥️ Terminal</a><a href="/mission" class="active">📋 Mission</a><a href="/inbox">📬 Inbox</a><a href="/agents">🤖 Agents</a><a href="/fleet">🚢 Fleet</a><a href="/workspace">🏗️ Workspace</a><a href="/config">⚙️ Config</a><a href="/vault">🔐 Vault</a></div>
+</div>
+<div class="page">
+  <div class="grid">
+    <div class="card">
+      <h3>💓 Pulse</h3>
+      <div class="stat-row"><span class="stat-label">Node</span><span class="stat-value" id="pulse-node">—</span></div>
+      <div class="stat-row"><span class="stat-label">Sessions</span><span class="stat-value accent" id="pulse-sessions">—</span></div>
+      <div class="stat-row"><span class="stat-label">Windows</span><span class="stat-value blue" id="pulse-windows">—</span></div>
+      <div class="stat-row"><span class="stat-label">Panes</span><span class="stat-value green" id="pulse-panes">—</span></div>
+      <div class="stat-row"><span class="stat-label">Busy Agents</span><span class="stat-value yellow" id="pulse-busy">—</span></div>
+      <div class="stat-row"><span class="stat-label">Uptime</span><span class="stat-value green" id="pulse-uptime">—</span></div>
+    </div>
+    <div class="card">
+      <h3>📊 Progress</h3>
+      <div style="margin-bottom:0.8rem"><div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem"><span>Active</span><span id="progress-active" class="stat-value green">0</span></div><div class="progress-bar"><div class="progress-fill green" id="pb-active" style="width:0%"></div></div></div>
+      <div style="margin-bottom:0.8rem"><div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem"><span>Completed</span><span id="progress-done" class="stat-value accent">0</span></div><div class="progress-bar"><div class="progress-fill accent" id="pb-done" style="width:0%"></div></div></div>
+      <div><div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:0.3rem"><span>Blocked</span><span id="progress-blocked" class="stat-value red">0</span></div><div class="progress-bar"><div class="progress-fill yellow" id="pb-blocked" style="width:0%"></div></div></div>
+    </div>
+    <div class="card grid-full">
+      <h3>🔥 Tasks <span class="count" id="task-count">0</span></h3>
+      <div id="task-list" class="loading">Loading...</div>
+      <div class="add-task"><input id="task-input" placeholder="New task..." onkeydown="if(event.key==='Enter')addTask()"><button onclick="addTask()">+ Add</button></div>
+    </div>
+    <div class="card grid-full">
+      <h3>⚡ Workflow Templates</h3>
+      <div id="workflow-list" class="loading">Loading...</div>
+    </div>
+  </div>
+</div>
+<script>
+const API=window.location.origin;
+function connectWS(){const p=location.protocol==='https:'?'wss:':'ws:';const ws=new WebSocket(`${p}//${location.host}/ws`);ws.onopen=()=>document.getElementById('ws-dot').className='ws-dot on';ws.onclose=()=>{document.getElementById('ws-dot').className='ws-dot off';setTimeout(connectWS,3000)};ws.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.type==='task_update')loadTasks()}catch{}};setInterval(()=>{if(ws.readyState===1)ws.send(JSON.stringify({type:'ping'}))},30000)}
+async function loadPulse(){try{const r=await fetch(`${API}/api/pulse`);const d=await r.json();document.getElementById('pulse-node').textContent=d.node||'local';document.getElementById('pulse-sessions').textContent=d.sessions||0;document.getElementById('pulse-windows').textContent=d.windows||0;document.getElementById('pulse-panes').textContent=d.panes||0;document.getElementById('pulse-busy').textContent=d.busyAgents||0;document.getElementById('pulse-uptime').textContent=fmtU(d.uptime||0)}catch{}}
+function fmtU(s){if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m'}
+async function loadTasks(){try{const r=await fetch(`${API}/api/tasks`);const d=await r.json();const tasks=d.tasks||d||[];const el=document.getElementById('task-list');document.getElementById('task-count').textContent=tasks.length;if(!tasks.length){el.innerHTML='<div style="color:var(--dim);font-size:0.85rem;padding:0.5rem">No tasks yet</div>';return}const active=tasks.filter(t=>t.status==='active'||t.status==='in_progress').length;const done=tasks.filter(t=>t.status==='done'||t.status==='completed').length;const blocked=tasks.filter(t=>t.status==='blocked').length;const total=tasks.length||1;document.getElementById('progress-active').textContent=active;document.getElementById('progress-done').textContent=done;document.getElementById('progress-blocked').textContent=blocked;document.getElementById('pb-active').style.width=(active/total*100)+'%';document.getElementById('pb-done').style.width=(done/total*100)+'%';document.getElementById('pb-blocked').style.width=(blocked/total*100)+'%';el.innerHTML='<ul class="task-list">'+tasks.map(t=>{const si={active:'🟢',in_progress:'🟢',done:'✅',completed:'✅',blocked:'🔴',pending:'🟡',todo:'⚪'}[t.status]||'⚪';const bc=t.status==='done'||t.status==='completed'?'done':t.status==='blocked'?'blocked':t.status==='active'||t.status==='in_progress'?'active':'pending';return`<li class="task-item"><span class="task-status">${si}</span><span class="task-text">${esc(t.title||t.text||t.description||'Untitled')}</span><span class="status-badge ${bc}">${t.status||'todo'}</span><span class="task-meta">${t.createdAt?new Date(t.createdAt).toLocaleDateString():''}</span></li>`}).join('')+'</ul>'}catch{document.getElementById('task-list').innerHTML='<div class="loading">Failed to load</div>'}}
+async function loadWorkflows(){try{const r=await fetch(`${API}/api/workflows`);const d=await r.json();const wfs=d.workflows||d||[];const el=document.getElementById('workflow-list');if(!wfs.length){el.innerHTML='<div style="color:var(--dim);font-size:0.85rem">No workflows</div>';return}el.innerHTML=wfs.map(wf=>{const steps=(wf.steps||wf.pattern||wf.pipeline||[]).map((s,i)=>{const a=i>0?'<span class="wf-arrow">→</span>':'';return`${a}<span class="wf-step">${typeof s==='string'?s:s.name||s.step||JSON.stringify(s)}</span>`}).join('');return`<div class="wf-item"><div class="wf-name">${esc(wf.name||wf.id||'Workflow')}</div><div class="wf-desc">${esc(wf.description||wf.desc||'')}</div>${steps?`<div class="wf-steps">${steps}</div>`:''}</div>`}).join('')}catch{document.getElementById('workflow-list').innerHTML='<div class="loading">Failed</div>'}}
+async function addTask(){const input=document.getElementById('task-input'),text=input.value.trim();if(!text)return;input.value='';try{await fetch(`${API}/api/tasks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:text,status:'active'})});setTimeout(loadTasks,500)}catch{}}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+connectWS();loadPulse();loadTasks();loadWorkflows();setInterval(loadPulse,15000);setInterval(loadTasks,15000);
+</script>
+</body>
+</html>

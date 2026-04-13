@@ -28,6 +28,7 @@ const store = new MemoryStore(DB_PATH);
 const manager = new AgentManager(store, {
   geminiApiKey: process.env.GEMINI_API_KEY || "",
   mimoApiKey: process.env.MIMO_API_KEY || "",
+  mimoApiBase: process.env.MIMO_API_BASE || "https://api.xiaomimimo.com/v1",
   provider: process.env.LLM_PROVIDER || "gemini",
   agentModel: process.env.AGENT_MODEL || "gemini-2.0-flash",
   port: Number(process.env.HUB_PORT || 3456),

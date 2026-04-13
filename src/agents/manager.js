@@ -168,6 +168,7 @@ export class AgentManager extends EventEmitter {
       systemPrompt,
       geminiApiKey: this.config.geminiApiKey,
       mimoApiKey: this.config.mimoApiKey,
+      mimoApiBase: this.config.mimoApiBase || 'https://api.xiaomimimo.com/v1',
       model: this.config.agentModel || 'gemini-2.0-flash',
       hubUrl: `http://localhost:${this.config.port}`,
       provider: this.config.provider || 'gemini', // 'gemini', 'promptdee', or 'mimo'

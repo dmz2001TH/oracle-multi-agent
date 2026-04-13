@@ -11,6 +11,11 @@ import { routeWorkspace } from "./cli/route-workspace.js";
 import { routeTools } from "./cli/route-tools.js";
 import { routeTeam } from "./cli/route-team.js";
 import { routeTasks } from "./cli/route-tasks.js";
+import { routeSpawn } from "./cli/route-spawn.js";
+import { routeCron } from "./cli/route-cron.js";
+import { routeAgentsStatus } from "./cli/route-agents-status.js";
+import { routeWorktreeOps } from "./cli/route-worktree-ops.js";
+import { routeMergeTeam } from "./cli/route-merge-team.js";
 import { scanCommands, matchCommand, executeCommand } from "./cli/command-registry.js";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
@@ -80,7 +85,12 @@ if (cmd === "--version" || cmd === "-v" || cmd === "version") {
       await routeFleet(cmd, args) ||
       await routeWorkspace(cmd, args) ||
       await routeTools(cmd, args) ||
-      await routeTasks(cmd, args);
+      await routeTasks(cmd, args) ||
+      await routeSpawn(cmd, args) ||
+      await routeCron(cmd, args) ||
+      await routeAgentsStatus(cmd, args) ||
+      await routeWorktreeOps(cmd, args) ||
+      await routeMergeTeam(cmd, args);
 
     if (!handled) {
       // Try plugin commands (beta)

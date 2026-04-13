@@ -21,6 +21,8 @@ import { asksApi } from "./asks.js";
 import { peerExecApi } from "./peer-exec.js";
 import { proxyApi } from "./proxy.js";
 import { uiStateApi } from "./ui-state.js";
+import { tasksApi } from "./tasks.js";
+import { inboxApi } from "./inbox-api.js";
 import { workspaceApi } from "./workspace.js";
 
 export const api = new Hono();
@@ -44,3 +46,5 @@ api.route("/", peerExecApi);
 api.route("/", proxyApi);
 api.route("/", uiStateApi);
 api.route("/", workspaceApi);
+api.route("/", tasksApi);
+api.route("/", inboxApi);

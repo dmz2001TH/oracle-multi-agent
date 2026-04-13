@@ -10,6 +10,7 @@ import { routeFleet } from "./cli/route-fleet.js";
 import { routeWorkspace } from "./cli/route-workspace.js";
 import { routeTools } from "./cli/route-tools.js";
 import { routeTeam } from "./cli/route-team.js";
+import { routeTasks } from "./cli/route-tasks.js";
 import { scanCommands, matchCommand, executeCommand } from "./cli/command-registry.js";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
@@ -78,7 +79,8 @@ if (cmd === "--version" || cmd === "-v" || cmd === "version") {
       await routeAgent(cmd, args) ||
       await routeFleet(cmd, args) ||
       await routeWorkspace(cmd, args) ||
-      await routeTools(cmd, args);
+      await routeTools(cmd, args) ||
+      await routeTasks(cmd, args);
 
     if (!handled) {
       // Try plugin commands (beta)

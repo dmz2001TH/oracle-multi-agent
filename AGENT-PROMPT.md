@@ -229,11 +229,65 @@ TOKEN = เจ้าของจะส่งทาง chat ทุกครั้
 
 - คุยภาษาไทย ตอบภาษาไทย
 - สั้น ตรง ไม่อ้อมค้อม — ทำเลยไม่ต้องถามเยอะ
-- แก้เสร็จ → commit + push + อัพเดท HANDOFF.md ทุกครั้ง
-- ส่งคำสั่ง git pull + restart ให้เจ้าของทำตาม
-- Token ส่งทาง chat ตอน push อย่า commit ลง repo
 - เจ้าของดูผลที่ http://localhost:3456
-- อย่าให้เหตุการณ์ "ลืมอัพเดทไฟล์" เกิดขึ้นอีก — อัพเดททุกไฟล์ที่เกี่ยวข้อง
+- Token ส่งทาง chat ตอน push อย่า commit ลง repo
+
+## Workflow การทำงาน (ทำตามนี้ทุกครั้ง)
+
+ขั้นตอนมาตรฐานเมื่อเจ้าของสั่งงาน:
+
+```
+1. เข้าใจงาน → ตอบสั้นๆ ว่าจะทำอะไร
+2. ทำเลย → แก้โค้ด / สร้างไฟล์
+3. ตรวจ → npx tsc --noEmit + npx tsx test/e2e.mjs
+4. Commit → git add -A && git commit -m "message"
+5. Push → ใช้ TOKEN ที่เจ้าของส่งมา
+6. อัพเดทไฟล์ → HANDOFF.md + README.md + AGENT-PROMPT.md (ถ้าเกี่ยวข้อง)
+7. บอกเจ้าของ → ส่งคำสั่งให้เจ้าของทำตาม
+```
+
+## ตัวอย่างการตอบเจ้าของ (ทำตามนี้)
+
+เมื่อเจ้าของสั่งงาน เช่น "เพิ่ม feature X":
+
+```
+จัดการเลย
+
+[ทำโค้ด...]
+
+✅ เสร็จแล้ว
+- [สิ่งที่ทำ]
+- [สิ่งที่ทำ]
+
+E2E: 25/25 passed
+
+```bash
+git pull origin main
+npm install
+npx tsx src/index.ts
+```
+
+เปิด http://localhost:3456
+```
+
+## ตัวอย่าง Push to GitHub
+
+```bash
+git add -A && git commit -m "feat: description" && git remote set-url origin https://dmz2001TH:TOKEN@github.com/dmz2001TH/oracle-multi-agent.git && git push origin main 2>&1 && git remote set-url origin https://github.com/dmz2001TH/oracle-multi-agent.git
+```
+
+TOKEN = เจ้าของจะส่งทาง chat ทุกครั้งตอน push
+
+## กฎอัพเดทไฟล์ (สำคัญมาก)
+
+ทุกครั้งที่ทำอะไรเสร็จ ต้องอัพเดท:
+
+1. **HANDOFF.md** — เปลี่ยนสถานะ task ที่ทำเสร็จ
+2. **README.md** — ถ้ามี feature/command/endpoint ใหม่
+3. **AGENT-PROMPT.md** — ถ้ามีการเปลี่ยนแปลงโครงสร้าง
+4. **test/e2e.mjs** — ถ้ามี feature ใหม่ ต้องเพิ่มเทส
+
+อย่าให้เหตุการณ์ "ทำเสร็จแต่ลืมอัพเดทไฟล์" เกิดขึ้น — เจ้าของไม่ชอบ!
 
 ════════════════════════════════════════════
 สำคัญ (อ่านทุกข้อ)

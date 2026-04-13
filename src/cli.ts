@@ -18,6 +18,13 @@ import { routeWorktreeOps } from "./cli/route-worktree-ops.js";
 import { routeMergeTeam } from "./cli/route-merge-team.js";
 import { routeWakeup } from "./cli/route-wakeup.js";
 import { routeOverview } from "./cli/route-overview.js";
+import { routeTaskLogs } from "./cli/route-task-logs.js";
+import { routeProjects } from "./cli/route-projects.js";
+import { routeLoops } from "./cli/route-loops.js";
+import { routeTokens } from "./cli/route-tokens.js";
+import { routeThink } from "./cli/route-think.js";
+import { routeMeetings } from "./cli/route-meetings.js";
+import { routeChatLog } from "./cli/route-chat-log.js";
 import { scanCommands, matchCommand, executeCommand } from "./cli/command-registry.js";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
@@ -94,7 +101,14 @@ if (cmd === "--version" || cmd === "-v" || cmd === "version") {
       await routeWorktreeOps(cmd, args) ||
       await routeMergeTeam(cmd, args) ||
       await routeWakeup(cmd, args) ||
-      await routeOverview(cmd, args);
+      await routeOverview(cmd, args) ||
+      await routeTaskLogs(cmd, args) ||
+      await routeProjects(cmd, args) ||
+      await routeLoops(cmd, args) ||
+      await routeTokens(cmd, args) ||
+      await routeThink(cmd, args) ||
+      await routeMeetings(cmd, args) ||
+      await routeChatLog(cmd, args);
 
     if (!handled) {
       // Try plugin commands (beta)

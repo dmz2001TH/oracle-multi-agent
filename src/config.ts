@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { execaSync } from "execa";
+import { homedir } from "os";
 import { CONFIG_FILE } from "./paths.js";
 import { refreshContext } from "./lib/context.js";
 
@@ -10,7 +11,7 @@ function detectGhqRoot(): string {
     const root = stdout.trim();
     const ghRoot = join(root, "github.com");
     try { readFileSync(join(ghRoot, ".")); return ghRoot; } catch { return root; }
-  } catch { return join(require("os").homedir(), "Code", "github.com"); }
+  } catch { return join(homedir(), "Code", "github.com"); }
 }
 
 export type TriggerEvent = "issue-close" | "pr-merge" | "agent-idle" | "agent-wake" | "agent-crash";
@@ -168,5 +169,5 @@ export function buildCommand(agentName: string): string {
 export function getEnvVars(): Record<string, string> { return loadConfig().env || {}; }
 
 export function buildCommandInDir(agentName: string, cwd: string): string {
-  return `cd '${cwd}'"' && { ${buildCommand(agentName)}; }`;
+  return `cd '${cwd}' && { ${buildCommand(agentName)}; }`;
 }

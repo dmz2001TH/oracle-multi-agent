@@ -65,7 +65,7 @@ export function scheduleWakeup(delaySeconds: number, prompt: string, reason: str
     const cmd = `echo "maw hey oracle '${escapedPrompt}'" | at ${fireTime} ${fireDate} 2>/dev/null`;
     execSync(cmd, { stdio: "pipe" });
   } catch {
-    // at not available — entry still stored, cron can poll for due entries
+    console.warn(`\x1b[33m⚠ 'at' command unavailable — wakeup stored but won't auto-fire. Use cron polling.\x1b[0m`);
   }
 
   return entry;

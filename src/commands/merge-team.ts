@@ -17,7 +17,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from "node:fs";
 import { join } from "path";
 import { homedir } from "node:os";
 import type { Task } from "../lib/schemas.js";
@@ -41,7 +41,6 @@ function loadTasks(): Task[] {
 }
 
 function saveTask(task: Task): void {
-  const { writeFileSync, mkdirSync } = require("fs");
   mkdirSync(TASKS_DIR, { recursive: true });
   writeFileSync(join(TASKS_DIR, `${task.id}.json`), JSON.stringify(task, null, 2));
 }
@@ -196,7 +195,6 @@ export function cmdMergeTeam(team: string, opts: { cwd?: string; noPush?: boolea
 
   // Feed event
   try {
-    const { readFileSync } = require("node:fs");
     const cfg = JSON.parse(readFileSync(join(homedir(), ".config", "oracle", "oracle.config.json"), "utf-8"));
     const port = cfg.port || 3456;
     const merged = results.filter(r => r.status === "merged").length;

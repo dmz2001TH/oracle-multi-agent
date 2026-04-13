@@ -14,7 +14,7 @@
  */
 
 import { Hono } from "hono";
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, unlinkSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, unlinkSync, rmdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import type { CronJob } from "../lib/schemas.js";
@@ -115,7 +115,7 @@ cronApi.delete("/api/cron/:id", (c) => {
   // Remove config + backlog
   try { unlinkSync(configPath(id)); } catch {}
   try { unlinkSync(backlogPath(id)); } catch {}
-  try { require("fs").rmdirSync(dir); } catch {}
+  try { rmdirSync(dir); } catch {}
 
   return c.json({ ok: true });
 });

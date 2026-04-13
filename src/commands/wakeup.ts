@@ -12,7 +12,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -32,7 +32,7 @@ function ensureDir() { mkdirSync(WAKEUP_DIR, { recursive: true }); }
 
 function nextId(): string {
   ensureDir();
-  const files = require("node:fs").readdirSync(WAKEUP_DIR).filter((f: string) => f.endsWith(".json"));
+  const files = readdirSync(WAKEUP_DIR).filter((f: string) => f.endsWith(".json"));
   const maxNum = files.reduce((max: number, f: string) => {
     const n = parseInt(f.replace(".json", ""), 10);
     return isNaN(n) ? max : Math.max(max, n);
@@ -73,7 +73,6 @@ export function scheduleWakeup(delaySeconds: number, prompt: string, reason: str
 
 export function listPendingWakeups(): WakeupEntry[] {
   ensureDir();
-  const { readdirSync } = require("node:fs");
   const files = readdirSync(WAKEUP_DIR).filter((f: string) => f.endsWith(".json"));
   const now = Date.now();
 

@@ -141,7 +141,7 @@ export function cmdWorktreePrune(opts: { cwd?: string; merged?: boolean } = {}):
       // Not merged
     }
 
-    if (isMerged || opts.merged === false) {
+    if (isMerged) {
       console.log(`  \x1b[33m⚠ pruning:\x1b[0m ${wt.branch} (${wt.path})`);
       try {
         git(`worktree remove '${wt.path}'`, repoRoot);

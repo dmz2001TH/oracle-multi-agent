@@ -10,7 +10,7 @@
  * Schema: { name, ts, status, task, branch, pid }
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -83,7 +83,6 @@ export function isStale(name: string, maxAgeMs: number = DEFAULT_MAX_AGE_MS): bo
 export function listHeartbeats(): Heartbeat[] {
   if (!existsSync(AGENTS_DIR)) return [];
 
-  const { readdirSync } = require("node:fs");
   const dirs = readdirSync(AGENTS_DIR);
   const heartbeats: Heartbeat[] = [];
 

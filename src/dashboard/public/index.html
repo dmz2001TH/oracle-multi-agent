@@ -270,15 +270,17 @@ function App() {
     if(msg.type === 'stats') setStats(msg.stats);
   }, []));
 
-  // Poll stats every 15s
+  // Poll stats every 15s + fetch immediately on mount
   useEffect(() => {
-    const iv = setInterval(async () => {
+    async function fetchState() {
       try {
         const [s, a] = await Promise.all([api('/api/stats'), api('/api/agents')]);
         setStats(s);
         setAgents(a);
-      } catch {}
-    }, 15000);
+      } catch (err) { console.warn('Dashboard poll error:', err); }
+    }
+    fetchState(); // immediate
+    const iv = setInterval(fetchState, 15000);
     return () => clearInterval(iv);
   }, []);
 

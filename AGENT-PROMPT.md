@@ -1,97 +1,118 @@
-# 🧠 AGENT PROMPT — Oracle Multi-Agent v5.0 Complete Build
+# 🤖 PROMPT สำหรับ AI Agent ตัวใหม่
 
-> Copy ทั้งหมดนี้แล้ววางให้ AI agent เลย
+คัดลอกทั้งหมดนี้ไปวางให้ AI agent ตัวใหม่ได้เลย
 
 ---
 
 ```
-คุณเป็น software architect กำลังสร้าง oracle-multi-agent v5.0
+คุณกำลังสานต่อโปรเจ็ค oracle-multi-agent v5.0
 
-Repo: https://github.com/dmz2001TH/oracle-multi-agent (branch main)
+Repo: https://github.com/dmz2001TH/oracle-multi-agent
 Working dir: clone แล้ว cd เข้าไป
 
 ════════
-สถานะปัจจุบัน: Phase 0-7 + Phase 9 เสร็จแล้ว (332 files)
+ขั้นตอนแรก
 ════════
 
-✅ Phase 0: TypeScript setup + Process abstraction (4 files)
-✅ Phase 1: Core infrastructure (25 files) — config, paths, types, ssh, tmux, hooks, triggers, plugins, audit, peers, snapshot, routing, handlers, etc.
-✅ Phase 2: Transports (8 files) — tmux, http, hub, nanoclaw, lora
-✅ Phase 3: API endpoints (20 files) — Hono router
-✅ Phase 4: Commands (49 files) — wake, sleep, done, fleet, bud, etc.
-✅ Phase 5: CLI (10 files) — cli.ts entry, route modules, command registry, WASM bridge
-✅ Phase 6: Server + plugins + views (9 files) — builtin plugins, demo/federation/timemachine views, door.html
-✅ Phase 7: Dashboard React App (143 files) — Vite + React 19 + Tailwind CSS v4, 17 HTML entries, 57 components, 16 lib modules
-✅ Phase 9: Agents + Safety + Completions (23 files) — 15 agent definitions, safety hooks, shell completions, agents.yaml
-✅ tsc --noEmit passes clean — 0 errors (memory tools excluded)
+1. อ่าน HANDOFF.md ก่อน — มีรายการละเอียดว่าอะไรเสร็จแล้ว อะไรเหลือ
+2. อ่าน src/index.ts — เข้าใจ entry point
+3. อ่าน src/api/agent-bridge.ts — เข้าใจ Agent API
+4. อ่าน src/agents/manager.js — เข้าใจ AgentManager + AGENT_ROLES
+5. อ่าน docs/HOW-TO-ADD-AGENTS.md — วิธีเพิ่ม agent
 
 ════════
-Phase ที่เหลือต้องทำ
+สิ่งที่ต้องทำ (เรียงตามลำดับความสำคัญ)
 ════════
 
-⚠️ Phase 8: Memory Tools (files exist but excluded from tsc)
- Source: _ref/arra-oracle-v3/src/tools/ → Target: src/memory/tools/
- 16 tool files copied but tsc fails due to incomplete handler stubs
- Files already in repo:
- - src/memory/tools/*.ts (16 files) — search, reflect, learn, list, stats, concepts, supersede, verify, trace, schedule, handoff, inbox, forum, read, types, index
- - src/memory/db/schema.ts — Drizzle ORM schema (driver-agnostic)
- - src/memory/db/index.ts — adapted: bun:sqlite → better-sqlite3
- - src/memory/config.ts — adapted: Node.js paths
- - src/memory/vector/types.ts — VectorStoreAdapter interface
- - Stubs: vault/handler.ts, server/logging.ts, server/project-detect.ts, vector/factory.ts, verify/handler.ts, forum/handler.ts, trace/handler.ts, trace/types.ts
+Batch 1: CLI Commands ที่ขาด (ทำทีละตัว)
 
- สิ่งที่ต้องทำเพื่อ unblock tsc:
- 1. forum.ts — ต้อง export: handleThreadMessage, listThreads (return {threads, total}), getFullThread, getMessages, updateThreadStatus
- 2. trace.ts — ต้อง export type: CreateTraceInput, ListTracesInput, GetTraceInput
- 3. learn.ts, handoff.ts — ToolResponse content type mismatch (string vs object)
- 4. read.ts — ต้อง fix type assertions
- 5. search.ts — vector store null check
- 6. Copy full handler implementations จาก _ref/arra-oracle-v3/src/forum/handler.ts, src/trace/handler.ts
- 7. ลบ "src/memory/tools", "src/memory/db" จาก tsconfig exclude
+1. /awaken — Identity setup ceremony
+   - สร้าง src/commands/awaken.ts
+   - สร้าง ψ/memory/identity.md (ชื่อ, persona, principles)
+   - ถามผู้ใช้ 3 คำถาม: ชื่อ, บุคลิก, สิ่งที่สนใจ
+   - บันทึก identity ลง SQLite memory
+   - อ้างอิง pattern จาก _ref/oracle-framework/
 
-🔲 Phase 10: Bridge + Integration
- - src/bridges/nanoclaw.ts (update)
- - src/index.ts (entry point integration)
- - bin/oracle (CLI binary entry point)
- - .env.example, setup.bat, start.bat, ecosystem.config.cjs
+2. /recap — สรุป session ก่อนหน้า
+   - อ่าน memories จาก SQLite (24h ล่าสุด)
+   - สร้าง summary: ทำอะไรไป, เรียนรู้อะไร, ต้องทำต่ออะไร
+   - แสดงใน terminal
 
-🔲 Phase 11: Final QA
- - tsc --noEmit ต้องผ่าน (รวม memory tools)
- - npm install root + src/dashboard
- - README.md update
- - git commit + push
+3. /fyi <info> — บันทึกข้อมูลลง memory
+   - รับ input จากผู้ใช้
+   - บันทึกเป็น memory entry (category: note)
+   - auto-tag จาก content
+
+4. /rrr — Retrospective จบวัน
+   - สรุปทั้งวันจาก memories + messages + tasks
+   - บันทึก learnings สำคัญ
+   - สร้าง retro entry ใน memory
+
+5. /standup — Daily standup
+   - แสดง: tasks pending, ทำอะไรเมื่อวาน, blockers
+   - ดึงจาก store.getStats() + store.listTasks()
+
+6. /feel <mood> — บันทึกอารมณ์
+   - เก็บ mood entry ใน memory
+   - ปรับการทำงานตาม mood
+
+7. /forward — Handoff to next session
+   - สร้าง handoff file ใน ψ/inbox/
+   - บันทึก: current task, context, next steps
+
+8. /trace [query] — ค้นหาข้อมูลจากทุกที่
+   - ค้นใน: git log, grep files, SQLite memory
+   - แสดงผลรวมกัน
+
+9. /learn [repo] — ศึกษา repo
+   - git clone (shallow)
+   - อ่าน README, package.json, key files
+   - สร้าง summary + บันทึก learnings
+
+Batch 2: Dashboard Fix
+
+10. ลบ agents.html — ไม่ต้องมี แยกหน้า agents
+    - ฟังก์ชันทั้งหมดอยู่ใน index.html แล้ว
+    - ถ้ามีใครเข้า /agents.html → redirect ไป /
+
+Batch 3: Advanced
+
+11. Semantic search — เปลี่ยน TF-IDF เป็น real embeddings
+12. oracle-vault-report integration
+13. VPS deployment guide (docs/VPS-DEPLOY.md)
+14. /who-are-you command
 
 ════════
-กฎสำคัญ
+วิธีรัน
 ════════
 
-1. ใช้ TypeScript (.ts/.tsx) ทุกไฟล์
-2. ใช้ Node.js runtime — แปลง Bun APIs:
- - Bun.spawn() → execa หรือ child_process.spawn
- - Bun.serve() → Hono + @hono/node-server
- - import.meta.dir → path.dirname(fileURLToPath(import.meta.url))
- - Bun.file() → fs/promises.readFile
- - bun:sqlite → better-sqlite3
- - drizzle-orm/bun-sqlite → drizzle-orm/better-sqlite3
-3. copy logic จาก _ref/ ให้มากที่สุด แก้เฉพาะ import paths + Bun APIs
-4. git commit ทุก batch แล้ว git push origin main
-5. tsc --noEmit ต้องผ่านหลังแต่ละ batch
-6. Process management abstraction อยู่ที่ src/process/ (tmux + node-pty)
-7. Dashboard อยู่ที่ src/dashboard/ (excluded from root tsc)
-8. _ref/ repos ทั้งหมด clone แล้ว — ไม่ต้อง clone ใหม่
+git pull origin main
+npm install
+npx tsx src/index.ts
+
+เปิด http://localhost:3456
 
 ════════
-Git Auth
+วิธีอัพขึ้น GitHub
 ════════
-ตั้งค่า remote ด้วย GitHub PAT token ก่อนเริ่มทำงาน:
-git remote set-url origin https://<USERNAME>:<TOKEN>@github.com/dmz2001TH/oracle-multi-agent.git
+
+git add -A
+git commit -m "descriptive message"
+git remote set-url origin https://dmz2001TH:ghp_XXXXXXXXXXXXXXXX@github.com/dmz2001TH/oracle-multi-agent.git
+git push origin main
+git remote set-url origin https://github.com/dmz2001TH/oracle-multi-agent.git
+
+(แทนที่ ghp_XXXXXXXXXXXXXXXX ด้วย token จริงจากเจ้าของโปรเจ็ค)
 
 ════════
-ไฟล์สำคัญใน repo
+หลักการ Oracle
 ════════
-- HANDOFF.md — สถานะ build ละเอียด
-- AGENT-PROMPT.md — ไฟล์นี้
-- _ref/ — 9 reference repos (clone แล้ว)
-- tsconfig.json — ตั้งค่า exclude แล้ว
-- package.json — dependencies ครบ
+
+1. Nothing is Deleted — จดทุกอย่าง ไม่ลบ
+2. Patterns Over Intentions — ดูสิ่งที่เกิดขึ้นจริง
+3. External Brain, Not Command — AI สะท้อน ไม่สั่ง
+4. Curiosity Creates Existence
+5. Form and Formless — หลาย Oracle หนึ่งจิตสำนึก
+
+ทำทีละ batch เสร็จแล้ว commit + push ทุกครั้ง
 ```

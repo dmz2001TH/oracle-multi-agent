@@ -162,10 +162,12 @@ if (faviconFile) {
 
 // GET /api/maw-log — alias for /api/logs (dashboard expects maw-log)
 app.get('/api/maw-log', (c) => {
-  // Redirect query params to /api/logs
   const qs = new URL(c.req.url).search;
   return c.redirect(`/api/logs${qs}`, 307);
 });
+
+// Redirect /agents.html → / (agents panel is in main dashboard now)
+app.get('/agents.html', (c) => c.redirect('/', 301));
 
 // GET /api/plugins — list loaded plugins
 app.get('/api/plugins', async (c) => {
@@ -244,7 +246,7 @@ function wsBroadcast(data: any) {
 // containing running tmux/pty sessions + agent list.
 // Also includes agents from AgentManager (API-spawned child processes).
 
-import { manager as agentManager } from './api/agent-bridge.js';
+import { manager as agentManager, store, manager } from './api/agent-bridge.js';
 
 function listTmuxSessions(): { name: string; attached: boolean }[] {
   try {
@@ -307,7 +309,31 @@ function getDashboardState() {
 function broadcastDashboardState() {
   try {
     const state = getDashboardState();
+
+    // Send both formats: sessions (for React dashboard) + init (for static index.html)
     wsBroadcast({ type: 'sessions', ...state, ts: Date.now() });
+
+    // Also send agent_spawned/agent_died events for the static dashboard
+    const registered = store.listAgents();
+    const running = manager.getRunningAgents();
+    const merged = registered.map((a: any) => ({
+      ...a,
+      running: running.some((r: any) => r.id === a.id),
+      status: running.some((r: any) => r.id === a.id) ? 'active' : (a.status || 'idle'),
+    }));
+
+    const memStats = store.getStats();
+    wsBroadcast({
+      type: 'init',
+      agents: merged,
+      stats: {
+        agents: merged.length,
+        activeAgents: merged.filter((a: any) => a.running || a.status === 'active').length,
+        memories: memStats?.memories || 0,
+        messages: memStats?.messages || 0,
+      },
+      feed: [],
+    });
   } catch {}
 }
 

@@ -1,163 +1,172 @@
 # 🔄 HANDOFF — Oracle Multi-Agent v5.0
 
-**Repo**: `https://github.com/dmz2001TH/oracle-multi-agent`
-**Branch**: `main` (latest commit `dd0b8bb`)
-**Date**: 2026-04-14 00:31 GMT+8
+> สำหรับ AI agent ตัวใหม่ที่จะสานต่อโปรเจ็คนี้
 
----
+## สถานะปัจจุบัน (2026-04-14)
 
-## 🎯 Goal
-Oracle Multi-Agent — AI agent system with HTTP API. Spawn agents, chat, remember, search memory, agent-to-agent communication. Uses **MiMo** (Xiaomi) as LLM provider via OpenAI-compatible API.
+**โปรเจ็ค**: oracle-multi-agent
+**Repo**: https://github.com/dmz2001TH/oracle-multi-agent
+**Branch**: main
+**Version**: 5.0.0
 
-## ✅ What's Done (working 100%)
+## สิ่งที่เสร็จแล้ว ✅
 
-### Commits (in order):
-| Commit | Description |
-|--------|-------------|
-| `c9828a9` | Base: agent-bridge.ts + memory-bridge.ts wired into Hono |
-| `fffa000` | **BUG1 fix**: FTS5 sync triggers (messages_fts + memories_fts). **BUG2 fix**: searchMemories positional args |
-| `eb19207` | **MiMo provider**: mimo-client.js, worker.js, manager.js, agent-bridge.ts |
-| `09d1a9e` | **Legacy route aliases**: agent hub communication (agent workers call /api/* not /api/v2/*) |
-| `dd0b8bb` | **Dashboard on port 3456**: serveStatic from built React app, no need for Vite dev server |
+- [x] 6 stubs → ทำงานจริง (logging, project-detect, vector-store, lora, ui-state, plugins-api)
+- [x] 4 agent roles ใหม่ (data-analyst, devops, qa-tester, translator)
+- [x] Dashboard WebSocket → ส่ง agent data ให้หน้าแรก `/`
+- [x] API routes: `GET/POST/DELETE /api/agents`, `GET /api/stats`
+- [x] Dashboard spawn form → มี 9 roles
+- [x] TypeScript compile → 0 errors
 
-### Verified working (end-to-end tested, zero errors):
-- ✅ Server starts → `provider: mimo, model: mimo-v2-pro`
-- ✅ `POST /api/v2/agents/spawn` → agent runs MiMo via function calling
-- ✅ `POST /api/v2/agents/:id/chat` → conversation works
-- ✅ **Function calling**: agent calls `remember()` → hub callback → SQLite stored
-- ✅ `GET /api/v2/memory/search?q=...` → FTS search works
-- ✅ `POST /api/v2/memory` → add memory works
-- ✅ `DELETE /api/v2/agents/:id` → stop agent
-- ✅ Dashboard served from `http://localhost:3456` (after `vite build`)
-- ✅ `tsc --noEmit` passes clean
+## สิ่งที่ต้องทำต่อ ❌
 
----
+### Priority 1 — ใช้งานประจำวัน
 
-## 🔧 Setup Instructions
+1. **`/awaken` command** — Identity setup ceremony สร้าง Oracle identity
+   - Location: `src/commands/` (สร้างใหม่ awaken.ts)
+   - Reference: `_ref/oracle-framework/` ดู pattern จาก Soul-Brews-Studio
+   - ต้อง: สร้าง ψ/memory/identity.md, ตั้งค่า soul, เชื่อม Oracle family
+
+2. **`/recap` command** — สรุป session ก่อนหน้า
+   - อ่าน memory files แล้วสร้าง summary สั้นๆ
+   - แสดง: สิ่งที่ทำไป, สิ่งที่ต้องทำต่อ, lessons learned
+
+3. **`/fyi <info>` command** — บันทึกข้อมูลลง memory
+   - บันทึกเป็น memory entry ใน SQLite
+   - แท็กอัตโนมัติ, จัด category
+
+4. **`/rrr` command** — Retrospective จบวัน
+   - สรุปทั้งวัน, บันทึก learnings, อัพเดท MEMORY.md
+
+5. **`/standup` command** — Daily standup
+   - แสดง tasks ที่ pending, สิ่งที่ทำเมื่อวาน, blockers
+
+6. **`/feel <mood>` command** — บันทึกอารมณ์
+   - ปรับการทำงานตาม mood (เช่น tired → ลด complexity)
+
+7. **`/forward` command** — Handoff to next session
+   - สร้าง handoff file ใน ψ/inbox/
+   - บันทึก context ที่จำเป็นต่อ
+
+8. **`/trace [query]` command** — ค้นหาข้อมูลจากทุกที่
+   - ค้นใน git history, files, memory, traces
+   - --deep mode: ค้นเชิงลึก
+
+9. **`/learn [repo]` command** — ให้ AI ศึกษา repo
+   - clone repo, อ่านไฟล์, สร้าง summary
+   - บันทึก learnings ลง memory
+
+### Priority 2 — Multi-Agent Enhancement
+
+10. **Semantic search** — เปลี่ยน TF-IDF เป็น real vector embeddings
+    - ใช้ `@xenova/transformers` หรือ Ollama embeddings
+    - หรือเชื่อม ChromaDB ถ้ามี server
+
+11. **oracle-vault-report integration** — Dashboard แสดงระบบ Oracle overview
+    - Reference: `_ref/vault-report/`
+    - สร้างหน้า Vault ใน dashboard
+
+12. **pulse-cli integration** — Project board
+    - Reference: `_ref/workflow-kit/`
+    - เชื่อม GitHub Issues
+
+13. **`/awaken` → auto-clone reference repos**
+    - clone: oracle-v2, maw-js, oracle-skills-cli
+    - ตั้งค่า fleet config
+
+### Priority 3 — Advanced Features
+
+14. **VPS deployment guide** — PM2 + nginx + tmux
+    - สร้าง docs/VPS-DEPLOY.md
+    - systemd service, nginx reverse proxy
+
+15. **Oracle Family connection** — เชื่อมกับ Soul-Brews-Studio ecosystem
+    - Federation peer discovery
+    - Shared memory patterns
+
+16. **`/who-are-you` command** — แสดง Oracle identity
+    - อ่าน ψ/memory/identity.md
+    - แสดง persona, principles, history
+
+## Architecture Notes
+
+```
+oracle-multi-agent/
+├── src/
+│   ├── index.ts              ← Hono v5 entry point (port 3456)
+│   ├── api/
+│   │   ├── agent-bridge.ts   ← /api/agents, /api/v2/agents/*
+│   │   ├── memory-bridge.ts  ← /api/v2/memory/*
+│   │   └── index.ts          ← API router
+│   ├── agents/
+│   │   ├── manager.js        ← AgentManager: spawn, stop, chat
+│   │   ├── worker.js         ← Agent process (forked child)
+│   │   ├── gemini-client.js  ← Gemini LLM client
+│   │   ├── mimo-client.js    ← MiMo LLM client
+│   │   ├── promptdee-client.js ← PromptDee LLM client
+│   │   └── definitions/      ← Agent .md definitions (19 files)
+│   ├── commands/             ← CLI commands (64 files)
+│   ├── memory/
+│   │   ├── store.js          ← SQLite memory store (Drizzle)
+│   │   ├── tools/            ← 16 memory tools
+│   │   └── vector/           ← Vector store (SQLite TF-IDF)
+│   ├── transports/           ← tmux, HTTP, hub, nanoclaw, LoRa
+│   ├── dashboard/
+│   │   ├── public/           ← Static HTML (index.html, agents.html)
+│   │   └── src/              ← React 19 SPA (Vite)
+│   └── plugins/              ← Plugin system
+├── ψ/                        ← Oracle Vault (created by setup.sh)
+│   ├── inbox/                ← Handoffs
+│   ├── memory/               ← Learnings, principles
+│   ├── traces/               ← Discovery traces
+│   └── ...
+├── _ref/                     ← Reference repos from Soul-Brews-Studio
+├── setup.sh / setup.bat      ← Setup scripts
+├── ecosystem.config.cjs      ← PM2 config
+└── .env                      ← Config (LLM_PROVIDER, API keys)
+```
+
+## How to Run
 
 ```bash
-git clone https://github.com/dmz2001TH/oracle-multi-agent.git
-cd oracle-multi-agent
+git pull origin main
 npm install
-
-# Create .env
-cat > .env << 'EOF'
-LLM_PROVIDER=mimo
-AGENT_MODEL=mimo-v2-pro
-MIMO_API_KEY=<REDACTED — get from user or platform.xiaomimimo.com>
-EOF
-
-# Build dashboard (one-time)
-cd src/dashboard && npm install && npx vite build && cd ../..
-
-# Run server
 npx tsx src/index.ts
-# → http://localhost:3456 (API + Dashboard)
+# Open http://localhost:3456
 ```
 
-### MiMo API Info
-- Endpoint: `https://api.xiaomimimo.com/v1/chat/completions`
-- Auth: `Authorization: Bearer <API_KEY>`
-- Models available: `mimo-v2-flash`, `mimo-v2-pro`, `mimo-v2-omni`, `mimo-v2-tts`
-- List models: `GET /v1/models`
-- OpenAI-compatible, supports function calling (tools)
-
----
-
-## 🐛 Known Issues (non-critical, dashboard cosmetic)
-
-### Dashboard 404s (doesn't break functionality)
-The built dashboard calls these endpoints that don't exist yet:
-
-1. **`GET /api/ui-state`** (no key) — route exists as `/api/ui-state/:key` (needs key param)
-   - File: `src/api/ui-state.ts`
-   - Fix: add route `GET /api/ui-state` that returns `{}` or all keys
-
-2. **`GET /api/pin-info`** — route doesn't exist at all
-   - File: `src/api/ui-state.ts` or new file
-   - Fix: add stub route returning `{ locked: false }`
-
-3. **`GET /api/tokens/rate`** — route exists as `/api/tokens` only
-   - File: `src/api/tokens.ts`
-   - Fix: add `GET /api/tokens/rate` returning `{ rate: 0, window: 3600 }`
-
-4. **`GET /favicon.svg`** — static file not in dist
-   - Fix: copy `src/dashboard/public/favicon.svg` or serve from public dir
-
-5. **WebSocket `/ws`** — not set up
-   - Dashboard wants real-time updates via `ws://localhost:3456/ws`
-   - Fix: add WebSocket upgrade handler in `src/index.ts` (bigger task)
-   - Or: suppress WebSocket errors in dashboard code
-
-### Hub warnings (silenced by legacy aliases)
-Old error: `Hub GET error: Unexpected non-whitespace character after JSON`
-Fixed in `09d1a9e` — legacy aliases now return proper JSON.
-
----
-
-## 📁 Key Files
-
-```
-src/
-├── index.ts                    # Entry point — Hono server + static serving
-├── agents/
-│   ├── mimo-client.js          # ★ MiMo LLM client (OpenAI-compatible)
-│   ├── gemini-client.js        # Gemini client (needs API key)
-│   ├── promptdee-client.js     # Alternative provider
-│   ├── manager.js              # AgentManager — spawn/stop/chat via fork worker
-│   └── worker.js               # Child process — selects provider, handles messages
-├── api/
-│   ├── agent-bridge.ts         # ★ v2 agent API + legacy aliases + hub callbacks
-│   ├── memory-bridge.ts        # ★ v2 memory API + legacy aliases
-│   └── index.ts                # All other API routers (30+ files)
-├── memory/
-│   └── store.js                # ★ MemoryStore — SQLite (917 lines), FTS5, triggers
-└── dashboard/
-    ├── src/                    # React source
-    └── dist/                   # Built output (gitignored)
-```
-
-**★ = files modified in this handoff**
-
----
-
-## 🧪 Test Commands
+## How to Push to GitHub
 
 ```bash
-# Health
-curl http://localhost:3456/health
-
-# Spawn agent
-curl -X POST http://localhost:3456/api/v2/agents/spawn \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"bot1","role":"general"}'
-
-# Chat (replace AGENT_ID)
-curl -X POST http://localhost:3456/api/v2/agents/AGENT_ID/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"message":"say hi in 5 words"}'
-
-# Memory
-curl http://localhost:3456/api/v2/memory/stats
-curl "http://localhost:3456/api/v2/memory/search?q=test"
-curl -X POST http://localhost:3456/api/v2/memory \
-  -H 'Content-Type: application/json' \
-  -d '{"content":"test memory","agentId":"system"}'
-
-# Stop agent
-curl -X DELETE http://localhost:3456/api/v2/agents/AGENT_ID
+git add -A
+git commit -m "your message"
+git remote set-url origin https://dmz2001TH:TOKEN@github.com/dmz2001TH/oracle-multi-agent.git
+git push origin main
+git remote set-url origin https://github.com/dmz2001TH/oracle-multi-agent.git
 ```
 
----
+## Key Files to Understand
 
-## ⚠️ Budget Note
-MiMo API has limited balance (~$2.72). Keep tests minimal. Use short prompts and low `max_tokens`.
+| File | What it does |
+|---|---|
+| `src/index.ts` | Main server entry, WebSocket, dashboard routes |
+| `src/api/agent-bridge.ts` | Agent CRUD API (spawn, stop, chat, tell) |
+| `src/agents/manager.js` | AgentManager class, AGENT_ROLES, spawn logic |
+| `src/agents/worker.js` | Agent child process (LLM loop, message handling) |
+| `src/memory/store.js` | SQLite database (agents, memories, messages, tasks) |
+| `src/dashboard/public/index.html` | Main dashboard (React from CDN) |
+| `src/commands/index.js` | CLI command registry |
 
----
+## LLM Providers
 
-## 🚀 Next Steps for New Agent
-1. Fix dashboard 404s (add stub routes for ui-state, pin-info, tokens/rate, favicon)
-2. Optionally add WebSocket `/ws` for real-time dashboard updates
-3. Test agent-to-agent communication (`tell` tool)
-4. Test task creation and completion flow
-5. Improve error handling in mimo-client.js tool execution
+- `LLM_PROVIDER=gemini` → Gemini API (need GEMINI_API_KEY)
+- `LLM_PROVIDER=promptdee` → PromptDee (free, no key)
+- `LLM_PROVIDER=mimo` → Xiaomi MiMo (need MIMO_API_KEY)
+
+## หลักการ Oracle
+
+1. **Nothing is Deleted** — จดทุกอย่าง ไม่ลบอะไร
+2. **Patterns Over Intentions** — ดูสิ่งที่เกิดขึ้นจริง
+3. **External Brain, Not Command** — AI สะท้อน ไม่สั่ง
+4. **Curiosity Creates Existence** — คำถามสร้างสิ่งใหม่
+5. **Form and Formless** — หลาย Oracle หนึ่งจิตสำนึก

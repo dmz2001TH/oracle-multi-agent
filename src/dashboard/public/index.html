@@ -353,7 +353,7 @@ function App() {
 // OFFICE PAGE — Agent Grid (ARRA Office style)
 // ═══════════════════════════════════════════
 function OfficePage({ agents, stats, feed }) {
-  const roleIcons = { manager:'👔', coder:'💻', researcher:'🔬', writer:'✍️', general:'🤖' };
+  const roleIcons = { manager:'👔', coder:'💻', researcher:'🔬', writer:'✍️', general:'🤖', 'data-analyst':'📊', devops:'🔧', 'qa-tester':'🧪', translator:'🌐' };
   const [showSpawn, setShowSpawn] = useState(false);
   const [spawnForm, setSpawnForm] = useState({ name:'', role:'general', personality:'' });
 
@@ -441,6 +441,10 @@ function OfficePage({ agents, stats, feed }) {
               <option value="coder">💻 Coder</option>
               <option value="researcher">🔬 Researcher</option>
               <option value="writer">✍️ Writer</option>
+              <option value="data-analyst">📊 Data Analyst</option>
+              <option value="devops">🔧 DevOps</option>
+              <option value="qa-tester">🧪 QA Tester</option>
+              <option value="translator">🌐 Translator</option>
             </select>
             <textarea placeholder="Personality (optional)" rows={3} value={spawnForm.personality}
               onChange={e => setSpawnForm({...spawnForm, personality:e.target.value})} />

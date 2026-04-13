@@ -45,7 +45,67 @@ agentBridgeApi.get("/api/agents", (c) => {
     ...a,
     running: running.some((r: any) => r.id === a.id),
   }));
-  return c.json({ agents: merged, total: merged.length });
+  return c.json(merged); // Return array directly for dashboard compatibility
+});
+
+// POST /api/agents — spawn agent (dashboard compatibility)
+agentBridgeApi.post("/api/agents", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { name, role, personality } = body;
+    if (!name) return c.json({ error: 'name is required' }, 400);
+    const agent = await manager.spawnAgent(name, role || 'general', personality || '');
+
+    // Broadcast to dashboard
+    try {
+      const wsBroadcast = (globalThis as any).__wsBroadcast;
+      if (wsBroadcast) {
+        wsBroadcast({ type: 'agent_spawned', agent });
+      }
+    } catch {}
+
+    return c.json(agent);
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// DELETE /api/agents/:id — stop agent (dashboard compatibility)
+agentBridgeApi.delete("/api/agents/:id", async (c) => {
+  try {
+    const id = c.req.param('id');
+    await manager.stopAgent(id);
+
+    // Broadcast to dashboard
+    try {
+      const wsBroadcast = (globalThis as any).__wsBroadcast;
+      if (wsBroadcast) {
+        wsBroadcast({ type: 'agent_died', agentId: id });
+      }
+    } catch {}
+
+    return c.json({ ok: true });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// GET /api/stats — dashboard stats
+agentBridgeApi.get("/api/stats", (c) => {
+  try {
+    const registered = store.listAgents();
+    const running = manager.getRunningAgents();
+    const memStats = store.getStats();
+    return c.json({
+      agents: registered.length,
+      activeAgents: running.length,
+      memories: memStats?.memories || 0,
+      messages: memStats?.messages || 0,
+      uptime: process.uptime(),
+    });
+  } catch {
+    return c.json({ agents: 0, activeAgents: 0, memories: 0, messages: 0 });
+  }
 });
 
 agentBridgeApi.post("/api/agents/:fromId/tell/:toId", async (c) => {

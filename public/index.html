@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARRA Office — Oracle Multi-Agent</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #0a0a0a; --surface: #111; --surface2: #161616; --border: #222;
+    --text: #e0e0e0; --dim: #888; --accent: #6366f1; --accent2: #818cf8;
+    --green: #22c55e; --red: #ef4444; --yellow: #eab308; --blue: #3b82f6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+
+  /* Header */
+  .header {
+    display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1.2rem;
+    border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .header h1 { font-size: 1rem; font-weight: 500; }
+  .header .badge { background: var(--accent); color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; }
+  .header .nav { display: flex; gap: 0.3rem; margin-left: auto; }
+  .header .nav a { color: var(--dim); text-decoration: none; font-size: 0.8rem; padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid transparent; }
+  .header .nav a:hover { border-color: var(--border); color: var(--text); }
+
+  /* Main layout */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px; border-right: 1px solid var(--border); display: flex; flex-direction: column;
+    background: var(--surface);
+  }
+  .sidebar-section { padding: 0.8rem; border-bottom: 1px solid var(--border); }
+  .sidebar-section h3 { font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
+  .sidebar-section h3 .count { background: var(--accent); color: white; padding: 0.1rem 0.4rem; border-radius: 8px; font-size: 0.65rem; }
+
+  .agent-item {
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem;
+    border-radius: 4px; cursor: pointer; font-size: 0.85rem;
+  }
+  .agent-item:hover { background: var(--surface2); }
+  .agent-item.active { background: rgba(99,102,241,0.15); }
+  .agent-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .agent-dot.active { background: var(--green); }
+  .agent-dot.idle { background: var(--yellow); }
+  .agent-dot.offline { background: var(--dim); }
+  .agent-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .agent-role { font-size: 0.7rem; color: var(--dim); }
+
+  .btn-spawn {
+    width: 100%; padding: 0.5rem; background: var(--accent); border: none; color: white;
+    border-radius: 6px; cursor: pointer; font-size: 0.85rem; margin-top: 0.5rem;
+  }
+  .btn-spawn:hover { background: var(--accent2); }
+
+  .input-row { display: flex; gap: 0.3rem; margin-top: 0.5rem; }
+  .input-row input {
+    flex: 1; padding: 0.4rem 0.6rem; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); font-size: 0.8rem; outline: none;
+  }
+  .input-row input:focus { border-color: var(--accent); }
+
+  /* Chat area */
+  .chat-area { flex: 1; display: flex; flex-direction: column; }
+  .chat-header {
+    padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); background: var(--surface);
+    font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center;
+  }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+  .msg { max-width: 75%; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; line-height: 1.5; }
+  .msg.oracle { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2); align-self: flex-start; }
+  .msg.user { background: var(--surface2); border: 1px solid var(--border); align-self: flex-end; }
+  .msg .role { font-size: 0.7rem; color: var(--dim); margin-bottom: 0.2rem; }
+  .msg.cmd { border-color: var(--green); }
+  .msg pre { background: var(--bg); padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.8rem; margin-top: 0.3rem; }
+
+  .chat-input-area {
+    padding: 0.8rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem;
+    background: var(--surface);
+  }
+  .chat-input-area input {
+    flex: 1; padding: 0.6rem 0.8rem; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 0.9rem; outline: none;
+  }
+  .chat-input-area input:focus { border-color: var(--accent); }
+  .chat-input-area button {
+    padding: 0.6rem 1.2rem; background: var(--accent); border: none; color: white;
+    border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+  }
+  .chat-input-area button:hover { background: var(--accent2); }
+
+  /* Right panel */
+  .right-panel {
+    width: 280px; border-left: 1px solid var(--border); display: flex; flex-direction: column;
+    background: var(--surface); overflow-y: auto;
+  }
+  .panel-section { padding: 0.8rem; border-bottom: 1px solid var(--border); }
+  .panel-section h3 { font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+  .stat { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 0.2rem 0; }
+  .stat .val { font-weight: 600; }
+  .stat .val.green { color: var(--green); }
+  .stat .val.yellow { color: var(--yellow); }
+  .stat .val.accent { color: var(--accent); }
+
+  .cmd-list { list-style: none; }
+  .cmd-list li { font-size: 0.8rem; padding: 0.2rem 0; color: var(--dim); cursor: pointer; }
+  .cmd-list li:hover { color: var(--text); }
+  .cmd-list li code { color: var(--accent); font-family: monospace; }
+
+  .log-area { flex: 1; padding: 0.8rem; overflow-y: auto; font-size: 0.75rem; color: var(--dim); font-family: monospace; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🧠 ARRA Office</h1>
+  <span class="badge">v5.0</span>
+  <span class="badge" id="ws-status" style="background:var(--red)">disconnected</span>
+  <div class="nav">
+    <a href="/vault">🔐 Vault</a>
+    <a href="#" onclick="loadAgents()">🔄 Refresh</a>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Sidebar: Agents -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>🤖 Agents <span class="count" id="agent-count">0</span></h3>
+      <div id="agent-list"></div>
+      <div class="input-row">
+        <input id="spawn-name" placeholder="Agent name..." value="">
+      </div>
+      <select id="spawn-role" style="width:100%;margin-top:0.3rem;padding:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.8rem">
+        <option value="general">General</option>
+        <option value="researcher">Researcher</option>
+        <option value="coder">Coder</option>
+        <option value="writer">Writer</option>
+        <option value="manager">Manager</option>
+        <option value="data-analyst">Data Analyst</option>
+        <option value="devops">DevOps</option>
+        <option value="qa-tester">QA Tester</option>
+        <option value="translator">Translator</option>
+      </select>
+      <button class="btn-spawn" onclick="spawnAgent()">⚡ Spawn Agent</button>
+    </div>
+    <div class="sidebar-section" style="flex:1;overflow-y:auto">
+      <h3>💬 Rooms <span class="count" id="room-count">0</span></h3>
+      <div id="room-list"></div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-area">
+    <div class="chat-header">
+      <span id="chat-title">💬 Oracle Chat</span>
+      <span id="chat-status" style="font-size:0.75rem;color:var(--dim)">Ready</span>
+    </div>
+    <div class="chat-messages" id="messages"></div>
+    <div class="chat-input-area">
+      <input id="chat-input" placeholder="Type message or /command..." onkeydown="if(event.key==='Enter')sendChat()">
+      <button onclick="sendChat()">Send</button>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+    <div class="panel-section">
+      <h3>📊 System</h3>
+      <div class="stat"><span>Uptime</span><span class="val green" id="sys-uptime">—</span></div>
+      <div class="stat"><span>Memory KB</span><span class="val accent" id="sys-memory">—</span></div>
+      <div class="stat"><span>Agents</span><span class="val" id="sys-agents">0</span></div>
+      <div class="stat"><span>Skills</span><span class="val yellow" id="sys-skills">—</span></div>
+      <div class="stat"><span>ψ/ Files</span><span class="val" id="sys-psi">—</span></div>
+    </div>
+    <div class="panel-section">
+      <h3>⚡ Commands</h3>
+      <ul class="cmd-list" id="cmd-list"></ul>
+    </div>
+    <div class="log-area" id="log-area">Waiting for events...</div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let ws = null;
+let agents = [];
+let selectedAgent = null;
+
+// ─── WebSocket ──────────────────────────────────────────────────────────────
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws.onopen = () => {
+    document.getElementById('ws-status').textContent = 'connected';
+    document.getElementById('ws-status').style.background = 'var(--green)';
+    log('🔌 WebSocket connected');
+  };
+  ws.onclose = () => {
+    document.getElementById('ws-status').textContent = 'disconnected';
+    document.getElementById('ws-status').style.background = 'var(--red)';
+    log('🔌 WebSocket disconnected, reconnecting...');
+    setTimeout(connectWS, 3000);
+  };
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      handleWS(msg);
+    } catch {}
+  };
+  // Keep alive
+  setInterval(() => { if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'ping' })); }, 30000);
+}
+
+function handleWS(msg) {
+  if (msg.type === 'pong') return;
+  if (msg.type === 'init' || msg.type === 'sessions') {
+    renderRooms(msg.data || msg.sessions || []);
+  }
+  if (msg.type === 'agent_spawned') {
+    log(`🤖 Agent spawned: ${msg.name || msg.id}`);
+    loadAgents();
+  }
+  if (msg.type === 'agent_died') {
+    log(`💀 Agent died: ${msg.name || msg.id}`);
+    loadAgents();
+  }
+  if (msg.type === 'reply') {
+    addMessage(msg.role || 'oracle', msg.message, msg.cmd);
+  }
+  log(`← ${msg.type}: ${JSON.stringify(msg).substring(0, 100)}`);
+}
+
+// ─── Agents ─────────────────────────────────────────────────────────────────
+async function loadAgents() {
+  try {
+    const res = await fetch(`${API}/api/v2/agents`);
+    const data = await res.json();
+    agents = data.agents || [];
+    const realAgents = agents.filter(a => a.role !== 'human' && a.role !== 'system');
+    document.getElementById('agent-count').textContent = realAgents.length;
+    document.getElementById('sys-agents').textContent = realAgents.length;
+
+    const el = document.getElementById('agent-list');
+    el.innerHTML = agents.map(a => `
+      <div class="agent-item ${selectedAgent === a.id ? 'active' : ''}" onclick="selectAgent('${a.id}')">
+        <span class="agent-dot ${a.running ? 'active' : 'idle'}"></span>
+        <span class="agent-name">${a.name}</span>
+        <span class="agent-role">${a.role}</span>
+      </div>
+    `).join('') || '<div style="font-size:0.8rem;color:var(--dim);padding:0.5rem">No agents yet</div>';
+  } catch (e) { log('❌ Load agents failed: ' + e.message); }
+}
+
+function selectAgent(id) {
+  selectedAgent = id;
+  const agent = agents.find(a => a.id === id);
+  document.getElementById('chat-title').textContent = `💬 ${agent?.name || id} (${agent?.role || '?'})`;
+  loadAgents();
+}
+
+async function spawnAgent() {
+  const name = document.getElementById('spawn-name').value || `Agent${Date.now().toString(36)}`;
+  const role = document.getElementById('spawn-role').value;
+  try {
+    const res = await fetch(`${API}/api/v2/agents/spawn`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, role }),
+    });
+    const data = await res.json();
+    log(`⚡ Spawned: ${data.name} (${data.role})`);
+    document.getElementById('spawn-name').value = '';
+    setTimeout(loadAgents, 1000);
+  } catch (e) { log('❌ Spawn failed: ' + e.message); }
+}
+
+// ─── Chat ───────────────────────────────────────────────────────────────────
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addMessage('user', text);
+
+  // Command handling
+  if (text.startsWith('/')) {
+    try {
+      const res = await fetch(`${API}/api/commands/execute`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: text }),
+      });
+      const data = await res.json();
+      addMessage('oracle', data.message || 'No response', true);
+    } catch (e) { addMessage('oracle', '❌ ' + e.message); }
+    return;
+  }
+
+  // Agent chat
+  if (selectedAgent) {
+    try {
+      const res = await fetch(`${API}/api/v2/agents/${selectedAgent}/chat`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json();
+      addMessage(data.agent || 'agent', data.response || data.message || 'No response');
+    } catch (e) { addMessage('oracle', '❌ ' + e.message); }
+    return;
+  }
+
+  // Send via tmux
+  try {
+    await fetch(`${API}/api/send`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: 'main', text }),
+    });
+    document.getElementById('chat-status').textContent = 'Sent to tmux';
+    setTimeout(() => { document.getElementById('chat-status').textContent = 'Ready'; }, 2000);
+  } catch (e) { addMessage('oracle', '❌ ' + e.message); }
+}
+
+function addMessage(role, text, isCmd) {
+  const el = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role === 'user' ? 'user' : 'oracle'}${isCmd ? ' cmd' : ''}`;
+  div.innerHTML = `<div class="role">${role}</div><div>${escapeHtml(text)}</div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+// ─── Rooms ──────────────────────────────────────────────────────────────────
+function renderRooms(sessions) {
+  const el = document.getElementById('room-list');
+  const count = document.getElementById('room-count');
+  if (!sessions.length) {
+    el.innerHTML = '<div style="font-size:0.8rem;color:var(--dim);padding:0.5rem">No active rooms</div>';
+    count.textContent = '0';
+    return;
+  }
+  count.textContent = sessions.length;
+  el.innerHTML = sessions.map(s => `
+    <div class="agent-item">
+      <span class="agent-dot ${s.active ? 'active' : 'offline'}"></span>
+      <span class="agent-name">${s.name || s.id || '?'}</span>
+      <span class="agent-role">${s.type || ''}</span>
+    </div>
+  `).join('');
+}
+
+// ─── Commands list ──────────────────────────────────────────────────────────
+async function loadCommands() {
+  try {
+    const res = await fetch(`${API}/api/commands`);
+    const data = await res.json();
+    const el = document.getElementById('cmd-list');
+    el.innerHTML = (data.commands || []).map(c =>
+      `<li onclick="document.getElementById('chat-input').value='/${c.name} ';document.getElementById('chat-input').focus()"><code>/${c.name}</code> — ${c.description}</li>`
+    ).join('');
+  } catch {}
+}
+
+// ─── System stats ───────────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const [healthRes, memRes, skillsRes, vaultRes] = await Promise.all([
+      fetch(`${API}/api/health`).then(r => r.json()).catch(() => ({})),
+      fetch(`${API}/api/v2/memory/stats`).then(r => r.json()).catch(() => ({})),
+      fetch(`${API}/api/skills`).then(r => r.json()).catch(() => ({})),
+      fetch(`${API}/api/vault/stats`).then(r => r.json()).catch(() => ({})),
+    ]);
+    if (healthRes.uptime) {
+      const u = healthRes.uptime;
+      document.getElementById('sys-uptime').textContent = `${Math.floor(u/3600)}h ${Math.floor((u%3600)/60)}m`;
+    }
+    if (memRes.total !== undefined) document.getElementById('sys-memory').textContent = memRes.total;
+    if (skillsRes.count) document.getElementById('sys-skills').textContent = skillsRes.count;
+    if (vaultRes.totalFiles !== undefined) document.getElementById('sys-psi').textContent = vaultRes.totalFiles;
+  } catch {}
+}
+
+// ─── Log ────────────────────────────────────────────────────────────────────
+function log(msg) {
+  const el = document.getElementById('log-area');
+  const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  el.innerHTML += `[${time}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+// ─── Init ───────────────────────────────────────────────────────────────────
+connectWS();
+loadAgents();
+loadCommands();
+loadStats();
+setInterval(loadAgents, 10000);
+setInterval(loadStats, 30000);
+
+// Welcome message
+addMessage('oracle', '🔮 Oracle Multi-Agent v5.0 ready!\n\nCommands: /help, /awaken, /skills, /philosophy\nSpawn an agent from the sidebar, or type a message.', true);
+</script>
+</body>
+</html>

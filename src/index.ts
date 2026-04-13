@@ -61,6 +61,39 @@ if (hasDist) {
     };
     return c.body(content, 200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
   });
+} else {
+  // Fallback: serve static dashboard from public/
+  const PUBLIC_DIR = join(__dirname, '..', 'public');
+
+  // Specific routes first (before catch-all)
+  app.get('/vault', (c) => {
+    const vaultHtml = join(PUBLIC_DIR, 'vault.html');
+    if (existsSync(vaultHtml)) return c.html(readFileSync(vaultHtml, 'utf-8'));
+    return c.text('Vault dashboard not found', 404);
+  });
+
+  app.get('/favicon.ico', (c) => c.redirect('/favicon.svg', 301));
+
+  app.get('/', (c) => {
+    const indexPath = join(PUBLIC_DIR, 'index.html');
+    if (existsSync(indexPath)) return c.html(readFileSync(indexPath, 'utf-8'));
+    return c.text('No dashboard available.', 404);
+  });
+
+  // Serve other public/ static files (must have extension)
+  app.get('/:file{.+\\..+}', (c) => {
+    const fileName = c.req.param('file');
+    const filePath = join(PUBLIC_DIR, fileName);
+    if (existsSync(filePath)) {
+      const ext = fileName.split('.').pop() || '';
+      const mimeTypes: Record<string, string> = {
+        'html': 'text/html', 'js': 'application/javascript', 'css': 'text/css',
+        'json': 'application/json', 'svg': 'image/svg+xml', 'png': 'image/png',
+      };
+      return c.body(readFileSync(filePath), 200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+    }
+    return c.notFound();
+  });
 }
 
 // Health endpoint
@@ -171,15 +204,6 @@ app.get('/api/maw-log', (c) => {
 
 // Redirect /agents.html → / (agents panel is in main dashboard now)
 app.get('/agents.html', (c) => c.redirect('/', 301));
-// Vault dashboard
-app.get('/vault', (c) => {
-  const vaultHtml = join(__dirname, '..', 'public', 'vault.html');
-  try {
-    const { readFileSync } = require('node:fs');
-    const html = readFileSync(vaultHtml, 'utf-8');
-    return c.html(html);
-  } catch { return c.text('Vault dashboard not found', 404); }
-});
 
 // GET /api/plugins — list loaded plugins
 app.get('/api/plugins', async (c) => {

@@ -194,6 +194,26 @@ export function cmdMergeTeam(team: string, opts: { cwd?: string; noPush?: boolea
     }
   }
 
+  // Feed event
+  try {
+    const { readFileSync } = require("node:fs");
+    const cfg = JSON.parse(readFileSync(join(homedir(), ".config", "oracle", "oracle.config.json"), "utf-8"));
+    const port = cfg.port || 3456;
+    const merged = results.filter(r => r.status === "merged").length;
+    const conflicts = results.filter(r => r.status === "conflict").length;
+    fetch(`http://localhost:${port}/api/feed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "TeamMerge",
+        oracle: team,
+        host: cfg.node || "local",
+        message: `merged ${merged} branches, ${conflicts} conflicts`,
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+  } catch {}
+
   // Summary
   console.log(`\n  \x1b[36m── summary ──\x1b[0m`);
   const merged = results.filter(r => r.status === "merged").length;

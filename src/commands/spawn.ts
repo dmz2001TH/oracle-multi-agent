@@ -13,7 +13,7 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -92,4 +92,21 @@ export function spawnAgent(name: string, task: string, opts: SpawnOptions = {}):
   console.log(`  \x1b[90mpeek:  oracle peek ${name}\x1b[0m`);
   console.log(`  \x1b[90mattach: tmux attach -t ${name}\x1b[0m`);
   console.log(`  \x1b[90mkill:   tmux kill-session -t ${name}\x1b[0m`);
+
+  // Emit feed event
+  try {
+    const cfg = JSON.parse(readFileSync(join(homedir(), ".config", "oracle", "oracle.config.json"), "utf-8"));
+    const port = cfg.port || 3456;
+    fetch(`http://localhost:${port}/api/feed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "AgentSpawn",
+        oracle: name,
+        host: cfg.node || "local",
+        message: `spawned: ${task.slice(0, 100)}`,
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+  } catch {}
 }

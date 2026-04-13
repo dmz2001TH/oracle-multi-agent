@@ -129,6 +129,21 @@ cronApi.post("/api/cron/:id/run", (c) => {
   job.lastRun = new Date().toISOString();
   saveJob(job);
 
+  // Feed event
+  try {
+    fetch("http://localhost:3456/api/feed", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: "CronFire",
+        oracle: job.name,
+        host: "local",
+        message: `cron #${job.id} "${job.name}" fired (firing #${job.firings})`,
+        ts: Date.now(),
+      }),
+    }).catch(() => {});
+  } catch {}
+
   return c.json({ ok: true, firing: job.firings, job });
 });
 

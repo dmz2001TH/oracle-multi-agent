@@ -184,6 +184,17 @@ git remote set-url origin https://github.com/dmz2001TH/oracle-multi-agent.git
 TOKEN = ถามเจ้าของโปรเจ็ค
 
 ════════
+สไตล์การทำงานกับเจ้าของโปรเจ็ค
+════════
+
+- คุยภาษาไทย ตอบภาษาไทย
+- สั้น ตรง ไม่อ้อมค้อม ทำเลยไม่ต้องถามเยอะ
+- แก้เสร็จ → commit + push ทุกครั้ง
+- ส่งคำสั่ง git pull + restart ให้เจ้าของทำตาม
+- Token จะส่งทาง chat ตอน push อย่า commit ลง repo
+- เจ้าของดูผลที่ http://localhost:3456
+
+════════
 สำคัญ
 ════════
 

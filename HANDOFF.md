@@ -133,6 +133,16 @@ git remote set-url origin https://github.com/dmz2001TH/oracle-multi-agent.git
 4. Curiosity Creates Existence
 5. Form and Formless — หลาย Oracle หนึ่งจิตสำนึก
 
+## 💬 สไตล์การทำงานกับเจ้าของโปรเจ็ค
+
+- **คุยภาษาไทย** — เจ้าของโปรเจ็คพิมพ์ภาษาไทย ตอบภาษาไทย
+- **สั้น ตรง ไม่อ้อมค้อม** — ไม่ต้องพิมพ์ยาว ตอบให้ชัดเจน ตรงประเด็น
+- **ทำเลย ไม่ต้องถามเยอะ** — ถ้าเข้าใจ指令แล้ว ทำเลย commit + push เลย
+- **อัพ GitHub ทุกครั้ง** — ทุกครั้งที่แก้ไขเสร็จ ต้อง git commit + push
+- **Token** — เจ้าของจะส่ง token ทาง chat ให้ตอน push ทุกครั้ง อย่า commit token ลง repo
+- **ส่งคำสั่ง terminal ให้เสมอ** — บอก git pull / restart commands ให้เจ้าของทำตาม
+- **Dashboard** — เจ้าของดูผลที่ http://localhost:3456 เป็นหลัก
+
 ## ⚠️ สิ่งที่ต้องรู้ (Known Fixes)
 
 - **WebSocket path**: dashboard ต้องเชื่อม `ws://host/ws` ไม่ใช่ `ws://host` (แก้แล้วใน public/index.html)

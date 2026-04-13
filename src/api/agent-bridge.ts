@@ -108,6 +108,45 @@ agentBridgeApi.get("/api/stats", (c) => {
   }
 });
 
+// Dashboard compatibility routes (Vite React app expects these)
+agentBridgeApi.get("/api/plugins", (c) => {
+  return c.json({
+    plugins: [
+      { name: 'logger', hooks: ['feed_event', 'agent_spawn', 'shutdown'], hasInit: false, loaded: true },
+      { name: 'stats', hooks: ['agent_message', 'agent_spawn', 'task_create'], hasInit: false, loaded: true },
+    ],
+    total: 2,
+  });
+});
+
+agentBridgeApi.get("/api/ui-state", (c) => {
+  return c.json({
+    theme: 'dark', sidebarOpen: true, activeView: 'office',
+    soundEnabled: true, compactMode: false, lastViewed: null, custom: {}, ts: Date.now(),
+  });
+});
+
+agentBridgeApi.post("/api/ui-state", async (c) => {
+  return c.json({ ok: true });
+});
+
+agentBridgeApi.get("/api/pin-info", (c) => {
+  return c.json({ locked: false, pinned: [] });
+});
+
+agentBridgeApi.post("/api/pin-info", async (c) => {
+  return c.json({ ok: true, pinned: [] });
+});
+
+agentBridgeApi.get("/api/tokens/rate", (c) => {
+  return c.json({ totalTokens: 0, totalRequests: 0, ratePerHour: 0, window: 3600, remaining: Infinity });
+});
+
+agentBridgeApi.get("/api/maw-log", (c) => {
+  const qs = new URL(c.req.url).search;
+  return c.redirect(`/api/logs${qs}`, 307);
+});
+
 agentBridgeApi.post("/api/agents/:fromId/tell/:toId", async (c) => {
   const { fromId, toId } = c.req.param();
   const body = await c.req.json();

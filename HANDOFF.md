@@ -5,6 +5,32 @@
 
 ---
 
+## ✅ Phase 3: API Endpoints (Batch 4) — COMPLETE
+
+### Batch 4: API Endpoints (19 files)
+| File | Source | Status |
+|------|--------|--------|
+| `src/api/index.ts` | maw-js/api/index.ts | ✅ Ported (Hono router) |
+| `src/api/sessions.ts` | maw-js/api/sessions.ts | ✅ Ported (sessions, capture, send) |
+| `src/api/feed.ts` | maw-js/api/feed.ts | ✅ Ported (feed buffer, push, markRealFeed) |
+| `src/api/teams.ts` | maw-js/api/teams.ts | ✅ Ported (team scanning) |
+| `src/api/config.ts` | maw-js/api/config.ts | ✅ Ported (config CRUD, fleet files, PIN) |
+| `src/api/fleet.ts` | maw-js/api/fleet.ts | ✅ Ported (fleet config list) |
+| `src/api/costs.ts` | maw-js/api/costs.ts | ✅ Ported (token usage + cost calc) |
+| `src/api/federation.ts` | maw-js/api/federation.ts | ✅ Ported (status, snapshots, identity, auth) |
+| `src/api/worktrees.ts` | maw-js/api/worktrees.ts | ✅ Ported (scan + cleanup) |
+| `src/api/triggers.ts` | maw-js/api/triggers.ts | ✅ Ported (list + fire) |
+| `src/api/oracle.ts` | maw-js/api/oracle.ts | ✅ Ported (search, stats, traces) |
+| `src/api/transport.ts` | maw-js/api/transport.ts | ✅ Ported (status + reset) |
+| `src/api/logs.ts` | maw-js/api/logs.ts | ✅ Ported (log search + agent list) |
+| `src/api/pulse.ts` | maw-js/api/pulse.ts | ✅ Ported (pulse + ping) |
+| `src/api/avengers.ts` | maw-js/api/avengers.ts | ✅ Ported (rate limit proxy) |
+| `src/api/asks.ts` | maw-js/api/asks.ts | ✅ Ported (asks CRUD) |
+| `src/api/peer-exec.ts` | maw-js/api/peer-exec.ts | ✅ Ported (peer relay) |
+| `src/api/proxy.ts` | maw-js/api/proxy.ts | ✅ Ported (HTTP proxy) |
+| `src/api/ui-state.ts` | maw-js/api/ui-state.ts | ✅ Ported (UI state persistence) |
+| `src/api/workspace.ts` | maw-js/api/workspace.ts | ✅ Ported (workspace list) |
+
 ## ✅ Phase 2: Transports (Batch 3) — COMPLETE
 
 ### Batch 3: Transports (6 files)
@@ -91,8 +117,7 @@
 | `src/transports/nanoclaw.ts` | maw-js/transports/nanoclaw.ts |
 | `src/transports/lora.ts` | maw-js/transports/lora.ts |
 
-### Phase 3: API Endpoints (Batch 4) — 21 files
-- `src/api/index.ts` + 19 endpoint files + `src/lib/feed.ts`
+### Phase 4: Commands (Batch 5) — 49 files
 
 ### Phase 4: Commands (Batch 5) — 49 files
 - archive, assign, audit, avengers, broadcast, bud, comm, completions, contacts,
@@ -127,19 +152,19 @@
 
 | Category | Created | Target |
 |----------|---------|--------|
-| TypeScript source | 37 files | ~250+ files |
+| TypeScript source | 57 files | ~250+ files |
 | Engine | 4 | 4 ✅ |
 | Core infra | 20 | 20 ✅ |
 | Process abstraction | 4 | 4 ✅ |
 | Transports | 8 | 8 ✅ |
-| API | 0 | 21 |
+| API | 20 | 20 ✅ |
 | Commands | 0 | 49 |
 | CLI | 0 | 8 |
 | Dashboard | 0 | ~100 |
 | Memory tools | 0 | 13 |
 
-**Progress: ~15% (37/250+ files)**
+**Progress: ~23% (57/250+ files)**
 
 ---
 
-*Last updated: 2026-04-13 12:40 GMT+8*
+*Last updated: 2026-04-13 12:48 GMT+8*

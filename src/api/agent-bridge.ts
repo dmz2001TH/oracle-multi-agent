@@ -32,6 +32,53 @@ const manager = new AgentManager(store, {
 export { store, manager };
 export const agentBridgeApi = new Hono();
 
+// ─── Legacy route aliases (agent workers call without /v2/) ────
+agentBridgeApi.get("/api/agents", (c) => {
+  const registered = store.listAgents();
+  const running = manager.getRunningAgents();
+  const merged = registered.map((a: any) => ({
+    ...a,
+    running: running.some((r: any) => r.id === a.id),
+  }));
+  return c.json({ agents: merged, total: merged.length });
+});
+
+agentBridgeApi.post("/api/agents/:fromId/tell/:toId", async (c) => {
+  const { fromId, toId } = c.req.param();
+  const body = await c.req.json();
+  const target = manager.getRunningAgents().find((a: any) => a.id === toId);
+  if (!target) return c.json({ error: "Target agent not running" }, 404);
+  const fromAgent: any = store.getAgent(fromId);
+  try {
+    (target as any).process.send({ type: 'incoming_message', from: fromId, fromName: fromAgent?.name || 'Unknown', content: body.message });
+    return c.json({ ok: true, sent: true });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+agentBridgeApi.post("/api/agent-callback/:id", async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json();
+  switch (body.type) {
+    case 'memory':
+      if (body.data?.content) store.addMemory(id, body.data.content, body.data.category, body.data.importance, body.data.tags);
+      break;
+    case 'message':
+      if (body.data?.content) store.sendMessage(id, body.data.content, body.data.to, body.data.threadId);
+      break;
+    case 'status':
+      store.updateAgentStatus(id, body.data?.status || 'active');
+      break;
+    case 'thought': case 'response': case 'task':
+      store.sendMessage(id, `[${body.type}] ${body.data?.content || JSON.stringify(body.data)}`, null, null, 'system');
+      break;
+  }
+  return c.json({ ok: true });
+});
+
+// ─── V2 API routes ──────────────────────────────────────────────
+
 // ─── List all agents ────────────────────────────────────────────
 agentBridgeApi.get("/api/v2/agents", (c) => {
   const registered = store.listAgents();

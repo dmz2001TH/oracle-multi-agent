@@ -25,7 +25,51 @@ import { store } from "./agent-bridge.js";
 
 export const memoryBridgeApi = new Hono();
 
-// ─── Search memories ────────────────────────────────────────────
+// ─── Legacy route aliases (agent workers call without /v2/) ────
+memoryBridgeApi.get("/api/memory/search", (c) => {
+  const q = c.req.query("q");
+  if (!q) return c.json({ error: "q parameter required" }, 400);
+  const limit = Number(c.req.query("limit") || 10);
+  const agentId = c.req.query("agent") || undefined;
+  try {
+    const results = store.searchMemories(q, agentId as any, limit);
+    return c.json({ results, total: results.length, query: q });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+memoryBridgeApi.get("/api/memory/all", (c) => {
+  const limit = Number(c.req.query("limit") || 50);
+  try {
+    const results = store.getAllMemories(limit);
+    return c.json(results);
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+memoryBridgeApi.get("/api/messages", (c) => {
+  const limit = Number(c.req.query("limit") || 50);
+  try {
+    const messages = store.getMessages(null, limit);
+    return c.json(messages);
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+memoryBridgeApi.post("/api/tasks", async (c) => {
+  const body = await c.req.json();
+  try {
+    const id = store.createTask(body.title, body.description || '', body.assignedTo || null, body.priority || 1);
+    return c.json({ ok: true, id });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// ─── V2 API routes ──────────────────────────────────────────────
 memoryBridgeApi.get("/api/v2/memory/search", (c) => {
   const q = c.req.query("q");
   if (!q) return c.json({ error: "q parameter required" }, 400);

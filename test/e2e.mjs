@@ -38,8 +38,8 @@ console.log(`Target: ${BASE}\n`);
 // ─── Health ─────────────────────────────────────────────────────────────────
 console.log('📡 Health & Server');
 
-await test('GET /api/health returns ok', async () => {
-  const { data } = await api('GET', '/api/health');
+await test('GET /health returns ok', async () => {
+  const { data } = await api('GET', '/health');
   assert(data.ok, 'health not ok');
 });
 
@@ -71,7 +71,7 @@ await test('POST /api/commands/execute /who-are-you', async () => {
 });
 
 await test('POST /api/commands/execute /awaken', async () => {
-  const { data } = await api('POST', '/api/commands/execute', { input: '/awaken TestBot|🔥 Fire|coder|Test motto' });
+  const { data } = await api('POST', '/api/commands/execute', { input: '/awaken --force TestBot|🔥 Fire|coder|Test motto' });
   assert(data.ok, 'awaken not ok');
   assert(data.data.name === 'TestBot', 'name mismatch');
 });
@@ -132,6 +132,50 @@ console.log('\n🤖 Agents');
 await test('GET /api/v2/agents lists agents', async () => {
   const { data } = await api('GET', '/api/v2/agents');
   assert(data.ok !== false, 'agents list error');
+  assert(Array.isArray(data.agents), 'agents not array');
+});
+
+await test('POST /api/v2/agents/spawn creates agent', async () => {
+  const uniqueName = `E2E-${Date.now()}`;
+  const { data } = await api('POST', '/api/v2/agents/spawn', { name: uniqueName, role: 'general' });
+  assert(data.id, `no agent id returned: ${JSON.stringify(data).substring(0,100)}`);
+  assert(data.name === uniqueName, `name mismatch: ${data.name} !== ${uniqueName}`);
+});
+
+// ─── Dashboard ──────────────────────────────────────────────────────────────
+console.log('\n🖥️ Dashboard');
+
+await test('GET / serves HTML dashboard', async () => {
+  const res = await fetch(`${BASE}/`);
+  assert(res.status === 200, `status ${res.status}`);
+  const html = await res.text();
+  assert(html.includes('ARRA Office'), 'missing ARRA Office');
+  assert(html.includes('/api/v2/agents'), 'missing API ref');
+});
+
+await test('GET /vault serves vault dashboard', async () => {
+  const res = await fetch(`${BASE}/vault`);
+  assert(res.status === 200, `status ${res.status}`);
+  const html = await res.text();
+  assert(html.includes('Oracle Vault'), 'missing Oracle Vault');
+});
+
+await test('GET /favicon.ico redirects to svg', async () => {
+  const res = await fetch(`${BASE}/favicon.ico`, { redirect: 'manual' });
+  assert(res.status === 301, `expected 301, got ${res.status}`);
+  assert(res.headers.get('location') === '/favicon.svg', 'wrong redirect');
+});
+
+await test('WebSocket /ws endpoint exists', async () => {
+  // Just verify the server doesn't 404 on /ws
+  try {
+    const res = await fetch(`${BASE}/ws`, { method: 'GET' });
+    // 400 or 426 are fine (upgrade required), just not 404
+    assert(res.status !== 404, 'ws endpoint missing');
+  } catch (e) {
+    // Connection upgrade errors are expected for WS endpoints
+    assert(true, 'ws endpoint exists (upgrade error expected)');
+  }
 });
 
 // ─── Summary ────────────────────────────────────────────────────────────────

@@ -57,8 +57,11 @@ function now(): string {
 export function awaken(args: string, ctx: CommandContext): CommandResult {
   ensureDirs();
 
+  const forceReset = args.includes("--force");
+  const cleanArgs = args.replace("--force", "").trim();
+
   // Check if identity already exists
-  if (existsSync(IDENTITY_FILE) && !args.includes("--force")) {
+  if (existsSync(IDENTITY_FILE) && !forceReset) {
     const id = JSON.parse(readFileSync(IDENTITY_FILE, "utf-8"));
     return {
       status: "ok",
@@ -67,7 +70,7 @@ export function awaken(args: string, ctx: CommandContext): CommandResult {
   }
 
   // Identity ceremony — collect info from args or use defaults
-  const parts = args ? args.split("|").map((s) => s.trim()) : [];
+  const parts = cleanArgs ? cleanArgs.split("|").map((s) => s.trim()) : [];
   const identity = {
     name: parts[0] || "Oracle",
     element: parts[1] || "🔥 Fire",

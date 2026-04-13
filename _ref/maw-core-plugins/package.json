@@ -1,0 +1,8 @@
+{
+  "name": "maw-core-plugins",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Core plugins that ship with maw-js — essential commands that can't be removed",
+  "workspaces": ["packages/*"],
+  "license": "MIT"
+}

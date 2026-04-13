@@ -26,8 +26,10 @@ const JOURNAL_DIR = join(MEMORY_DIR, "journal");
 const MOOD_LOG = join(MEMORY_DIR, "mood-log.jsonl");
 const HANDOFF_DIR = join(MEMORY_DIR, "handoffs");
 const IDENTITY_FILE = join(ORACLE_DIR, "identity.json");
+const LEARNED_DIR = join(MEMORY_DIR, "learned");
+const INBOX_DIR = join(ORACLE_DIR, "inbox");
 
-// ψ/ knowledge root (project-relative)
+// ψ/ knowledge root (project-relative) — full oracle-framework structure
 const PSI_ROOT = join(process.cwd(), "ψ");
 const PSI_MEMORY = join(PSI_ROOT, "memory");
 const PSI_JOURNAL = join(PSI_MEMORY, "journal");
@@ -36,11 +38,29 @@ const PSI_RETROSPECTIVES = join(PSI_MEMORY, "retrospectives");
 const PSI_DECISIONS = join(PSI_MEMORY, "decisions");
 const PSI_HANDOFFS = join(PSI_MEMORY, "handoffs");
 const PSI_MOOD = join(PSI_MEMORY, "mood");
+const PSI_LEARNINGS = join(PSI_MEMORY, "learnings");
+const PSI_LOGS = join(PSI_MEMORY, "logs");
+const PSI_ACTIVE = join(PSI_ROOT, "active");
+const PSI_ACTIVE_CONTEXT = join(PSI_ACTIVE, "context");
+const PSI_INBOX = join(PSI_ROOT, "inbox");
+const PSI_INBOX_HANDOFF = join(PSI_INBOX, "handoff");
+const PSI_INBOX_EXTERNAL = join(PSI_INBOX, "external");
+const PSI_WRITING = join(PSI_ROOT, "writing");
+const PSI_WRITING_DRAFTS = join(PSI_WRITING, "drafts");
+const PSI_LAB = join(PSI_ROOT, "lab");
+const PSI_INCUBATE = join(PSI_ROOT, "incubate");
+const PSI_LEARN = join(PSI_ROOT, "learn");
+const PSI_ARCHIVE = join(PSI_ROOT, "archive");
 
 function ensureDirs() {
-  for (const d of [MEMORY_DIR, JOURNAL_DIR, HANDOFF_DIR,
+  for (const d of [
+    MEMORY_DIR, JOURNAL_DIR, HANDOFF_DIR, LEARNED_DIR, INBOX_DIR,
     PSI_MEMORY, PSI_JOURNAL, PSI_RESONANCE, PSI_RETROSPECTIVES,
-    PSI_DECISIONS, PSI_HANDOFFS, PSI_MOOD]) {
+    PSI_DECISIONS, PSI_HANDOFFS, PSI_MOOD, PSI_LEARNINGS, PSI_LOGS,
+    PSI_ACTIVE, PSI_ACTIVE_CONTEXT, PSI_INBOX, PSI_INBOX_HANDOFF,
+    PSI_INBOX_EXTERNAL, PSI_WRITING, PSI_WRITING_DRAFTS, PSI_LAB,
+    PSI_INCUBATE, PSI_LEARN, PSI_ARCHIVE,
+  ]) {
     mkdirSync(d, { recursive: true });
   }
 }
@@ -670,8 +690,81 @@ export function learn(args: string, ctx: CommandContext): CommandResult {
   const target = args.trim();
   let repoPath = target;
 
-  // Handle URLs — clone to temp
+  // Handle URLs
   if (target.startsWith("http")) {
+    // Check if it's a GitHub org URL (e.g. https://github.com/Soul-Brews-Studio)
+    const urlParts = target.replace(/\/$/, "").split("/");
+    const isOrgUrl = urlParts.length === 4 && urlParts[2] === "github.com";
+
+    if (isOrgUrl) {
+      // List repos in the org
+      const orgName = urlParts[3];
+      try {
+        const listOutput = execSync(
+          `curl -s "https://api.github.com/orgs/${orgName}/repos?per_page=20&sort=updated" 2>/dev/null`,
+          { encoding: "utf-8", timeout: 15000 }
+        ).trim();
+        const repos = JSON.parse(listOutput);
+        if (Array.isArray(repos) && repos.length > 0) {
+          const repoList = repos
+            .filter((r: any) => !r.archived)
+            .slice(0, 15)
+            .map((r: any) => `- **${r.name}** — ${r.description || "No description"} (⭐ ${r.stargazers_count})`)
+            .join("\n");
+
+          // Also try listing via git ls-remote for user repos
+          return {
+            status: "ok",
+            message: [
+              `📚 **${orgName}** — ${repos.length} repositories found:`,
+              "",
+              repoList,
+              "",
+              `💡 ใช้ /learn https://github.com/${orgName}/<repo-name> เพื่อวิเคราะห์ repo แต่ละตัว`,
+              "",
+              "ตัวอย่าง repos ที่แนะนำ:",
+              ...repos.filter((r: any) => r.stargazers_count > 0).slice(0, 5)
+                .map((r: any) => `- \`/learn ${r.html_url}\``),
+            ].join("\n"),
+            data: { org: orgName, repos: repos.map((r: any) => ({ name: r.name, url: r.html_url, stars: r.stargazers_count })) },
+          };
+        }
+        return {
+          status: "ok",
+          message: `📚 ไม่พบ repos ใน ${orgName} (หรือ API rate limit)`,
+        };
+      } catch (e: any) {
+        // Fallback: try listing user repos
+        try {
+          const userOutput = execSync(
+            `curl -s "https://api.github.com/users/${orgName}/repos?per_page=15&sort=updated" 2>/dev/null`,
+            { encoding: "utf-8", timeout: 15000 }
+          ).trim();
+          const userRepos = JSON.parse(userOutput);
+          if (Array.isArray(userRepos) && userRepos.length > 0) {
+            const repoList = userRepos.slice(0, 15)
+              .map((r: any) => `- **${r.name}** — ${r.description || "No description"}`)
+              .join("\n");
+            return {
+              status: "ok",
+              message: [
+                `📚 **${orgName}** — ${userRepos.length} repositories:`,
+                "",
+                repoList,
+                "",
+                `💡 ใช้ /learn https://github.com/${orgName}/<repo-name>`,
+              ].join("\n"),
+            };
+          }
+        } catch {}
+        return {
+          status: "error",
+          message: `❌ ไม่สามารถดึงข้อมูล repos ของ ${orgName} ได้: ${e.message?.substring(0, 150)}`,
+        };
+      }
+    }
+
+    // It's a repo URL — clone to temp
     const repoName = target.split("/").pop()?.replace(".git", "") || "repo";
     repoPath = join(ORACLE_DIR, "learned", repoName);
     mkdirSync(repoPath, { recursive: true });
@@ -686,7 +779,7 @@ export function learn(args: string, ctx: CommandContext): CommandResult {
     } catch (e: any) {
       return {
         status: "error",
-        message: `❌ Clone failed: ${e.message?.substring(0, 200)}`,
+        message: `❌ Clone failed: ${e.message?.substring(0, 200)}\n\n💡 ถ้าเป็น URL ขององค์กร ลองใช้ /learn https://github.com/<org>/<repo> แทน`,
       };
     }
   }
@@ -1100,6 +1193,12 @@ const COMMANDS: Record<string, CommandHandler> = {
   fleet,
   pulse,
   workflow,
+  distill,
+  inbox,
+  overview,
+  find,
+  "soul-sync": soulSync,
+  contacts,
 };
 
 export function listCommands(): { name: string; description: string }[] {
@@ -1111,8 +1210,8 @@ export function listCommands(): { name: string; description: string }[] {
     { name: "standup", description: "🧍 Daily standup" },
     { name: "feel", description: "💭 Mood logger" },
     { name: "forward", description: "🔄 Session handoff" },
-    { name: "trace", description: "🔍 Universal search" },
-    { name: "learn", description: "📚 Study repository" },
+    { name: "trace", description: "🔍 Universal search (deep/oracle)" },
+    { name: "learn", description: "📚 Study repository (supports org URL)" },
     { name: "who-are-you", description: "🔮 Oracle identity" },
     { name: "philosophy", description: "📜 Oracle 5 Principles + Rule 6" },
     { name: "skills", description: "📋 List/search all skills (30+)" },
@@ -1120,7 +1219,53 @@ export function listCommands(): { name: string; description: string }[] {
     { name: "fleet", description: "🚢 Fleet census — all oracles across nodes" },
     { name: "pulse", description: "📊 Project board — tasks, issues, status" },
     { name: "workflow", description: "⚙️ Multi-agent workflow templates" },
+    { name: "distill", description: "🧬 Extract patterns from journal entries" },
+    { name: "inbox", description: "📬 Check inbox (tasks, handoffs, focus)" },
+    { name: "overview", description: "📊 System overview (ψ/, stats, uptime)" },
+    { name: "find", description: "🔍 Quick memory search (alias for trace --oracle)" },
+    { name: "soul-sync", description: "🔄 Sync memory between ψ/ and ~/.oracle/" },
+    { name: "contacts", description: "👥 List oracle contacts" },
   ];
+}
+
+// ─── Get all command descriptions for agent system prompt ──────────────────
+
+export function getCommandDocs(): string {
+  return listCommands().map(c => `/${c.name} — ${c.description}`).join("\n");
+}
+
+// ─── Get command guide text for agent system prompts ──────────────────────
+
+export function getAgentCommandGuide(): string {
+  return `You have access to Oracle CLI commands. When a user asks about something, suggest the right command. When they give you a task, execute it.
+
+Available commands:
+/recap [days] — summarize recent sessions
+/fyi <info> — save info to memory
+/rrr good: X | improve: Y | action: Z — daily retrospective
+/standup yesterday: X | today: Y | blocker: Z — daily standup
+/feel <mood> [note] — log mood
+/forward <summary> — create session handoff
+/trace <query> [--deep|--oracle] — search memory+code
+/learn <repo-or-url> — analyze a repository (works with org URLs too)
+/who-are-you — show identity
+/philosophy [1-5|check] — show Oracle principles
+/skills [query] — list/search skills
+/resonance [note] — capture resonance moment
+/fleet [--deep] — fleet census
+/pulse [add/done/list] — project board
+/workflow [list/show] — workflow templates
+/distill [days] — extract patterns from journals
+/inbox — check inbox (tasks, handoffs)
+/overview — system overview
+/find <query> — quick memory search
+/soul-sync — sync ψ/ and ~/.oracle/
+/contacts — list oracle contacts
+
+When user says "สร้าง retrospective" or similar, execute /rrr directly.
+When user says "จำไว้" or "save this", execute /fyi with the content.
+When user says "สรุป" or "recap", execute /recap.
+Always execute the command, don't just explain how to use it.`;
 }
 
 // ─── /fleet — Fleet Census (from maw-js patterns) ──────────────────────────
@@ -1312,6 +1457,408 @@ export function pulse(args: string, ctx: CommandContext): CommandResult {
       };
     }
   }
+}
+
+// ─── /distill — Extract patterns from journal entries ───────────────────────
+
+export function distill(args: string, ctx: CommandContext): CommandResult {
+  ensureDirs();
+  mkdirSync(PSI_LEARNINGS, { recursive: true });
+
+  const days = parseInt(args) || 7;
+  const entries: string[] = [];
+  const patterns: string[] = [];
+
+  // Collect recent journal entries
+  for (let i = 0; i < Math.min(days, 30); i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split("T")[0];
+
+    // Check both regular journal and ψ/ journal
+    for (const dir of [JOURNAL_DIR, PSI_JOURNAL]) {
+      const journalFile = join(dir, `${dateStr}.md`);
+      if (existsSync(journalFile)) {
+        const content = readFileSync(journalFile, "utf-8");
+        entries.push(content);
+      }
+    }
+  }
+
+  // Check FYI entries
+  try {
+    const fyiFile = join(MEMORY_DIR, "fyi.jsonl");
+    if (existsSync(fyiFile)) {
+      const lines = readFileSync(fyiFile, "utf-8").split("\n").filter(Boolean);
+      const recent = lines.slice(-20);
+      for (const line of recent) {
+        try {
+          const r = JSON.parse(line);
+          entries.push(r.text);
+        } catch {}
+      }
+    }
+  } catch {}
+
+  // Check retrospectives
+  try {
+    if (existsSync(PSI_RETROSPECTIVES)) {
+      const files = readdirSync(PSI_RETROSPECTIVES).sort().reverse().slice(0, 5);
+      for (const f of files) {
+        entries.push(readFileSync(join(PSI_RETROSPECTIVES, f), "utf-8"));
+      }
+    }
+  } catch {}
+
+  // Extract patterns (simple keyword frequency analysis)
+  const allText = entries.join(" ").toLowerCase();
+  const wordFreq: Record<string, number> = {};
+  const stopWords = new Set(["the", "is", "at", "which", "on", "and", "a", "an", "to", "for", "of", "in", "it", "that", "this", "with", "as", "was", "are", "be", "has", "have", "had", "from", "by", "or", "but", "not", "คือ", "ได้", "จะ", "มี", "ไม่", "ใน", "ที่", "ของ", "และ", "ก็", "แต่", "แล้ว", "อยู่", "เรา", "มัน"]);
+
+  for (const word of allText.split(/[\s,.\-;:!?()[\]{}'"]+/)) {
+    if (word.length > 3 && !stopWords.has(word)) {
+      wordFreq[word] = (wordFreq[word] || 0) + 1;
+    }
+  }
+
+  const topWords = Object.entries(wordFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  // Create distillation
+  const dateStr = today();
+  const distillation = [
+    `# 🧬 Distillation — ${dateStr}`,
+    `Period: last ${days} days`,
+    `Entries analyzed: ${entries.length}`,
+    "",
+    "## Top Keywords (Patterns)",
+    ...topWords.map(([word, count]) => `- **${word}** (${count}x)`),
+    "",
+    "## Entries Summary",
+    entries.length > 0
+      ? entries.slice(0, 5).map((e, i) => `### Entry ${i + 1}\n${e.substring(0, 200)}`).join("\n\n")
+      : "_No entries found_",
+    "",
+    `---\n_Generated: ${now()}_`,
+  ].join("\n");
+
+  // Save distillation
+  const distillFile = join(PSI_LEARNINGS, `${dateStr}-distill.md`);
+  writeFileSync(distillFile, distillation);
+
+  // Also save to memory
+  const memDistillFile = join(MEMORY_DIR, "distillations", `${dateStr}.md`);
+  mkdirSync(join(MEMORY_DIR, "distillations"), { recursive: true });
+  writeFileSync(memDistillFile, distillation);
+
+  return {
+    status: "ok",
+    message: [
+      `🧬 **Distillation Complete**`,
+      "",
+      `Analyzed ${entries.length} entries from last ${days} days`,
+      "",
+      "### Top Patterns",
+      ...topWords.slice(0, 5).map(([word, count]) => `- **${word}** (${count}x)`),
+      "",
+      `📂 ${distillFile}`,
+    ].join("\n"),
+    data: { entries: entries.length, patterns: topWords, file: distillFile },
+  };
+}
+
+// ─── /inbox — Check inbox (pending tasks, messages, handoffs) ───────────────
+
+export function inbox(args: string, ctx: CommandContext): CommandResult {
+  ensureDirs();
+
+  const items: { type: string; content: string; ts?: string }[] = [];
+
+  // Check handoffs
+  try {
+    if (existsSync(HANDOFF_DIR)) {
+      const files = readdirSync(HANDOFF_DIR).filter(f => f !== "latest.json").sort().reverse().slice(0, 5);
+      for (const f of files) {
+        try {
+          const data = JSON.parse(readFileSync(join(HANDOFF_DIR, f), "utf-8"));
+          items.push({ type: "handoff", content: data.summary || "No summary", ts: data.ts });
+        } catch {}
+      }
+    }
+  } catch {}
+
+  // Check ψ/inbox/
+  try {
+    const focusFile = join(PSI_INBOX, "focus.md");
+    if (existsSync(focusFile)) {
+      items.push({ type: "focus", content: readFileSync(focusFile, "utf-8").substring(0, 200) });
+    }
+  } catch {}
+
+  // Check pulse tasks (todo)
+  try {
+    const tasksFile = join(PSI_MEMORY, "pulse", "tasks.jsonl");
+    if (existsSync(tasksFile)) {
+      const lines = readFileSync(tasksFile, "utf-8").split("\n").filter(Boolean);
+      for (const line of lines) {
+        try {
+          const t = JSON.parse(line);
+          if (t.status === "todo") {
+            items.push({ type: "task", content: `${t.id}: ${t.title}`, ts: t.created });
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+
+  if (items.length === 0) {
+    return {
+      status: "ok",
+      message: [
+        "📬 **Inbox**",
+        "",
+        "ไม่มีรายการค้าง — inbox ว่างเปล่า",
+        "",
+        "💡 ใช้ /forward เพื่อสร้าง handoff ก่อนจบ session",
+        "💡 ใช้ /pulse add เพื่อเพิ่ม task",
+      ].join("\n"),
+    };
+  }
+
+  const grouped = {
+    handoff: items.filter(i => i.type === "handoff"),
+    focus: items.filter(i => i.type === "focus"),
+    task: items.filter(i => i.type === "task"),
+  };
+
+  return {
+    status: "ok",
+    message: [
+      `📬 **Inbox** (${items.length} items)`,
+      "",
+      grouped.focus.length > 0 ? "### 🎯 Focus\n" + grouped.focus.map(i => `- ${i.content}`).join("\n") : "",
+      grouped.task.length > 0 ? "\n### 📋 Tasks\n" + grouped.task.map(i => `- [ ] ${i.content}`).join("\n") : "",
+      grouped.handoff.length > 0 ? "\n### 🔄 Handoffs\n" + grouped.handoff.map(i => `- ${i.ts?.split("T")[0] || ""}: ${i.content}`).join("\n") : "",
+    ].filter(Boolean).join("\n"),
+    data: { total: items.length, grouped },
+  };
+}
+
+// ─── /overview — System overview ────────────────────────────────────────────
+
+export function overview(args: string, ctx: CommandContext): CommandResult {
+  ensureDirs();
+
+  const uptime = process.uptime();
+  const uptimeStr = `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`;
+
+  // Count ψ/ files
+  let psiFiles = 0;
+  let psiSize = 0;
+  try {
+    const countDir = (dir: string): void => {
+      if (!existsSync(dir)) return;
+      const items = readdirSync(dir, { withFileTypes: true });
+      for (const item of items) {
+        const fullPath = join(dir, item.name);
+        if (item.isDirectory()) {
+          countDir(fullPath);
+        } else {
+          psiFiles++;
+          try { psiSize += readFileSync(fullPath).length; } catch {}
+        }
+      }
+    };
+    countDir(PSI_ROOT);
+  } catch {}
+
+  // Count memory entries
+  let journalCount = 0;
+  let fyiCount = 0;
+  try {
+    if (existsSync(JOURNAL_DIR)) journalCount = readdirSync(JOURNAL_DIR).length;
+    const fyiFile = join(MEMORY_DIR, "fyi.jsonl");
+    if (existsSync(fyiFile)) fyiCount = readFileSync(fyiFile, "utf-8").split("\n").filter(Boolean).length;
+  } catch {}
+
+  // Pulse tasks
+  let pulseTodo = 0;
+  let pulseDone = 0;
+  try {
+    const tasksFile = join(PSI_MEMORY, "pulse", "tasks.jsonl");
+    if (existsSync(tasksFile)) {
+      const lines = readFileSync(tasksFile, "utf-8").split("\n").filter(Boolean);
+      for (const line of lines) {
+        try {
+          const t = JSON.parse(line);
+          if (t.status === "todo") pulseTodo++;
+          else if (t.status === "done") pulseDone++;
+        } catch {}
+      }
+    }
+  } catch {}
+
+  const psiSizeStr = psiSize > 1024 * 1024
+    ? `${(psiSize / 1024 / 1024).toFixed(1)}MB`
+    : psiSize > 1024
+    ? `${(psiSize / 1024).toFixed(1)}KB`
+    : `${psiSize}B`;
+
+  return {
+    status: "ok",
+    message: [
+      "📊 **System Overview**",
+      "",
+      `⏱️ Uptime: ${uptimeStr}`,
+      `🖥️ Node: ${hostname()} (${platform()} ${arch()})`,
+      `🧠 PID: ${process.pid}`,
+      "",
+      "### ψ/ Knowledge Root",
+      `- Files: ${psiFiles}`,
+      `- Size: ${psiSizeStr}`,
+      `- Journals: ${journalCount} days`,
+      `- FYI entries: ${fyiCount}`,
+      "",
+      "### Pulse (Project Board)",
+      `- Todo: ${pulseTodo}`,
+      `- Done: ${pulseDone}`,
+      "",
+      "### Skills",
+      `- Total: ${getSkillCount()}`,
+      "",
+      `📂 ${PSI_ROOT}`,
+    ].join("\n"),
+    data: { uptime: uptimeStr, psiFiles, psiSize, journalCount, fyiCount, pulseTodo, pulseDone },
+  };
+}
+
+// ─── /find — Quick memory search (alias for trace --oracle) ─────────────────
+
+export function find(args: string, ctx: CommandContext): CommandResult {
+  if (!args || args.trim().length === 0) {
+    return {
+      status: "ok",
+      message: "🔍 ใช้: /find <query>\nตัวอย่าง: /find login bug\nเทียบเท่า /trace <query> --oracle",
+    };
+  }
+  return trace(`${args} --oracle`, ctx);
+}
+
+// ─── /soul-sync — Sync memory between ψ/ and ~/.oracle/ ────────────────────
+
+export function soulSync(args: string, ctx: CommandContext): CommandResult {
+  ensureDirs();
+
+  let synced = 0;
+
+  // Sync journal: ~/.oracle → ψ/
+  try {
+    if (existsSync(JOURNAL_DIR)) {
+      const files = readdirSync(JOURNAL_DIR);
+      for (const file of files) {
+        const src = join(JOURNAL_DIR, file);
+        const dest = join(PSI_JOURNAL, file);
+        if (!existsSync(dest)) {
+          writeFileSync(dest, readFileSync(src));
+          synced++;
+        }
+      }
+    }
+  } catch {}
+
+  // Sync journal: ψ/ → ~/.oracle
+  try {
+    if (existsSync(PSI_JOURNAL)) {
+      const files = readdirSync(PSI_JOURNAL);
+      for (const file of files) {
+        const src = join(PSI_JOURNAL, file);
+        const dest = join(JOURNAL_DIR, file);
+        if (!existsSync(dest)) {
+          writeFileSync(dest, readFileSync(src));
+          synced++;
+        }
+      }
+    }
+  } catch {}
+
+  // Sync FYI
+  try {
+    const oracleFyi = join(MEMORY_DIR, "fyi.jsonl");
+    const psiFyi = join(PSI_MEMORY, "fyi.jsonl");
+    if (existsSync(oracleFyi) && !existsSync(psiFyi)) {
+      writeFileSync(psiFyi, readFileSync(oracleFyi));
+      synced++;
+    } else if (existsSync(psiFyi) && !existsSync(oracleFyi)) {
+      writeFileSync(oracleFyi, readFileSync(psiFyi));
+      synced++;
+    }
+  } catch {}
+
+  // Sync retrospectives
+  try {
+    if (existsSync(PSI_RETROSPECTIVES)) {
+      const files = readdirSync(PSI_RETROSPECTIVES);
+      for (const file of files) {
+        const src = join(PSI_RETROSPECTIVES, file);
+        const dest = join(JOURNAL_DIR, file);
+        if (!existsSync(dest)) {
+          writeFileSync(dest, readFileSync(src));
+          synced++;
+        }
+      }
+    }
+  } catch {}
+
+  return {
+    status: "ok",
+    message: `🔄 Soul Sync complete! ${synced} files synced between ~/.oracle/ and ψ/`,
+    data: { synced },
+  };
+}
+
+// ─── /contacts — List oracle contacts ───────────────────────────────────────
+
+export function contacts(args: string, ctx: CommandContext): CommandResult {
+  const contactFile = join(ORACLE_DIR, "contacts.json");
+  let contactList: any[] = [];
+
+  try {
+    if (existsSync(contactFile)) {
+      contactList = JSON.parse(readFileSync(contactFile, "utf-8"));
+    }
+  } catch {}
+
+  if (contactList.length === 0) {
+    // Show oracle family from identity
+    let identity: any = {};
+    try {
+      if (existsSync(IDENTITY_FILE)) {
+        identity = JSON.parse(readFileSync(IDENTITY_FILE, "utf-8"));
+      }
+    } catch {}
+
+    return {
+      status: "ok",
+      message: [
+        "👥 **Oracle Contacts**",
+        "",
+        "ไม่มี contacts — ใช้ /contacts add <name> <role> เพื่อเพิ่ม",
+        "",
+        identity.name ? `Oracle: ${identity.name} (${identity.role || "general"})` : "Oracle: ยังไม่ตั้งค่า (/awaken)",
+      ].join("\n"),
+    };
+  }
+
+  return {
+    status: "ok",
+    message: [
+      `👥 **Oracle Contacts** (${contactList.length})`,
+      "",
+      ...contactList.map((c, i) => `${i + 1}. **${c.name}** (${c.role}) — ${c.status || "unknown"}`),
+    ].join("\n"),
+    data: { contacts: contactList },
+  };
 }
 
 export function executeCommand(input: string, ctx: CommandContext = {}): CommandResult {

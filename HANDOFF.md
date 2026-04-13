@@ -2,7 +2,7 @@
 
 > สำหรับ AI agent ตัวใหม่ที่จะสานต่อโปรเจ็คนี้ → เป้าหมาย: 100% ครบตามคู่มือ Oracle ecosystem
 
-## สถานะปัจจุบัน (2026-04-14)
+## สถานะปัจจุบัน (2026-04-14 03:08 GMT+8)
 
 **Repo**: https://github.com/dmz2001TH/oracle-multi-agent
 **Branch**: main
@@ -17,6 +17,11 @@
 - Dashboard spawn form: 9 roles
 - `/agents.html` → redirect ไป `/`
 - TypeScript compile: 0 errors
+- 6 commands ใหม่: /distill, /inbox, /overview, /find, /soul-sync, /contacts
+- /learn แก้แล้ว: รองรับ GitHub org URL (แสดง repos list)
+- Agent system prompts: เพิ่ม CLI command awareness (agent ส่ง command suggestion ได้)
+- ψ/ structure: ขยายเป็น full oracle-framework layout (active/inbox/writing/lab/incubate/learn)
+- _ref/ repos ใหม่: opensource-nat-brain-oracle, oracle-framework, agents-that-remember, the-agent-bus, maw-plugins, maw-core-plugins, maw-js (source), maw-ui
 
 ## ✅ สิ่งที่ทำเสร็จแล้วทั้งหมด (31/31 — 100%)
 

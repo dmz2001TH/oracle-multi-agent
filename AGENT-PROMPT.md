@@ -51,7 +51,7 @@ E2E tests: 25/25 passed
 สิ่งที่มีอยู่แล้ว (อย่าสร้างซ้ำ)
 ════════════════════════════════════════════
 
-## CLI Commands (16 ตัว)
+## CLI Commands (22 ตัว)
 
 ทุกคำสั่งอยู่ใน src/commands/index.ts
 ส่งผ่าน: POST /api/commands/execute {"input": "/command args"}
@@ -68,7 +68,7 @@ E2E tests: 25/25 passed
 | /feel | /feel <mood> [note] | บันทึกอารมณ์ |
 | /forward | /forward <summary> | Session handoff |
 | /trace | /trace <query> [--deep\|--oracle] | ค้นหา --deep=code+git+deps |
-| /learn | /learn <repo-path-or-url> | วิเคราะห์ repository |
+| /learn | /learn <repo-path-or-url> | วิเคราะห์ repository (รองรับ org URL) |
 | /who-are-you | /who-are-you | แสดง identity + stats |
 | /philosophy | /philosophy [1-5\|check] | 5 Principles + Rule 6 |
 | /skills | /skills [query] | ดู/ค้น 55 skills |
@@ -76,6 +76,12 @@ E2E tests: 25/25 passed
 | /fleet | /fleet [--deep] | ตรวจนับ agents + nodes |
 | /pulse | /pulse [add/done/list] | Project board |
 | /workflow | /workflow [list/show <name>] | Workflow templates |
+| /distill | /distill [days] | ดึง patterns จาก journal entries |
+| /inbox | /inbox | เช็ค inbox (tasks, handoffs, focus) |
+| /overview | /overview | ภาพรวมระบบ (ψ/, stats, uptime) |
+| /find | /find <query> | ค้น memory เร็ว (= trace --oracle) |
+| /soul-sync | /soul-sync | sync ข้อมูลระหว่าง ψ/ กับ ~/.oracle/ |
+| /contacts | /contacts | แสดงรายชื่อ oracle contacts |
 
 ## API Endpoints (35+)
 
@@ -121,10 +127,21 @@ Legacy (src/api/ ไฟล์อื่น):
   - ψ/ stats, search, skills overview, 5 principles
 - http://localhost:3456/favicon.ico — Redirect 301 → /favicon.svg
 
-## ψ/ Knowledge Root
+## ψ/ Knowledge Root (Full oracle-framework structure)
 
 CLI commands dual-write ลงทั้ง ~/.oracle/ และ ψ/
 ψ/
+├── active/
+│   └── context/         — งานที่กำลังทำอยู่ (ephemeral)
+├── inbox/
+│   ├── handoff/         — session handoffs
+│   └── external/        — external AI agents
+├── writing/
+│   └── drafts/          — งานเขียน draft
+├── lab/                 — experiments
+├── incubate/            — repos ที่กำลังพัฒนา (gitignored)
+├── learn/               — repos ที่กำลังเรียนรู้ (gitignored)
+├── archive/             — งานที่เสร็จแล้ว
 ├── memory/
 │   ├── journal/         — /fyi entries
 │   ├── resonance/       — /resonance entries
@@ -133,9 +150,10 @@ CLI commands dual-write ลงทั้ง ~/.oracle/ และ ψ/
 │   ├── mood/            — /feel entries
 │   ├── traces/          — /trace --deep logs
 │   ├── pulse/           — /pulse tasks (tasks.jsonl)
+│   ├── learnings/       — /distill patterns
+│   ├── logs/            — moment logs
 │   └── fyi.jsonl        — All FYI entries (JSONL)
-├── README.md             — Knowledge root description
-└── projects/             — Project-specific knowledge
+└── README.md            — Knowledge root description
 
 ## Skills Registry (55 skills)
 
@@ -197,9 +215,19 @@ Templates (5 ตัว):
 _ref/skills-cli/ — 55 skills from oracle-skills-cli
 _ref/oracle-v3/ — Memory patterns from oracle-v3
 _ref/claude-code-statusline/ — Terminal statusline patterns
-_ref/maw-js/ — Fleet patterns (empty dir, patterns already adapted)
+_ref/maw-js/ — maw-js source code (48 commands, federation, transports)
+_ref/maw-ui/ — maw-ui React dashboard (components reference)
 _ref/vault-report/ — Vault patterns (already adapted)
-_ref/workflow-kit/ — Workflow patterns (empty dir, patterns already built)
+_ref/workflow-kit/ — Workflow patterns (already built)
+_ref/opensource-nat-brain-oracle/ — Oracle brain source (philosophy, safety rules)
+_ref/oracle-framework/ — Unified philosophy 2.0, ψ/ 5-pillar structure
+_ref/agents-that-remember/ — Memory persistence patterns (book)
+_ref/the-agent-bus/ — 4-tier transport patterns (book)
+_ref/maw-plugins/ — Plugin architecture (weighted, multi-surface)
+_ref/maw-core-plugins/ — Core plugins (wake, sleep, stop, hey, ls)
+_ref/shrimp-oracle/ — Research Oracle (reference)
+_ref/nat-brain/ — Nat's brain patterns
+_ref/safety-hooks/ — Safety hooks patterns
 
 ## E2E Tests
 

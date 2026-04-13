@@ -12,10 +12,11 @@
 - 6 stubs → ทำงานจริง (logging, project-detect, vector-store, lora, ui-state, plugins-api)
 - 4 agent roles ใหม่ (data-analyst, devops, qa-tester, translator)
 - Dashboard WebSocket ส่ง agent data ให้หน้า `/`
+- WebSocket path แก้แล้ว: dashboard → `ws://host/ws` (ตรงกับ server)
 - API routes: GET/POST/DELETE `/api/agents`, GET `/api/stats`
 - Dashboard spawn form: 9 roles
-- TypeScript compile: 0 errors
 - `/agents.html` → redirect ไป `/`
+- TypeScript compile: 0 errors
 
 ## ❌ สิ่งที่ต้องทำ (ทั้งหมด — ทำให้ครบ 100%)
 
@@ -131,3 +132,10 @@ git remote set-url origin https://github.com/dmz2001TH/oracle-multi-agent.git
 3. External Brain, Not Command — AI สะท้อน ไม่สั่ง
 4. Curiosity Creates Existence
 5. Form and Formless — หลาย Oracle หนึ่งจิตสำนึก
+
+## ⚠️ สิ่งที่ต้องรู้ (Known Fixes)
+
+- **WebSocket path**: dashboard ต้องเชื่อม `ws://host/ws` ไม่ใช่ `ws://host` (แก้แล้วใน public/index.html)
+- **API routes ซ้ำซ้อน**: มีทั้ง `api` router (src/api/index.ts) และ `agentBridgeApi` (src/api/agent-bridge.ts) — ตรวจสอบไม่ให้ route ชนกัน
+- **Dashboard = public/index.html**: ระบบใช้ static HTML (React CDN) ไม่ใช่ Vite build — แก้ไขที่ public/index.html โดยตรง
+- **Agent ไม่ running**: agents จาก database แสดง `running: false` จนกว่าจะ spawn ผ่าน API — WebSocket ต้องส่ง `init` message พร้อม agents list

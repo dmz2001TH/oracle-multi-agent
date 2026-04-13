@@ -192,4 +192,8 @@ TOKEN = ถามเจ้าของโปรเจ็ค
 - Adapt ทุกอย่างให้เข้ากับระบบเรา ไม่ต้อง copy ตรงๆ
 - ถ้า TypeScript compile error → แก้ก่อน commit
 - หลักการ: "Nothing is Deleted" — ไม่ลบโค้ดเก่า แต่ปรับปรุงแทน
+- Dashboard = public/index.html (static HTML + React CDN) ไม่ใช่ Vite build — แก้ไขที่นี่โดยตรง
+- WebSocket path ต้องเป็น /ws (แก้แล้ว อย่าเผลอลบ)
+- มี API routers 2 ตัว: src/api/index.ts + src/api/agent-bridge.ts — ระวัง route ชนกัน
+- TOKEN = ถามเจ้าของโปรเจ็ค อย่า commit token ลง repo
 ```

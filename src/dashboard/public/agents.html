@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oracle Agents</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0f; color: #e0e0e0; min-height: 100vh; }
+    .container { max-width: 720px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.6rem; margin-bottom: 20px; color: #a78bfa; }
+    h2 { font-size: 1.1rem; margin: 24px 0 12px; color: #818cf8; }
+
+    .spawn-box { background: #13131a; border: 1px solid #2a2a3a; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .spawn-box label { display: block; font-size: 0.85rem; color: #888; margin-bottom: 4px; }
+    .spawn-box input, .spawn-box select {
+      width: 100%; padding: 10px 12px; background: #1a1a2e; border: 1px solid #333;
+      border-radius: 8px; color: #e0e0e0; font-size: 0.95rem; margin-bottom: 12px; outline: none;
+    }
+    .spawn-box input:focus, .spawn-box select:focus { border-color: #6366f1; }
+    .row { display: flex; gap: 12px; }
+    .row > div { flex: 1; }
+
+    button {
+      padding: 10px 20px; border: none; border-radius: 8px; font-size: 0.95rem;
+      cursor: pointer; font-weight: 600; transition: all 0.15s;
+    }
+    .btn-spawn { background: #6366f1; color: white; width: 100%; }
+    .btn-spawn:hover { background: #4f46e5; }
+    .btn-spawn:disabled { background: #333; color: #666; cursor: not-allowed; }
+    .btn-stop { background: #dc2626; color: white; padding: 6px 14px; font-size: 0.8rem; }
+    .btn-stop:hover { background: #b91c1c; }
+    .btn-chat { background: #059669; color: white; padding: 6px 14px; font-size: 0.8rem; }
+    .btn-chat:hover { background: #047857; }
+
+    .agent-list { list-style: none; }
+    .agent-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #13131a; border: 1px solid #2a2a3a; border-radius: 10px;
+      padding: 14px 16px; margin-bottom: 8px;
+    }
+    .agent-name { font-weight: 600; font-size: 1rem; }
+    .agent-role { font-size: 0.8rem; color: #888; margin-left: 8px; }
+    .agent-status { font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; }
+    .status-active { background: #064e3b; color: #6ee7b7; }
+    .status-stopped { background: #1e1e2e; color: #666; }
+    .agent-actions { display: flex; gap: 6px; }
+
+    .chat-area { background: #13131a; border: 1px solid #2a2a3a; border-radius: 12px; padding: 16px; margin-top: 12px; display: none; }
+    .chat-area.open { display: block; }
+    .chat-messages { height: 200px; overflow-y: auto; margin-bottom: 12px; font-size: 0.9rem; }
+    .chat-messages .msg { margin-bottom: 8px; padding: 8px 12px; border-radius: 8px; }
+    .msg-user { background: #1e1b4b; text-align: right; }
+    .msg-agent { background: #1a2e1a; }
+    .chat-input { display: flex; gap: 8px; }
+    .chat-input input { flex: 1; padding: 10px; background: #1a1a2e; border: 1px solid #333; border-radius: 8px; color: #e0e0e0; outline: none; }
+    .chat-input button { background: #6366f1; color: white; }
+
+    .log { margin-top: 16px; font-size: 0.8rem; color: #666; font-family: monospace; }
+    .loading { opacity: 0.5; pointer-events: none; }
+    .empty { text-align: center; color: #555; padding: 40px; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>🧠 Oracle Multi-Agent</h1>
+
+  <!-- Spawn -->
+  <div class="spawn-box">
+    <h2>Spawn Agent</h2>
+    <div class="row">
+      <div>
+        <label>Name</label>
+        <input id="agentName" placeholder="e.g. alice" value="alice" />
+      </div>
+      <div>
+        <label>Role</label>
+        <select id="agentRole">
+          <option value="general">General</option>
+          <option value="researcher">Researcher</option>
+          <option value="coder">Coder</option>
+          <option value="writer">Writer</option>
+          <option value="manager">Manager</option>
+        </select>
+      </div>
+    </div>
+    <label>Personality (optional)</label>
+    <input id="agentPersonality" placeholder="e.g. friendly and curious" />
+    <button class="btn-spawn" id="spawnBtn" onclick="spawnAgent()">🚀 Spawn</button>
+  </div>
+
+  <!-- Agents -->
+  <h2>Running Agents</h2>
+  <ul class="agent-list" id="agentList">
+    <li class="empty">Loading...</li>
+  </ul>
+
+  <!-- Chat -->
+  <div class="chat-area" id="chatArea">
+    <h2 id="chatTitle">Chat</h2>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input">
+      <input id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChat()" />
+      <button onclick="sendChat()">Send</button>
+    </div>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+const API = '';
+let currentChatAgent = null;
+
+function log(msg) {
+  const el = document.getElementById('log');
+  el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+}
+
+async function fetchAgents() {
+  try {
+    const res = await fetch(`${API}/api/v2/agents`);
+    const data = await res.json();
+    renderAgents(data.agents || []);
+  } catch (e) {
+    document.getElementById('agentList').innerHTML = '<li class="empty">Cannot reach server</li>';
+  }
+}
+
+function renderAgents(agents) {
+  const list = document.getElementById('agentList');
+  const running = agents.filter(a => a.running);
+  if (running.length === 0) {
+    list.innerHTML = '<li class="empty">No agents running — spawn one above ↑</li>';
+    return;
+  }
+  list.innerHTML = running.map(a => `
+    <li class="agent-item">
+      <div>
+        <span class="agent-name">${esc(a.name)}</span>
+        <span class="agent-role">${esc(a.role)}</span>
+        <span class="agent-status status-active">● active</span>
+      </div>
+      <div class="agent-actions">
+        <button class="btn-chat" onclick="openChat('${a.id}','${esc(a.name)}')">💬 Chat</button>
+        <button class="btn-stop" onclick="stopAgent('${a.id}','${esc(a.name)}')">⏹ Stop</button>
+      </div>
+    </li>
+  `).join('');
+}
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c])); }
+
+async function spawnAgent() {
+  const name = document.getElementById('agentName').value.trim();
+  const role = document.getElementById('agentRole').value;
+  const personality = document.getElementById('agentPersonality').value.trim();
+  if (!name) return alert('Name is required');
+  const btn = document.getElementById('spawnBtn');
+  btn.disabled = true; btn.textContent = '⏳ Spawning...';
+  try {
+    const res = await fetch(`${API}/api/v2/agents/spawn`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, role, personality })
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); }
+    else { log(`Spawned ${data.name} (${data.id.slice(0,8)})`); }
+  } catch (e) { alert('Failed: ' + e.message); }
+  btn.disabled = false; btn.textContent = '🚀 Spawn';
+  fetchAgents();
+}
+
+async function stopAgent(id, name) {
+  if (!confirm(`Stop ${name}?`)) return;
+  try {
+    await fetch(`${API}/api/v2/agents/${id}`, { method: 'DELETE' });
+    log(`Stopped ${name}`);
+    if (currentChatAgent === id) closeChat();
+  } catch (e) { alert('Failed: ' + e.message); }
+  fetchAgents();
+}
+
+function openChat(id, name) {
+  currentChatAgent = id;
+  document.getElementById('chatArea').classList.add('open');
+  document.getElementById('chatTitle').textContent = `💬 Chat with ${name}`;
+  document.getElementById('chatMessages').innerHTML = '';
+  document.getElementById('chatInput').focus();
+}
+
+function closeChat() {
+  currentChatAgent = null;
+  document.getElementById('chatArea').classList.remove('open');
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg || !currentChatAgent) return;
+  input.value = '';
+  const msgs = document.getElementById('chatMessages');
+  msgs.innerHTML += `<div class="msg msg-user">${esc(msg)}</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+  try {
+    const res = await fetch(`${API}/api/v2/agents/${currentChatAgent}/chat`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ message: msg })
+    });
+    const data = await res.json();
+    const reply = data.response || '(no response)';
+    msgs.innerHTML += `<div class="msg msg-agent">${esc(reply)}</div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch (e) {
+    msgs.innerHTML += `<div class="msg msg-agent" style="color:#f87171">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+// Auto-refresh every 5s
+fetchAgents();
+setInterval(fetchAgents, 5000);
+</script>
+</body>
+</html>

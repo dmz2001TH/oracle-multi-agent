@@ -27,6 +27,13 @@ import { workspaceApi } from "./workspace.js";
 import { cronApi } from "./cron.js";
 import { agentsApi } from "./agents.js";
 import { wakeupApi } from "./wakeup.js";
+import { taskLogsApi } from "./task-logs.js";
+import { projectsApi } from "./projects.js";
+import { loopsApi } from "./loops.js";
+import { tokensApi } from "./tokens.js";
+import { thinkApi } from "./think.js";
+import { meetingsApi } from "./meetings.js";
+import { chatLogApi } from "./chat-log.js";
 
 export const api = new Hono();
 
@@ -54,3 +61,10 @@ api.route("/", inboxApi);
 api.route("/", cronApi);
 api.route("/", agentsApi);
 api.route("/", wakeupApi);
+api.route("/", taskLogsApi);
+api.route("/", projectsApi);
+api.route("/", loopsApi);
+api.route("/", tokensApi);
+api.route("/", thinkApi);
+api.route("/", meetingsApi);
+api.route("/", chatLogApi);

@@ -188,3 +188,71 @@ export interface CronJob {
   enabled: boolean;
   firings: number;
 }
+
+// ─── Task Log ───────────────────────────────────────────────────
+export interface TaskLogEntry {
+  id: string;
+  taskId: string;
+  type: "log" | "commit" | "blocker" | "status";
+  message: string;
+  author?: string;
+  ts: string;
+}
+
+// ─── Project ────────────────────────────────────────────────────
+export interface Project {
+  name: string;
+  description?: string;
+  tasks: string[]; // task IDs
+  status: "active" | "completed" | "archived";
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Tokens ─────────────────────────────────────────────────────
+export interface TokenUsage {
+  agent: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cost: number;
+  lastUpdated: string;
+}
+
+export interface TokenStats {
+  agents: TokenUsage[];
+  totalInput: number;
+  totalOutput: number;
+  totalCost: number;
+}
+
+// ─── Think ──────────────────────────────────────────────────────
+export interface ThinkProposal {
+  id: string;
+  oracle: string;
+  type: "improvement" | "bug" | "feature" | "refactor";
+  title: string;
+  description: string;
+  priority: "low" | "medium" | "high";
+  status: "proposed" | "accepted" | "rejected" | "implemented";
+  ts: string;
+}
+
+// ─── Meeting ────────────────────────────────────────────────────
+export interface Meeting {
+  id: string;
+  topic: string;
+  participants: string[];
+  status: "scheduled" | "in_progress" | "completed";
+  notes: string;
+  ts: string;
+}
+
+// ─── Chat Log ───────────────────────────────────────────────────
+export interface ChatMessage {
+  id: string;
+  oracle: string;
+  role: "human" | "oracle" | "system";
+  content: string;
+  ts: string;
+}

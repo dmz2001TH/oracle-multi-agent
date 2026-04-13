@@ -17,10 +17,18 @@ configApi.get("/api/config-file", (c) => {
   if (!filePath) return c.json({ error: "path required" }, 400);
   if (filePath.includes("..")) return c.json({ error: "invalid path" }, 400);
   try {
-    const content = readFileSync(join(process.cwd(), filePath), "utf-8");
+    const fullPath = join(process.cwd(), filePath);
+    if (!existsSync(fullPath)) {
+      // Return default config if file doesn't exist yet
+      if (filePath === "oracle.config.json") {
+        return c.json({ config: { env: {}, agents: { provider: process.env.LLM_PROVIDER || "mimo", model: process.env.AGENT_MODEL || "mimo-v2-pro" } } });
+      }
+      return c.json({ content: "" });
+    }
+    const content = readFileSync(fullPath, "utf-8");
     if (filePath === "oracle.config.json") { const display = configForDisplay(); return c.json({ config: display }); }
     return c.json({ content });
-  } catch { return c.json({ error: "not found" }, 404); }
+  } catch (e: any) { return c.json({ error: e.message || "not found" }, 404); }
 });
 
 configApi.get("/api/config", (c) => {

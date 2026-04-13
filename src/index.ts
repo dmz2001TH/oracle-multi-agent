@@ -99,6 +99,16 @@ if (faviconFile) {
   });
 }
 
+// GET /api/maw-log — alias for /api/logs (dashboard expects maw-log)
+app.get('/api/maw-log', (c) => {
+  // Redirect query params to /api/logs
+  const qs = new URL(c.req.url).search;
+  return c.redirect(`/api/logs${qs}`, 307);
+});
+
+// GET /api/plugins — list available plugins (stub)
+app.get('/api/plugins', (c) => c.json({ plugins: [], total: 0 }));
+
 const port = Number(process.env.HUB_PORT || config.port || 3456);
 
 console.log(`🧠 Oracle Multi-Agent v5.0`);

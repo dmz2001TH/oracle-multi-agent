@@ -1,241 +1,254 @@
-# 🧠 ARRA Office — Oracle Multi-Agent System v5.0
+# 🧠 Oracle Multi-Agent v5.0
 
-AI agents that remember, communicate, and collaborate — with a real-time web dashboard powered by React 19 + Tailwind CSS v4.
+AI agents that remember, communicate, and collaborate — built on the Oracle ecosystem.
 
-![dashboard](https://img.shields.io/badge/dashboard-ARRA%20Office-dark-brightgreen)
-![license](https://img.shields.io/badge/license-MIT-blue)
-![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
-![version](https://img.shields.io/badge/version-5.0.0-purple)
-![node](https://img.shields.io/badge/node-%3E%3D20-green)
-
-## What's New in v5.0
-
-- ⚡ **15 CLI Commands** — `/awaken`, `/recap`, `/fyi`, `/rrr`, `/standup`, `/feel`, `/forward`, `/trace` (smart + deep), `/learn`, `/who-are-you`, `/philosophy`, `/skills`, `/resonance`, `/fleet`, `/pulse`
-- 📋 **55 Skills Registry** — adapted from oracle-skills-cli (identity, session, memory, emotion, dev, github, team, research, automation)
-- 📜 **Oracle 5 Principles** — รูปสอนสุญญตา (Nothing is Deleted, Patterns Over Intentions, External Brain, Curiosity Creates Existence, Form and Formless)
-- 🔐 **ψ/ Knowledge Root** — structured memory tree (resonance, learnings, retrospectives, journal, decisions, handoffs, mood)
-- 🧠 **Real Embeddings** — @xenova/transformers for local semantic search (Xenova/all-MiniLM-L6-v2)
-- 🔍 **Vault API** — ψ/ directory scanner, stats, search
-- 🏠 **Vault Dashboard** — public/vault.html (stats, search, skills, principles)
-- 🧠 **Memory Tools (16 tools)** — search, reflect, learn, list, stats, concepts, supersede, verify, trace, schedule, handoff, inbox, forum, read — all backed by Drizzle ORM + SQLite FTS5
-- 💬 **Forum System** — Threaded discussions with Oracle auto-reply, linked to knowledge base
-- 🔍 **Trace System** — Discovery tracing with dig points (files, commits, issues), linked chains
-- 🛡️ **Safety Hooks** — Configurable safety shell scripts per agent
-- 🐚 **Shell Completions** — Bash/Zsh completions for CLI
-- 🤖 **15 Agent Definitions** — Specialized agent configs (Researcher, Coder, Writer, Manager, etc.)
-- 🏢 **React 19 Dashboard** — 17 HTML entries, 57 components, Vite + Tailwind CSS v4
-- 🔀 **5 Transports** — tmux, HTTP, hub federation, nanoclaw, LoRa
-- 🧩 **Plugin System** — Hook-based extensibility with builtin plugins
-- 📡 **Hono API** — 19 REST endpoints, WebSocket support
-- ⌨️ **Full CLI** — Command registry with route modules
-
-## CLI Commands
-
-Type in chat (WebSocket) or call via API (`POST /api/commands/execute`):
-
-| Command | Description |
-|---------|-------------|
-| `/awaken` | ⚡ Identity setup ceremony |
-| `/recap` | 📋 Session summary |
-| `/fyi <info>` | 📝 Save to memory |
-| `/rrr` | 🔄 Daily retrospective |
-| `/standup` | 🧍 Daily standup |
-| `/feel <mood>` | 💭 Mood logger |
-| `/forward` | 🔄 Session handoff |
-| `/trace <query>` | 🔍 Universal search (smart / --deep / --oracle) |
-| `/learn <repo>` | 📚 Study repository |
-| `/who-are-you` | 🔮 Oracle identity |
-| `/philosophy` | 📜 5 Principles + Rule 6 |
-| `/skills` | 📋 List/search 55 skills |
-| `/resonance` | 🎵 Capture what resonates |
-| `/fleet` | 🚢 Fleet census (agents, nodes, skills) |
-| `/pulse` | 📊 Project board (add/done/list tasks) |
-| `/help` | ❓ Show all commands |
+**Repo**: https://github.com/dmz2001TH/oracle-multi-agent
+**Dashboard**: http://localhost:3456
+**Version**: 5.0.0 | **Commands**: 33 | **API Endpoints**: 40+ | **_ref repos**: 25
 
 ## Quick Start
 
-### Windows
-1. Download this repo (Code → Download ZIP)
-2. Extract to any folder
-3. Double-click `setup.bat`
-4. Edit `.env` → add your API key
-5. Double-click `start.bat`
-6. Open [http://localhost:3456/health](http://localhost:3456/health)
-
-### Linux / macOS
 ```bash
 git clone https://github.com/dmz2001TH/oracle-multi-agent.git
 cd oracle-multi-agent
-bash setup.sh
-# Edit .env → add your API key
-npm start
+npm install
+npx tsx src/index.ts
 ```
 
-### VPS (PM2)
-```bash
-npm install -g pm2
-pm2 start ecosystem.config.cjs
-pm2 save
-pm2 startup
+เปิด http://localhost:3456
+
+## CLI Commands (33 ตัว)
+
+ส่งผ่าน: `POST /api/commands/execute {"input": "/command args"}`
+หรือพิมพ์ใน chat ของ dashboard (WebSocket)
+
+### Core Commands
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `/help` | `/help` | Show all commands |
+| `/awaken` | `/awaken ชื่อ\|ธาตุ\|บทบาท\|สโลแกน` | Identity setup ceremony (`--force` to reset) |
+| `/recap` | `/recap [days]` | Summarize recent sessions |
+| `/fyi` | `/fyi <info>` | Save info to memory + ψ/ |
+| `/rrr` | `/rrr good: X \| improve: Y \| action: Z` | Daily retrospective |
+| `/standup` | `/standup yesterday: X \| today: Y \| blocker: Z` | Daily standup |
+| `/feel` | `/feel <mood> [note]` | Mood logger |
+| `/forward` | `/forward <summary>` | Session handoff |
+| `/trace` | `/trace <query> [--deep\|--oracle]` | Universal search (code + git + deps) |
+| `/learn` | `/learn <repo-or-url>` | Study repository (supports GitHub org URL) |
+| `/who-are-you` | `/who-are-you` | Show identity + stats |
+| `/philosophy` | `/philosophy [1-5\|check]` | Oracle 5 Principles + Rule 6 |
+| `/skills` | `/skills [query]` | List/search 55 skills |
+| `/resonance` | `/resonance [note]` | Capture what resonates |
+
+### Tools
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `/fleet` | `/fleet [--deep]` | Fleet census (agents, nodes, skills) |
+| `/pulse` | `/pulse [add/done/list]` | Project board |
+| `/workflow` | `/workflow [list/show <name>]` | Multi-agent workflow templates |
+| `/distill` | `/distill [days]` | Extract patterns from journal entries |
+| `/inbox` | `/inbox` | Check inbox (tasks, handoffs, focus) |
+| `/overview` | `/overview` | System overview (ψ/, stats, uptime) |
+| `/find` | `/find <query>` | Quick memory search (= trace --oracle) |
+| `/soul-sync` | `/soul-sync` | Sync ψ/ ↔ ~/.oracle/ |
+| `/contacts` | `/contacts` | List oracle contacts |
+
+### Agent Management (from maw-js)
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `/ls` | `/ls` | List all agents (running + registered) |
+| `/peek` | `/peek [agent]` | See agent's latest output |
+| `/hey` | `/hey <agent> <msg>` | Send message to agent |
+| `/wake` | `/wake <name> <role>` | Spawn/wake an agent |
+| `/sleep` | `/sleep <agent>` | Gracefully stop agent |
+| `/stop` | `/stop <agent>` | Force stop agent |
+| `/done` | `/done <agent>` | Save state + clean up agent |
+| `/broadcast` | `/broadcast <msg>` | Broadcast to all agents |
+| `/bud` | `/bud <name> --from <parent>` | Create new oracle from parent |
+| `/restart` | `/restart <agent>` | Restart agent |
+
+### System
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `/oracle-v2` | `/oracle-v2 [status]` | Oracle-v2 MCP server bridge (port 47778) |
+
+## API Endpoints (40+)
+
+### Core
+- `GET /health` — Health check
+- `GET /api/commands` — List CLI commands (33)
+- `POST /api/commands/execute` — Execute CLI command
+- `POST /api/commands/:name` — Execute by name
+
+### Agents (v2)
+- `GET /api/v2/agents` — List agents
+- `POST /api/v2/agents/spawn` — Spawn agent
+- `GET /api/v2/agents/:id` — Get agent details
+- `DELETE /api/v2/agents/:id` — Stop agent
+- `POST /api/v2/agents/:id/chat` — Chat with agent
+- `POST /api/v2/agents/:from/tell/:to` — Agent-to-agent message
+- `POST /api/v2/agents/broadcast` — Broadcast
+
+### Memory
+- `GET /api/v2/memory/search?q=X` — Search memory
+- `GET /api/v2/memory/stats` — Memory statistics
+
+### Skills & Vault
+- `GET /api/skills` — List/search skills (55)
+- `GET /api/vault/stats` — ψ/ statistics
+- `GET /api/vault/files` — List ψ/ files
+- `POST /api/vault/search` — Search ψ/ files
+
+### Oracle-v2 Bridge (port 47778)
+- `GET /api/oracle-v2/status` — Check oracle-v2
+- `GET /api/oracle-v2/search` — Search oracle-v2 KB
+- `POST /api/oracle-v2/learn` — Add to oracle-v2 KB
+- `GET /api/oracle-v2/stats` — oracle-v2 DB stats
+- `GET /api/oracle-v2/forum` — Forum threads
+- `GET /api/oracle-v2/trace` — Traces
+- `GET /api/oracle-v2/inbox` — Inbox
+- `POST /api/oracle-v2/handoff` — Handoff
+- `GET /api/oracle-v2/concepts` — Concepts
+- `GET /api/oracle-v2/schedule` — Schedule
+
+### Legacy
+- `/api/sessions`, `/api/feed`, `/api/tasks`, `/api/projects`, `/api/cron`, `/api/federation`, `/api/worktrees`, `/api/triggers`, `/api/logs`, `/api/costs`, `/api/inbox`, `/api/meetings`, `/api/think`, `/api/hooks`, `/api/tokens`, `/api/loops`, `/api/workflows`
+
+## Dashboard
+
+- **http://localhost:3456** — Main dashboard (public/index.html)
+  - Sidebar: Agent list + Spawn button
+  - Center: Chat area (/command support)
+  - Right: System stats + Command list + Event log
+  - WebSocket: ws://host/ws
+- **http://localhost:3456/vault** — Vault dashboard (public/vault.html)
+
+## ψ/ Knowledge Root (Full oracle-framework structure)
+
+```
+ψ/
+├── active/context/     — Current work (ephemeral)
+├── inbox/              — handoff/, external/
+├── writing/drafts/     — Work in progress
+├── lab/                — Experiments
+├── incubate/           — Active development (gitignored)
+├── learn/              — Reference repos (gitignored)
+├── archive/            — Completed work
+├── memory/
+│   ├── journal/        — /fyi entries
+│   ├── resonance/      — /resonance entries
+│   ├── retrospectives/ — /rrr entries
+│   ├── handoffs/       — /forward entries
+│   ├── mood/           — /feel entries
+│   ├── traces/         — /trace --deep logs
+│   ├── pulse/          — /pulse tasks (tasks.jsonl)
+│   ├── learnings/      — /distill patterns
+│   ├── logs/           — Moment logs
+│   └── fyi.jsonl       — All FYI entries (JSONL)
+└── README.md
 ```
 
-## LLM Providers
+## Oracle 5 Principles (รูปสอนสุญญตา)
 
-### PromptDee (default, free)
-No API key needed. 5 credits/day free tier.
+1. **Nothing is Deleted** — จดทุกอย่าง ไม่ลบ
+2. **Patterns Over Intentions** — ดูสิ่งที่เกิดขึ้นจริง
+3. **External Brain, Not Command** — AI สะท้อน ไม่สั่ง
+4. **Curiosity Creates Existence** — คำถามสร้างสิ่งใหม่
+5. **Form and Formless** — หลาย Oracle หนึ่งจิตสำนึก
 
-### Google Gemini
-```env
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=AIza...
-```
-Free tier: 60 requests/minute.
+Rule 6: ความโปร่งใส — "Oracle ไม่แกล้งทำเป็นคน"
 
-### OpenAI-compatible
-```env
-OPENAI_API_KEY=sk-...
-OPENAI_BASE_URL=https://api.openai.com/v1
-```
+Source: https://book.buildwithoracle.com
 
-## CLI Commands
+## _ref/ Repositories (25)
 
-```bash
-oracle status          # Hub health + stats
-oracle overview        # System overview
-oracle recap           # Last session summary
-oracle fyi <query>     # Search memories
-oracle rrr [limit]     # Read recent messages
-oracle standup         # Daily standup
-oracle chat <agent> <msg>  # Chat with agent
-oracle team spawn      # Spawn a team
-oracle team status     # Team status
-oracle broadcast <msg> # Broadcast to all agents
-oracle feed            # Recent activity feed
-oracle fleet ls        # List federation peers
-oracle costs           # API cost tracking
-oracle handoff         # Create session handoff
-oracle health [agent]  # Agent health check
-oracle help            # Show all commands
-```
-
-## Memory Tools
-
-The Oracle knowledge base uses 16 tools backed by Drizzle ORM + SQLite FTS5:
-
-| Tool | Description |
+### Soul-Brews-Studio (13)
+| Repo | Description |
 |------|-------------|
-| `search` | Hybrid search (FTS5 keywords + vector semantic) |
-| `learn` | Add patterns/learnings to knowledge base |
-| `read` | Read full document content |
-| `list` | List documents with pagination |
-| `stats` | Knowledge base statistics |
-| `concepts` | Concept frequency analysis |
-| `reflect` | Reflection analysis |
-| `supersede` | Mark documents as outdated (Nothing is Deleted) |
-| `verify` | Verify KB integrity (disk vs DB) |
-| `trace` | Log discovery traces with dig points |
-| `schedule` | Calendar events and reminders |
-| `handoff` | Session context handoff |
-| `inbox` | Read handoff inbox |
-| `forum` | Threaded discussions with Oracle |
+| maw-js | Multi-Agent Workflow orchestrator (48 commands, federation, transports) |
+| maw-ui | React/Three.js Web UI dashboard |
+| maw-plugins | Plugin architecture (weighted, multi-surface) |
+| maw-core-plugins | Core plugins (wake, sleep, stop, done, hey, ls) |
+| maw-incarnation-plugin | Plugin template for creating new plugins |
+| maw-cell-plugin | bud (create oracles) + fusion (merge knowledge) |
+| arra-oracle-v3 | MCP Memory Layer (semantic search, knowledge management) |
+| oracle-framework | Unified philosophy 2.0, ψ/ 5-pillar structure |
+| oracle-v2 | MCP server (search, learn, consult — port 47778) |
+| opensource-nat-brain-oracle | Oracle brain source (philosophy, safety rules) |
+| shrimp-oracle | Research Oracle |
+| skills-cli | 55 skills installer for Claude Code |
+| vault-report | Vault dashboard patterns |
 
-## Project Structure
+### the-oracle-keeps-the-human-human (8)
+| Repo | Description |
+|------|-------------|
+| agents-that-remember | Memory persistence patterns (book) |
+| the-agent-bus | 4-tier transport patterns (book) |
+| oracle-maw-guide | maw CLI guide (7 chapters) |
+| graph-oracle-v2 | Cross-Oracle Knowledge Graph (TypeScript) |
+| oracle-step-by-step | Oracle creation guide |
+| oracle-federation-guide | Federation + WireGuard guide |
+| oracle-office-guide | Multi-agent team management guide |
+| oracle-auto-rrr-hooks | Auto /rrr + /forward hooks |
+| oracle-hooks-auto-cc | Auto-cc Boss Oracle hooks |
+| oracle-custom-skills | Custom skill creation guide |
 
-```
-oracle-multi-agent/
-├── src/
-│   ├── index.ts              # Entry point (Hono server)
-│   ├── config.ts             # Configuration loader
-│   ├── server.ts             # Server setup + WebSocket
-│   ├── cli.ts                # CLI entry point
-│   ├── engine/               # MawEngine orchestrator
-│   ├── api/                  # 19 Hono REST endpoints
-│   ├── commands/             # 49 command modules
-│   ├── cli/                  # CLI route modules + registry
-│   ├── transports/           # 5 transport implementations
-│   ├── bridges/              # Nanoclaw bridge
-│   ├── plugins/              # Plugin system + builtin plugins
-│   ├── views/                # HTML views (demo, federation, timemachine)
-│   ├── memory/               # Oracle memory system
-│   │   ├── tools/            # 16 tool handlers
-│   │   ├── db/               # Drizzle ORM schema + client
-│   │   ├── forum/            # Forum handler
-│   │   ├── trace/            # Trace handler + types
-│   │   ├── vault/            # Vault handler
-│   │   ├── vector/           # Vector store adapter
-│   │   └── verify/           # KB verification
-│   ├── dashboard/            # React 19 SPA (Vite + Tailwind v4)
-│   ├── process/              # Process abstraction (tmux + node-pty)
-│   ├── lib/                  # Shared utilities
-│   └── agents/               # Agent definitions
-├── bin/
-│   └── oracle                # CLI binary
-├── _ref/                     # Reference repos (9 repos)
-├── ψ/                        # Oracle Vault
-│   ├── inbox/                # Handoffs
-│   ├── memory/               # Learnings, principles
-│   └── traces/               # Discovery traces
-├── .env.example              # Environment template
-├── setup.bat                 # Windows setup
-├── setup.sh                  # Linux/macOS setup
-├── start.bat                 # Windows start
-├── ecosystem.config.cjs      # PM2 config
-└── tsconfig.json             # TypeScript config
+### Other
+| Repo | Description |
+|------|-------------|
+| nat-brain | Nat's brain patterns |
+| safety-hooks | Safety hooks patterns |
+| workflow-kit | Workflow patterns |
+
+## Agent Roles (9)
+
+| Role | Description |
+|------|-------------|
+| general | General assistant with full command awareness |
+| researcher | Analysis, patterns, findings |
+| coder | Write, review, debug code |
+| writer | Documentation, reports, content |
+| manager | Coordinate work, delegate tasks |
+| data-analyst | Data analysis, statistics, insights |
+| devops | Deployment, monitoring, infrastructure |
+| qa-tester | Testing, bugs, edge cases |
+| translator | Translation, i18n, localization |
+
+## How to Run
+
+```bash
+git pull origin main
+npm install
+npx tsx src/index.ts
 ```
 
-## API Endpoints
+## How to Push
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check |
-| `/api/health` | GET | API health |
-| `/api/stats` | GET | System statistics |
-| `/api/agents` | GET/POST | List/spawn agents |
-| `/api/agents/:id` | DELETE | Stop agent |
-| `/api/agents/:id/chat` | POST | Chat with agent |
-| `/api/agents/:from/tell/:to` | POST | Agent-to-agent message |
-| `/api/feed` | GET | Event feed |
-| `/api/tasks` | GET/POST | Tasks |
-| `/api/memory/search?q=` | GET | Search memories |
-| `/api/memory/all` | GET | List all memories |
-| `/api/traces` | GET/POST | Traces |
-| `/api/vault/:section` | GET/POST | Vault sections |
-| `/api/federation/peers` | GET/POST | Federation peers |
-| `/api/federation/ping` | POST | Ping peers |
-| `/api/broadcast` | POST | Broadcast to all agents |
-
-### New v5.0 Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/commands` | GET | List CLI commands |
-| `/api/commands/execute` | POST | Execute CLI command |
-| `/api/commands/:name` | POST | Execute by name |
-| `/api/skills` | GET | List/search skills (30+) |
-| `/api/skills/:name` | GET | Get skill details |
-| `/api/vault/stats` | GET | ψ/ directory statistics |
-| `/api/vault/files` | GET | List ψ/ files |
-| `/api/vault/file` | GET | Read ψ/ file |
-| `/api/vault/search` | POST | Search ψ/ files |
-| `/vault` | GET | Vault dashboard |
-| `/api/costs` | GET | API costs |
-| `/api/plugins` | GET | Plugins list |
+```bash
+git add -A && git commit -m "message"
+git remote set-url origin https://dmz2001TH:TOKEN@github.com/dmz2001TH/oracle-multi-agent.git
+git push origin main
+git remote set-url origin https://github.com/dmz2001TH/oracle-multi-agent.git
+```
 
 ## Testing
 
 ```bash
-# Start server
+# Terminal 1: Start server
 npx tsx src/index.ts
 
-# Run E2E tests (in another terminal)
-npx tsx test/e2e.mjs
+# Terminal 2: Test commands
+curl -s http://localhost:3456/health
+curl -s -X POST http://localhost:3456/api/commands/execute \
+  -H 'Content-Type: application/json' \
+  -d '{"input":"/help"}'
 ```
 
 ## Credits
 
-- UI inspired by [Soul-Brews-Studio/maw-ui](https://github.com/Soul-Brews-Studio/maw-ui)
-- Oracle framework from [arra-oracle-v3](https://github.com/Soul-Brews-Studio/arra-oracle-v3)
-- Transport and federation from [maw-js](https://github.com/Soul-Brews-Studio/maw-js)
+- Oracle ecosystem: [Soul-Brews-Studio](https://github.com/Soul-Brews-Studio)
+- Philosophy: [รูปสอนสุญญตา](https://book.buildwithoracle.com)
+- Community: [Oracle Family Discussions](https://github.com/Soul-Brews-Studio/oracle-v2/discussions)
 
 ## License
 

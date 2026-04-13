@@ -1,124 +1,116 @@
 # 🔄 HANDOFF — Oracle Multi-Agent v5.0
 
-> สำหรับ AI agent ตัวใหม่ที่จะสานต่อโปรเจ็คนี้ → เป้าหมาย: 100% ครบตามคู่มือ Oracle ecosystem
+> สำหรับ AI agent ตัวใหม่ที่จะสานต่อโปรเจ็คนี้
 
-## สถานะปัจจุบัน (2026-04-14 03:08 GMT+8)
+## สถานะปัจจุบัน (2026-04-14 03:49 GMT+8)
 
 **Repo**: https://github.com/dmz2001TH/oracle-multi-agent
 **Branch**: main
+**Commands**: 33 | **API Endpoints**: 40+ | **_ref repos**: 25
 
-## ✅ สิ่งที่เสร็จแล้ว
+## ✅ สิ่งที่เสร็จแล้วทั้งหมด
 
-- 6 stubs → ทำงานจริง (logging, project-detect, vector-store, lora, ui-state, plugins-api)
-- 4 agent roles ใหม่ (data-analyst, devops, qa-tester, translator)
-- Dashboard WebSocket ส่ง agent data ให้หน้า `/`
-- WebSocket path แก้แล้ว: dashboard → `ws://host/ws` (ตรงกับ server)
-- API routes: GET/POST/DELETE `/api/agents`, GET `/api/stats`
-- Dashboard spawn form: 9 roles
-- `/agents.html` → redirect ไป `/`
-- TypeScript compile: 0 errors
-- 6 commands ใหม่: /distill, /inbox, /overview, /find, /soul-sync, /contacts
-- /learn แก้แล้ว: รองรับ GitHub org URL (แสดง repos list)
-- Agent system prompts: เพิ่ม CLI command awareness (agent ส่ง command suggestion ได้)
-- ψ/ structure: ขยายเป็น full oracle-framework layout (active/inbox/writing/lab/incubate/learn)
-- _ref/ repos ใหม่: opensource-nat-brain-oracle, oracle-framework, agents-that-remember, the-agent-bus, maw-plugins, maw-core-plugins, maw-js (source), maw-ui
+### Batch 1: Core CLI Commands (16)
+| # | Command | Description |
+|---|---------|-------------|
+| 1 | /awaken | Identity setup ceremony |
+| 2 | /recap | Session summary |
+| 3 | /fyi | Save to memory |
+| 4 | /rrr | Daily retrospective |
+| 5 | /standup | Daily standup |
+| 6 | /feel | Mood logger |
+| 7 | /forward | Session handoff |
+| 8 | /trace | Universal search (smart/deep/oracle) |
+| 9 | /learn | Study repository (supports org URL) |
+| 10 | /who-are-you | Oracle identity |
+| 11 | /philosophy | 5 Principles + Rule 6 |
+| 12 | /skills | List/search 55 skills |
+| 13 | /resonance | Capture what resonates |
+| 14 | /fleet | Fleet census |
+| 15 | /pulse | Project board |
+| 16 | /workflow | Multi-agent workflow templates |
 
-## ✅ สิ่งที่ทำเสร็จแล้วทั้งหมด (31/31 — 100%)
+### Batch 2: New Commands (7)
+| # | Command | Description |
+|---|---------|-------------|
+| 17 | /distill | Extract patterns from journals |
+| 18 | /inbox | Check inbox (tasks, handoffs, focus) |
+| 19 | /overview | System overview |
+| 20 | /find | Quick memory search |
+| 21 | /soul-sync | Sync ψ/ ↔ ~/.oracle/ |
+| 22 | /contacts | List oracle contacts |
+| 23 | /oracle-v2 | Oracle-v2 MCP server bridge |
 
-### Batch 1: CLI Commands ที่ขาด (ทุกคำสั่งที่คู่มือกล่าวถึง)
+### Batch 3: maw-js Agent Management (10)
+| # | Command | Description |
+|---|---------|-------------|
+| 24 | /ls | List all agents |
+| 25 | /peek | See agent's latest output |
+| 26 | /hey | Send message to agent |
+| 27 | /wake | Spawn/wake agent |
+| 28 | /sleep | Gracefully stop agent |
+| 29 | /stop | Force stop agent |
+| 30 | /done | Save state + clean up |
+| 31 | /broadcast | Broadcast to all agents |
+| 32 | /bud | Create oracle from parent |
+| 33 | /restart | Restart agent |
 
-| # | Command | สถานะ | ต้องทำ |
-|---|---|---|---|
-| 1 | `/awaken` | ✅ เสร็จ | Identity setup ceremony — สร้าง identity.json, ถามชื่อ/ธาตุ/บทบาท/สโลแกน, รองรับ --force |
-| 2 | `/recap` | ✅ เสร็จ | สรุป session — อ่าน journal entries ย้อนหลัง, แสดง memory files |
-| 3 | `/fyi <info>` | ✅ เสร็จ | บันทึกข้อมูลลง memory — บันทึกเป็น journal + JSONL, dual-write ψ/ |
-| 4 | `/rrr` | ✅ เสร็จ | Retrospective — good/improve/action format, บันทึก ψ/memory/retrospectives/ |
-| 5 | `/standup` | ✅ เสร็จ | Daily standup — yesterday/today/blocker format |
-| 6 | `/feel <mood>` | ✅ เสร็จ | บันทึกอารมณ์ — mood log JSONL, นับ entries ต่อวัน |
-| 7 | `/forward` | ✅ เสร็จ | Handoff — สร้าง handoff JSON, dual-write ψ/memory/handoffs/ |
-| 8 | `/trace [query]` | ✅ เสร็จ | Universal search — ค้น journal + FYI + handoffs |
-| 9 | `/trace --deep` | ✅ เสร็จ | Deep trace: code grep + git history + deps + save trace log to ψ/ |
-| 10 | `/learn [repo]` | ✅ เสร็จ | ศึกษา repo — git clone shallow, analyze structure, สร้าง summary |
-| 11 | `/who-are-you` | ✅ เสร็จ | แสดง Oracle identity — uptime, agents, memories, identity |
+### Infrastructure
+- Hono server on port 3456
+- WebSocket /ws for real-time dashboard
+- Agent system: 9 roles (general, researcher, coder, writer, manager, data-analyst, devops, qa-tester, translator)
+- Agent system prompts include CLI command awareness
+- Oracle-v2 bridge API (/api/oracle-v2/*)
+- ψ/ full oracle-framework structure (active/inbox/writing/lab/incubate/learn/archive + memory)
+- 55 skills registry
+- 5 workflow patterns (sequential/parallel/fan-out/review/pipeline)
+- Semantic search (@xenova/transformers)
+- E2E tests (25/25 passed)
 
-### Batch 2: ดึง External Tools เข้ามาใช้
+### _ref/ Repositories (25)
+Soul-Brews-Studio: maw-js, maw-ui, maw-plugins, maw-core-plugins, maw-incarnation-plugin, maw-cell-plugin, arra-oracle-v3, oracle-framework, oracle-v2, opensource-nat-brain-oracle, shrimp-oracle, skills-cli, vault-report
 
-| # | Tool | ที่มา | สถานะ |
-|---|---|---|---|
-| 12 | **oracle-skills-cli** | Soul-Brews-Studio/arra-oracle-skills-cli | ✅ 55 skills registry (src/skills/registry.ts) |
-| 13 | **oracle-v3** | Soul-Brews-Studio/arra-oracle-v3 | ✅ memory patterns, architecture reference |
-| 14 | **maw-js** | _ref/maw-js/ | ✅ Fleet patterns adapted (src/commands/index.ts → /fleet) |
-| 15 | **oracle-vault-report** | _ref/vault-report/ | ✅ Vault dashboard (public/vault.html + /api/vault/*) |
-| 16 | **pulse-cli** | — | ✅ Project board CLI (src/commands/index.ts → /pulse add/done/list) |
-| 17 | **multi-agent-workflow-kit** | _ref/workflow-kit/ | ✅ Workflow patterns (src/workflows/index.ts: sequential/parallel/fan-out/review/pipeline + /workflow command) |
-| 18 | **claude-code-statusline** | nazt/claude-code-statusline | ✅ Statusline (scripts/statusline.sh: dir/git/agents/uptime/mem) |
-| 19 | **หนังสือ "รูปสอนสุญญตา"** | book.buildwithoracle.com | ✅ 5 principles + Rule 6 (src/knowledge/oracle-principles.md, /philosophy command) |
+the-oracle-keeps-the-human-human: agents-that-remember, the-agent-bus, oracle-maw-guide, graph-oracle-v2, oracle-step-by-step, oracle-federation-guide, oracle-office-guide, oracle-auto-rrr-hooks, oracle-hooks-auto-cc, oracle-custom-skills
 
-### Batch 3: Semantic Search (เปลี่ยน TF-IDF เป็น Embedding จริง)
+Other: nat-brain, safety-hooks, workflow-kit
 
-| # | Task | สถานะ |
-|---|---|---|
-| 20 | **Install embedding model** | ✅ @xenova/transformers ติดตั้งแล้ว |
-| 21 | **Replace vector store** | ✅ factory.ts — real cosine similarity + TF-IDF fallback |
-| 22 | **Update search tool** | ✅ hybrid FTS5 + vector search |
-
-### Batch 4: ψ/ Structure & Oracle Vault
-
-| # | Task | สถานะ |
-|---|---|---|
-| 23 | **ψ/ structure** | ✅ memory/resonance, learnings, retrospectives, journal, decisions, handoffs, mood |
-| 24 | **Vault API** | ✅ GET /api/vault/stats, /files, /file + POST /search |
-| 25 | **Vault dashboard** | ✅ public/vault.html (stats, search, skills, principles) |
-
-### Batch 5: VPS & Production
-
-| # | Task | สถานะ |
-|---|---|---|
-| 26 | **VPS deploy guide** | ✅ docs/DEPLOY.md (systemd, Docker, Docker Compose, Nginx) |
-| 27 | **systemd service** | ✅ included in DEPLOY.md |
-| 28 | **Docker** | ✅ Dockerfile + docker-compose.yml in DEPLOY.md |
-
-### Batch 6: Integration & Testing
-
-| # | Task | สถานะ |
-|---|---|---|
-| 29 | **End-to-end test** | ✅ test/e2e.mjs — 20/20 tests passed |
-| 30 | **API test suite** | ✅ ครอบคลุม health, commands, skills, vault, agents, dashboard |
-| 31 | **README update** | ✅ CLI commands table, new API endpoints, testing section |
+### Bug Fixes
+- /learn รองรับ GitHub org URL (แสดง repos list)
+- Agent system prompts เพิ่ม CLI command awareness
 
 ## Architecture
 
 ```
 src/
-├── index.ts                 ← Hono entry (port 3456)
+├── index.ts                 ← Hono server (port 3456) + WebSocket + routing
+├── commands/index.ts        ← 33 CLI commands
 ├── api/
-│   ├── agent-bridge.ts      ← /api/agents CRUD
-│   ├── memory-bridge.ts     ← /api/v2/memory/*
-│   └── index.ts             ← API router (34 endpoints)
+│   ├── index.ts             ← API router (registers all sub-routers)
+│   ├── agent-bridge.ts      ← Agent API (spawn, chat, stop)
+│   ├── oracle-v2-bridge.ts  ← Oracle-v2 proxy (port 47778)
+│   └── *.ts                 ← 35+ more routers
 ├── agents/
-│   ├── manager.js           ← AgentManager: spawn, stop, chat
+│   ├── manager.js           ← AgentManager + AGENT_ROLES (9 roles)
 │   ├── worker.js            ← Agent child process
-│   ├── *-client.js          ← LLM clients (gemini, mimo, promptdee)
-│   └── definitions/         ← 19 agent .md definitions
-├── commands/                ← 64 CLI commands
-├── memory/
-│   ├── store.js             ← SQLite store
-│   ├── tools/               ← 16 memory tools
-│   └── vector/              ← Vector store (currently TF-IDF)
-├── transports/              ← 6 transports
-├── dashboard/
-│   ├── public/              ← Static HTML
-│   └── src/                 ← React 19 SPA
-├── plugins/                 ← Plugin system
-└── federation/              ← Multi-machine
-_ref/                        ← Reference repos (maw-js, vault-report, etc.)
-ψ/                           ← Oracle Vault
+│   └── *-client.js          ← LLM clients
+├── skills/registry.ts       ← 55 skills
+├── workflows/index.ts       ← 5 workflow patterns
+├── knowledge/oracle-principles.md
+├── memory/                  ← SQLite + vector store
+└── ...
+public/
+├── index.html               ← Main dashboard
+└── vault.html               ← Vault dashboard
+_ref/                        ← 25 reference repos
+ψ/                           ← Knowledge root
 ```
 
 ## How to Run
 
 ```bash
-git pull origin main && npm install && npx tsx src/index.ts
+git pull origin main
+npm install
+npx tsx src/index.ts
 ```
 
 ## How to Push
@@ -130,27 +122,12 @@ git push origin main
 git remote set-url origin https://github.com/dmz2001TH/oracle-multi-agent.git
 ```
 
-## หลักการ Oracle (5 ข้อ)
+## กฎเหล็ก
 
-1. Nothing is Deleted — จดทุกอย่าง ไม่ลบ
-2. Patterns Over Intentions — ดูสิ่งที่เกิดขึ้นจริง
-3. External Brain, Not Command — AI สะท้อน ไม่สั่ง
-4. Curiosity Creates Existence
-5. Form and Formless — หลาย Oracle หนึ่งจิตสำนึก
-
-## 💬 สไตล์การทำงานกับเจ้าของโปรเจ็ค
-
-- **คุยภาษาไทย** — เจ้าของโปรเจ็คพิมพ์ภาษาไทย ตอบภาษาไทย
-- **สั้น ตรง ไม่อ้อมค้อม** — ไม่ต้องพิมพ์ยาว ตอบให้ชัดเจน ตรงประเด็น
-- **ทำเลย ไม่ต้องถามเยอะ** — ถ้าเข้าใจ指令แล้ว ทำเลย commit + push เลย
-- **อัพ GitHub ทุกครั้ง** — ทุกครั้งที่แก้ไขเสร็จ ต้อง git commit + push
-- **Token** — เจ้าของจะส่ง token ทาง chat ให้ตอน push ทุกครั้ง อย่า commit token ลง repo
-- **ส่งคำสั่ง terminal ให้เสมอ** — บอก git pull / restart commands ให้เจ้าของทำตาม
-- **Dashboard** — เจ้าของดูผลที่ http://localhost:3456 เป็นหลัก
-
-## ⚠️ สิ่งที่ต้องรู้ (Known Fixes)
-
-- **WebSocket path**: dashboard ต้องเชื่อม `ws://host/ws` ไม่ใช่ `ws://host` (แก้แล้วใน public/index.html)
-- **API routes ซ้ำซ้อน**: มีทั้ง `api` router (src/api/index.ts) และ `agentBridgeApi` (src/api/agent-bridge.ts) — ตรวจสอบไม่ให้ route ชนกัน
-- **Dashboard = public/index.html**: ระบบใช้ static HTML (React CDN) ไม่ใช่ Vite build — แก้ไขที่ public/index.html โดยตรง
-- **Agent ไม่ running**: agents จาก database แสดง `running: false` จนกว่าจะ spawn ผ่าน API — WebSocket ต้องส่ง `init` message พร้อม agents list
+1. "Nothing is Deleted" — ไม่ลบโค้ดเก่า ปรับปรุงแทน
+2. Dashboard = public/index.html (static HTML)
+3. WebSocket path = /ws — อย่าเผลอลบ
+4. TypeScript compile ต้องผ่าน: npx tsc --noEmit
+5. อย่า commit token ลง repo
+6. อัพเดท HANDOFF.md, README.md, AGENT-PROMPT.md ทุกครั้งที่ทำอะไรเสร็จ
+7. ส่งคำสั่ง git pull + restart ให้เจ้าของทุกครั้งหลัง push

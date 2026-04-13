@@ -26,6 +26,7 @@ import { inboxApi } from "./inbox-api.js";
 import { workspaceApi } from "./workspace.js";
 import { cronApi } from "./cron.js";
 import { agentsApi } from "./agents.js";
+import { wakeupApi } from "./wakeup.js";
 
 export const api = new Hono();
 
@@ -52,3 +53,4 @@ api.route("/", tasksApi);
 api.route("/", inboxApi);
 api.route("/", cronApi);
 api.route("/", agentsApi);
+api.route("/", wakeupApi);

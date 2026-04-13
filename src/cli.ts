@@ -16,6 +16,7 @@ import { routeCron } from "./cli/route-cron.js";
 import { routeAgentsStatus } from "./cli/route-agents-status.js";
 import { routeWorktreeOps } from "./cli/route-worktree-ops.js";
 import { routeMergeTeam } from "./cli/route-merge-team.js";
+import { routeWakeup } from "./cli/route-wakeup.js";
 import { scanCommands, matchCommand, executeCommand } from "./cli/command-registry.js";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
@@ -90,7 +91,8 @@ if (cmd === "--version" || cmd === "-v" || cmd === "version") {
       await routeCron(cmd, args) ||
       await routeAgentsStatus(cmd, args) ||
       await routeWorktreeOps(cmd, args) ||
-      await routeMergeTeam(cmd, args);
+      await routeMergeTeam(cmd, args) ||
+      await routeWakeup(cmd, args);
 
     if (!handled) {
       // Try plugin commands (beta)

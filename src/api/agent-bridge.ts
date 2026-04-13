@@ -257,13 +257,13 @@ agentBridgeApi.post("/api/v2/agents/:id/chat", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const message = body.message;
 
-  if (!message) return c.json({ error: "message is required" }, 400);
+  if (!message) return c.json({ error: "กรุณาส่งข้อความ (message is required)" }, 400);
 
   try {
     const result = await manager.chatWithAgent(id, message);
     return c.json(result);
   } catch (err: any) {
-    return c.json({ error: err.message }, 400);
+    return c.json({ error: err.message || "เกิดข้อผิดพลาด", hint: "เอเจนต์อาจหยุดทำงาน — ลองสร้างใหม่ด้วย /wake" }, 400);
   }
 });
 

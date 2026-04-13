@@ -358,6 +358,11 @@ async function sendChat() {
         body: JSON.stringify({ message: text }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        addMessage('oracle', `⚠️ ${data.error || 'เกิดข้อผิดพลาด'}\n\n💡 เอเจนต์อาจหยุดทำงานแล้ว — ลองสร้างใหม่จากแถบซ้าย`);
+        loadAgents();
+        return;
+      }
       addMessage(data.agent || 'agent', data.response || data.message || 'ไม่มีผลลัพธ์');
     } catch (e) { addMessage('oracle', '❌ ' + e.message); }
     return;

@@ -1,8 +1,8 @@
 /**
  * Agent Status Monitor — Chapter 13, 14: What The Human Sees + Failure Modes
  *
- * Scans tmux sessions for running agents, reads heartbeat data,
- * and flags idle agents as "stuck".
+ * Scans tmux sessions (or background processes on Windows) for running agents,
+ * reads heartbeat data, and flags idle agents as "stuck".
  *
  * Usage (CLI):
  *   oracle agents [status]
@@ -14,6 +14,7 @@ import { readFileSync, readdirSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { AgentStatus } from "../lib/schemas.js";
+import { hasTmux, devNull, isWindows } from "../platform.js";
 
 const AGENTS_DIR = join(homedir(), ".oracle", "agents");
 const STUCK_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
@@ -37,7 +38,7 @@ interface TmuxSession {
 function listTmuxSessions(): TmuxSession[] {
   try {
     const raw = execSync(
-      "tmux list-sessions -F '#{session_name}:#{session_pid}:#{session_created}:#{session_attached}' 2>/dev/null",
+      `tmux list-sessions -F '#{session_name}:#{session_pid}:#{session_created}:#{session_attached}' 2>${devNull}`,
       { encoding: "utf-8" }
     ).trim();
 
@@ -57,6 +58,45 @@ function listTmuxSessions(): TmuxSession[] {
   }
 }
 
+/**
+ * List background agent processes (Windows / no-tmux fallback).
+ * Reads from agent pid files in ~/.oracle/agents/ and checks if process is alive.
+ */
+function listBackgroundAgents(): { name: string; alive: boolean }[] {
+  if (!existsSync(AGENTS_DIR)) return [];
+
+  const dirs = readdirSync(AGENTS_DIR);
+  const agents: { name: string; alive: boolean }[] = [];
+
+  for (const dir of dirs) {
+    const pidFile = join(AGENTS_DIR, dir, "pid");
+    try {
+      const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
+      if (isNaN(pid)) continue;
+
+      // Check if process is alive
+      let alive = false;
+      try {
+        if (isWindows) {
+          execSync(`tasklist /FI "PID eq ${pid}" 2>${devNull}`, { stdio: "pipe" });
+          alive = true; // If tasklist doesn't throw, process exists
+        } else {
+          execSync(`kill -0 ${pid} 2>${devNull}`, { stdio: "pipe" });
+          alive = true;
+        }
+      } catch {
+        alive = false;
+      }
+
+      agents.push({ name: dir, alive });
+    } catch {
+      // No pid file — skip
+    }
+  }
+
+  return agents;
+}
+
 function readHeartbeat(agentName: string): HeartbeatData | null {
   const path = join(AGENTS_DIR, agentName, "heartbeat.json");
   try {
@@ -73,50 +113,87 @@ function isStale(ts: string, maxAgeMs: number = STUCK_THRESHOLD_MS): boolean {
 
 export function listAgentStatuses(): AgentStatus[] {
   mkdirSync(AGENTS_DIR, { recursive: true });
-  const sessions = listTmuxSessions();
   const statuses: AgentStatus[] = [];
 
-  for (const sess of sessions) {
-    const hb = readHeartbeat(sess.name);
-    let status: AgentStatus["status"] = "idle";
-    let lastHeartbeat: string | undefined;
-    let currentTask: string | undefined;
-    let branch: string | undefined;
+  if (hasTmux()) {
+    // tmux mode — scan tmux sessions
+    const sessions = listTmuxSessions();
 
-    if (hb) {
-      lastHeartbeat = hb.ts;
-      currentTask = hb.task;
-      branch = hb.branch;
+    for (const sess of sessions) {
+      const hb = readHeartbeat(sess.name);
+      let status: AgentStatus["status"] = "idle";
+      let lastHeartbeat: string | undefined;
+      let currentTask: string | undefined;
+      let branch: string | undefined;
 
-      if (isStale(hb.ts)) {
-        status = "stuck";
-      } else if (hb.status === "working" || hb.status === "PROGRESS") {
-        status = "working";
-      } else if (hb.status === "DONE" || hb.status === "done") {
-        status = "done";
+      if (hb) {
+        lastHeartbeat = hb.ts;
+        currentTask = hb.task;
+        branch = hb.branch;
+
+        if (isStale(hb.ts)) {
+          status = "stuck";
+        } else if (hb.status === "working" || hb.status === "PROGRESS") {
+          status = "working";
+        } else if (hb.status === "DONE" || hb.status === "done") {
+          status = "done";
+        }
+      } else {
+        // No heartbeat — check if tmux pane has a running claude process
+        try {
+          const cmd = execSync(
+            `tmux list-panes -t '${sess.name}' -F '#{pane_current_command}' 2>${devNull}`,
+            { encoding: "utf-8" }
+          ).trim();
+          const hasClaude = cmd.split("\n").some(line => /claude|codex/i.test(line));
+          status = hasClaude ? "working" : "idle";
+        } catch {
+          status = "idle";
+        }
       }
-    } else {
-      // No heartbeat — check if tmux pane has a running claude process
-      try {
-        const cmd = execSync(
-          `tmux list-panes -t '${sess.name}' -F '#{pane_pid}:#{pane_current_command}' 2>/dev/null`,
-          { encoding: "utf-8" }
-        ).trim();
-        const hasClaude = cmd.split("\n").some(line => /claude|codex/i.test(line));
-        status = hasClaude ? "working" : "idle";
-      } catch {
-        status = "idle";
-      }
+
+      statuses.push({
+        name: sess.name,
+        status,
+        lastHeartbeat,
+        currentTask,
+        branch,
+        tmuxSession: sess.name,
+      });
     }
+  } else {
+    // Windows / no-tmux mode — scan background processes via pid files
+    const bgAgents = listBackgroundAgents();
 
-    statuses.push({
-      name: sess.name,
-      status,
-      lastHeartbeat,
-      currentTask,
-      branch,
-      tmuxSession: sess.name,
-    });
+    for (const agent of bgAgents) {
+      const hb = readHeartbeat(agent.name);
+      let status: AgentStatus["status"] = agent.alive ? "idle" : "done";
+      let lastHeartbeat: string | undefined;
+      let currentTask: string | undefined;
+      let branch: string | undefined;
+
+      if (hb) {
+        lastHeartbeat = hb.ts;
+        currentTask = hb.task;
+        branch = hb.branch;
+
+        if (isStale(hb.ts)) {
+          status = "stuck";
+        } else if (hb.status === "working" || hb.status === "PROGRESS") {
+          status = "working";
+        } else if (hb.status === "DONE" || hb.status === "done") {
+          status = "done";
+        }
+      }
+
+      statuses.push({
+        name: agent.name,
+        status,
+        lastHeartbeat,
+        currentTask,
+        branch,
+      });
+    }
   }
 
   return statuses;
@@ -126,7 +203,7 @@ export function cmdAgentsStatus(): void {
   const statuses = listAgentStatuses();
 
   if (!statuses.length) {
-    console.log("\x1b[90mno agents running (no tmux sessions found)\x1b[0m");
+    console.log(`\x1b[90mno agents running${hasTmux() ? " (no tmux sessions found)" : " (no background processes found)"}\x1b[0m`);
     return;
   }
 
@@ -159,18 +236,33 @@ export function cmdAgentsKill(name: string): void {
     process.exit(1);
   }
 
-  try {
-    execSync(`tmux has-session -t '${name}' 2>/dev/null`, { stdio: "pipe" });
-  } catch {
-    console.error(`\x1b[31merror\x1b[0m: tmux session "${name}" not found`);
-    process.exit(1);
+  // Try tmux first
+  if (hasTmux()) {
+    try {
+      execSync(`tmux has-session -t '${name}' 2>${devNull}`, { stdio: "pipe" });
+      execSync(`tmux kill-session -t '${name}'`, { stdio: "pipe" });
+      console.log(`\x1b[32m✓\x1b[0m Agent "${name}" killed (tmux session)`);
+      return;
+    } catch {
+      // Not a tmux session — try pid file
+    }
   }
 
+  // Fallback: kill via pid file
+  const pidFile = join(AGENTS_DIR, name, "pid");
   try {
-    execSync(`tmux kill-session -t '${name}'`, { stdio: "pipe" });
-    console.log(`\x1b[32m✓\x1b[0m Agent "${name}" killed`);
-  } catch (err: any) {
-    console.error(`\x1b[31merror\x1b[0m: ${err.message}`);
-    process.exit(1);
-  }
+    const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
+    if (!isNaN(pid)) {
+      if (isWindows) {
+        execSync(`taskkill /PID ${pid} /F 2>${devNull}`, { stdio: "pipe" });
+      } else {
+        execSync(`kill ${pid} 2>${devNull}`, { stdio: "pipe" });
+      }
+      console.log(`\x1b[32m✓\x1b[0m Agent "${name}" killed (pid ${pid})`);
+      return;
+    }
+  } catch {}
+
+  console.error(`\x1b[31merror\x1b[0m: agent "${name}" not found (no tmux session or pid file)`);
+  process.exit(1);
 }

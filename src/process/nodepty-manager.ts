@@ -19,6 +19,13 @@ interface PtyProcess {
   name: string;
 }
 
+function getDefaultShell(): { cmd: string; args: string[] } {
+  if (process.platform === "win32") {
+    return { cmd: "powershell.exe", args: ["-NoLogo", "-NoProfile"] };
+  }
+  return { cmd: process.env.SHELL || "bash", args: ["-l"] };
+}
+
 export class NodePtyManager implements ProcessManager {
   private processes = new Map<string, PtyProcess>();
   private maxBufferSize = 5000;
@@ -26,8 +33,8 @@ export class NodePtyManager implements ProcessManager {
   async spawn(name: string, command: string, opts?: { cwd?: string; env?: Record<string, string> }): Promise<ProcessHandle> {
     if (!ptyModule) throw new Error("node-pty not available — install with: npm install node-pty");
 
-    const shell = process.platform === "win32" ? "powershell.exe" : "bash";
-    const pty = ptyModule.spawn(shell, ["-c", command], {
+    const shell = getDefaultShell();
+    const pty = ptyModule.spawn(shell.cmd, shell.args, {
       name: "xterm-256color",
       cols: 120,
       rows: 30,
@@ -44,6 +51,10 @@ export class NodePtyManager implements ProcessManager {
         proc.buffer.shift();
       }
     });
+
+    // Wait a bit for shell to initialize, then send the command
+    await new Promise(r => setTimeout(r, 300));
+    await this.sendText(name, command);
 
     return new NodePtyHandle(name, this);
   }

@@ -2,6 +2,7 @@
  * Overview Command — Chapter 13: What The Human Sees
  *
  * War room: live status of multiple agents at a glance.
+ * Works on both tmux (Linux/Mac) and background processes (Windows).
  *
  * Usage:
  *   oracle overview              — show all running agents
@@ -9,9 +10,10 @@
  */
 
 import { execSync } from "node:child_process";
-import { readFileSync, mkdirSync } from "node:fs";
+import { readFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { hasTmux, devNull, isWindows } from "../platform.js";
 
 const AGENTS_DIR = join(homedir(), ".oracle", "agents");
 const STUCK_THRESHOLD_MS = 10 * 60 * 1000;
@@ -27,20 +29,33 @@ interface AgentOverview {
 
 function listTmuxNames(): string[] {
   try {
-    const raw = execSync("tmux list-sessions -F '#{session_name}' 2>/dev/null", { encoding: "utf-8" }).trim();
+    const raw = execSync(`tmux list-sessions -F '#{session_name}' 2>${devNull}`, { encoding: "utf-8" }).trim();
     return raw ? raw.split("\n").filter(Boolean) : [];
   } catch { return []; }
 }
 
-function captureLastLine(name: string): string {
+function captureLastLineTmux(name: string): string {
   try {
     const content = execSync(
-      `tmux capture-pane -t '${name}' -p -S -3 2>/dev/null`,
+      `tmux capture-pane -t '${name}' -p -S -3 2>${devNull}`,
       { encoding: "utf-8" }
     ).trim();
     const lines = content.split("\n").filter(l => l.trim());
     return lines.pop() || "(empty)";
   } catch { return "(unreachable)"; }
+}
+
+/**
+ * Read last lines from agent output log (Windows / no-tmux fallback).
+ */
+function captureLastLineLog(name: string): string {
+  try {
+    const logFile = join(AGENTS_DIR, name, "output.log");
+    if (!existsSync(logFile)) return "(no log)";
+    const content = readFileSync(logFile, "utf-8");
+    const lines = content.split("\n").filter(l => l.trim());
+    return lines.pop()?.slice(0, 120) || "(empty)";
+  } catch { return "(unreadable)"; }
 }
 
 function readHeartbeat(name: string): { ts: string; status: string; task: string; branch: string } | null {
@@ -50,31 +65,65 @@ function readHeartbeat(name: string): { ts: string; status: string; task: string
 function hasClaudeProcess(name: string): boolean {
   try {
     const cmd = execSync(
-      `tmux list-panes -t '${name}' -F '#{pane_current_command}' 2>/dev/null`,
+      `tmux list-panes -t '${name}' -F '#{pane_current_command}' 2>${devNull}`,
       { encoding: "utf-8" }
     ).trim();
     return cmd.split("\n").some(l => /claude|codex/i.test(l));
   } catch { return false; }
 }
 
+/**
+ * Check if a background process is alive via pid file.
+ */
+function isProcessAlive(name: string): boolean {
+  try {
+    const pidFile = join(AGENTS_DIR, name, "pid");
+    const pid = parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
+    if (isNaN(pid)) return false;
+
+    if (isWindows) {
+      execSync(`tasklist /FI "PID eq ${pid}" 2>${devNull}`, { stdio: "pipe" });
+    } else {
+      execSync(`kill -0 ${pid} 2>${devNull}`, { stdio: "pipe" });
+    }
+    return true;
+  } catch { return false; }
+}
+
 export function cmdOverview(names: string[] = []): void {
   mkdirSync(AGENTS_DIR, { recursive: true });
+  const useTmux = hasTmux();
 
-  // Get session names to show
-  const allSessions = listTmuxNames();
-  const targetNames = names.length > 0
-    ? names.filter(n => allSessions.includes(n))
-    : allSessions;
+  let targetNames: string[];
 
-  if (!targetNames.length) {
-    console.log("\x1b[90mno agents running (no tmux sessions found)\x1b[0m");
-    return;
+  if (useTmux) {
+    const allSessions = listTmuxNames();
+    targetNames = names.length > 0
+      ? names.filter(n => allSessions.includes(n))
+      : allSessions;
+
+    // Show unfound names
+    const notFound = names.filter(n => !allSessions.includes(n));
+    for (const n of notFound) {
+      console.log(`\x1b[33m⚠\x1b[0m agent not found: ${n}`);
+    }
+  } else {
+    // Background process mode — scan agent directories
+    if (!existsSync(AGENTS_DIR)) {
+      console.log("\x1b[90mno agents running (no agent directory found)\x1b[0m");
+      return;
+    }
+    const allAgents = readdirSync(AGENTS_DIR).filter(d => {
+      try { return existsSync(join(AGENTS_DIR, d, "pid")); } catch { return false; }
+    });
+    targetNames = names.length > 0
+      ? names.filter(n => allAgents.includes(n))
+      : allAgents;
   }
 
-  // Show unfound names
-  const notFound = names.filter(n => !allSessions.includes(n));
-  for (const n of notFound) {
-    console.log(`\x1b[33m⚠\x1b[0m agent not found: ${n}`);
+  if (!targetNames.length) {
+    console.log(`\x1b[90mno agents running${useTmux ? " (no tmux sessions found)" : " (no background processes found)"}\x1b[0m`);
+    return;
   }
 
   console.log(`\n\x1b[36m═══ OVERVIEW ═══\x1b[0m\n`);
@@ -83,8 +132,8 @@ export function cmdOverview(names: string[] = []): void {
 
   for (const name of targetNames) {
     const hb = readHeartbeat(name);
-    const lastLine = captureLastLine(name);
-    const hasClaude = hasClaudeProcess(name);
+    const lastLine = useTmux ? captureLastLineTmux(name) : captureLastLineLog(name);
+    const isAlive = useTmux ? hasClaudeProcess(name) : isProcessAlive(name);
 
     let status: AgentOverview["status"] = "dead";
     let heartbeatAge: string | null = null;
@@ -100,10 +149,10 @@ export function cmdOverview(names: string[] = []): void {
       } else if (hb.status === "working" || hb.status === "PROGRESS") {
         status = "working";
       } else {
-        status = hasClaude ? "working" : "idle";
+        status = isAlive ? "working" : "idle";
       }
     } else {
-      status = hasClaude ? "working" : "idle";
+      status = isAlive ? "working" : "idle";
     }
 
     overviews.push({

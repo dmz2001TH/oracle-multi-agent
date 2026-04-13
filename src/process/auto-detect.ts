@@ -11,7 +11,8 @@ let cached: ProcessManager | null = null;
 
 export function hasTmux(): boolean {
   try {
-    execSync("which tmux", { stdio: "ignore" });
+    const cmd = process.platform === "win32" ? "where tmux" : "which tmux";
+    execSync(cmd, { stdio: "ignore" });
     return true;
   } catch {
     return false;

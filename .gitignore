@@ -8,3 +8,11 @@ logs/
 .DS_Store
 logs/
 *.db-journal
+
+# Windows
+Thumbs.db
+Desktop.ini
+*.exe
+*.dll
+*.pdb
+.env.local

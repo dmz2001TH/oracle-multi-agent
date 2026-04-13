@@ -35,7 +35,7 @@ memoryBridgeApi.get("/api/v2/memory/search", (c) => {
   const category = c.req.query("category") || undefined;
 
   try {
-    const results = store.searchMemories(q, { limit, agentId, category } as any);
+    const results = store.searchMemories(q, agentId || null, limit);
     return c.json({ results, total: results.length, query: q });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);

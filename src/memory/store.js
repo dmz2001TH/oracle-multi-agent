@@ -270,6 +270,29 @@ export class MemoryStore {
       CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id);
       CREATE INDEX IF NOT EXISTS idx_messages_from ON messages(from_agent);
       CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_agent);
+
+      -- FTS sync triggers (external content tables need triggers, not manual INSERT)
+      CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+        INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+      END;
+      CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+        INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.id, old.content);
+      END;
+      CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+        INSERT INTO messages_fts(messages_fts, rowid, content) VALUES('delete', old.id, old.content);
+        INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
+        INSERT INTO memories_fts(rowid, content, tags, category, keywords) VALUES (new.id, new.content, new.tags, new.category, new.keywords);
+      END;
+      CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
+        INSERT INTO memories_fts(memories_fts, rowid, content, tags, category, keywords) VALUES('delete', old.id, old.content, old.tags, old.category, old.keywords);
+      END;
+      CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+        INSERT INTO memories_fts(memories_fts, rowid, content, tags, category, keywords) VALUES('delete', old.id, old.content, old.tags, old.category, old.keywords);
+        INSERT INTO memories_fts(rowid, content, tags, category, keywords) VALUES (new.id, new.content, new.tags, new.category, new.keywords);
+      END;
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
       CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to);
       CREATE INDEX IF NOT EXISTS idx_traces_parent ON traces(parent_trace_id);
@@ -335,9 +358,7 @@ export class MemoryStore {
       'INSERT INTO memories (agent_id, content, category, importance, tags, source, keywords) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).run(agentId, content, category, importance, tags, source, keywords);
 
-    this.db.prepare(
-      'INSERT INTO memories_fts (rowid, content, tags, category, keywords) VALUES (?, ?, ?, ?, ?)'
-    ).run(result.lastInsertRowid, content, tags, category, keywords);
+    // FTS sync handled by trigger — no manual INSERT needed
 
     this.db.prepare(
       'INSERT INTO learn_log (agent_id, memory_id, content_preview, category, concepts) VALUES (?, ?, ?, ?, ?)'
@@ -359,6 +380,7 @@ export class MemoryStore {
     }
   }
 
+  /** @param {string|null} [agentId] */
   searchMemories(query, agentId = null, limit = 10) {
     const start = Date.now();
     let results = [];
@@ -517,9 +539,8 @@ export class MemoryStore {
       this.db.prepare("UPDATE threads SET updated_at = unixepoch() WHERE id = ?").run(threadId);
     }
 
-    this.db.prepare(
-      'INSERT INTO messages_fts (rowid, content) VALUES (?, ?)'
-    ).run(result.lastInsertRowid, content);
+    // FTS sync handled by triggers — no manual INSERT needed
+    // (direct INSERT into FTS5 external content tables fails with FK constraints)
 
     return result.lastInsertRowid;
   }

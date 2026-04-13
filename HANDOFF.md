@@ -5,6 +5,20 @@
 
 ---
 
+## ✅ Phase 2: Transports (Batch 3) — COMPLETE
+
+### Batch 3: Transports (6 files)
+| File | Source | Status |
+|------|--------|--------|
+| `src/transport.ts` | maw-js/transport.ts | ✅ Ported (TransportRouter + interfaces) |
+| `src/transports/index.ts` | maw-js/transports/index.ts | ✅ Ported (registry + factory) |
+| `src/transports/tmux.ts` | maw-js/transports/tmux.ts | ✅ Ported (local fast path) |
+| `src/transports/http.ts` | maw-js/transports/http.ts | ✅ Ported (federation fallback) |
+| `src/transports/hub.ts` | maw-js/transports/hub.ts | ✅ Ported (WebSocket hub client) |
+| `src/transports/nanoclaw.ts` | maw-js/transports/nanoclaw.ts | ✅ Ported (Telegram/Discord bridge) |
+| `src/transports/lora.ts` | maw-js/transports/lora.ts | ✅ Ported (future hardware stub) |
+| `src/bridges/nanoclaw.ts` | maw-js/bridges/nanoclaw.ts | ✅ Ported (nanoclaw bridge) |
+
 ## ✅ Phase 0: Setup & Research — COMPLETE
 - [x] Clone main repo + 9 reference repos to `_ref/`
 - [x] Read HANDOFF.md, maw-js architecture (server.ts, config.ts, package.json)
@@ -67,7 +81,7 @@
 
 ## 🔲 Remaining Phases
 
-### Phase 2: Transports (Batch 3) — 6 files
+### Phase 3: API Endpoints (Batch 4) — 21 files
 | File | Source |
 |------|--------|
 | `src/transports/index.ts` | maw-js/transports/index.ts |
@@ -113,19 +127,19 @@
 
 | Category | Created | Target |
 |----------|---------|--------|
-| TypeScript source | 28 files | ~250+ files |
+| TypeScript source | 37 files | ~250+ files |
 | Engine | 4 | 4 ✅ |
 | Core infra | 20 | 20 ✅ |
 | Process abstraction | 4 | 4 ✅ |
-| Transports | 0 | 6 |
+| Transports | 8 | 8 ✅ |
 | API | 0 | 21 |
 | Commands | 0 | 49 |
 | CLI | 0 | 8 |
 | Dashboard | 0 | ~100 |
 | Memory tools | 0 | 13 |
 
-**Progress: ~11% (28/250+ files)**
+**Progress: ~15% (37/250+ files)**
 
 ---
 
-*Last updated: 2026-04-13 12:37 GMT+8*
+*Last updated: 2026-04-13 12:40 GMT+8*

@@ -83,3 +83,19 @@ export async function getFederationStatus(): Promise<{
   const statuses = [...byNode.values()];
   return { localUrl, peers: statuses, totalPeers: peers.length, reachablePeers: statuses.filter(s => s.reachable).length, clockHealth: { clockUtc: new Date().toISOString(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, uptimeSeconds: Math.floor(process.uptime()) } };
 }
+
+export async function findPeerForTarget(target: string, localSessions: Session[]): Promise<string | null> {
+  const aggregated = await getAggregatedSessions(localSessions);
+  const session = aggregated.find((s: any) => s.name === target || s.windows.some((w: any) => `${s.name}:${w.name}` === target));
+  return (session as any)?.source === "local" ? null : ((session as any)?.source || null);
+}
+
+export async function sendKeysToPeer(peerUrl: string, target: string, text: string): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+    const res = await fetch(`${peerUrl}/api/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target, text }), signal: ctrl.signal });
+    clearTimeout(t);
+    return res.ok;
+  } catch { return false; }
+}

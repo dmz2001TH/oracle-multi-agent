@@ -70,3 +70,37 @@ export async function sendKeys(target: string, text: string, host?: string): Pro
     await t.sendText(target, body);
   }
 }
+
+export async function capture(target: string, lines = 80, host?: string): Promise<string> {
+  return capturePane(target, lines, host);
+}
+
+export async function getPaneCommand(target: string, host?: string): Promise<string> {
+  const { Tmux } = await import("./tmux.js");
+  const t = new Tmux(host);
+  return t.getPaneCommand(target);
+}
+
+export async function getPaneCommands(targets: string[], host?: string): Promise<Record<string, string>> {
+  const { Tmux } = await import("./tmux.js");
+  const t = new Tmux(host);
+  const result: Record<string, string> = {};
+  for (const t2 of targets) {
+    try { result[t2] = await t.getPaneCommand(t2); } catch {}
+  }
+  return result;
+}
+
+export async function getPaneInfos(targets: string[], host?: string): Promise<Record<string, { command: string; cwd: string }>> {
+  const { Tmux } = await import("./tmux.js");
+  const t = new Tmux(host);
+  const result: Record<string, { command: string; cwd: string }> = {};
+  for (const t2 of targets) {
+    try {
+      const raw = await t.run("list-panes", "-t", t2, "-F", "#{pane_current_command}\t#{pane_current_path}");
+      const [command = "", cwd = ""] = raw.split("\n")[0]?.split("\t") || [];
+      result[t2] = { command, cwd };
+    } catch {}
+  }
+  return result;
+}

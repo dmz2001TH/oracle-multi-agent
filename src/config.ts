@@ -166,3 +166,7 @@ export function buildCommand(agentName: string): string {
 }
 
 export function getEnvVars(): Record<string, string> { return loadConfig().env || {}; }
+
+export function buildCommandInDir(agentName: string, cwd: string): string {
+  return `cd '${cwd}'"' && { ${buildCommand(agentName)}; }`;
+}

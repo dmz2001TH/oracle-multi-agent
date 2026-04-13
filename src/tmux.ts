@@ -5,6 +5,8 @@ export function resolveSocket(): string | undefined {
   return process.env.ORACLE_TMUX_SOCKET || loadConfig().tmuxSocket || undefined;
 }
 
+export const tmuxCmd = resolveSocket;
+
 function q(s: string | number): string {
   const str = String(s);
   if (/^[a-zA-Z0-9_.:\-\/]+$/.test(str)) return str;
@@ -69,6 +71,11 @@ export class Tmux {
     await this.setOption(name, "renumber-windows", "on");
   }
 
+  async newGroupedSession(parent: string, name: string, opts: { cols: number; rows: number; window?: string }): Promise<void> {
+    await this.run("new-session", "-d", "-t", parent, "-s", name, "-x", opts.cols, "-y", opts.rows);
+    if (opts.window) await this.selectWindow(`${name}:${opts.window}`);
+  }
+
   async killSession(name: string): Promise<void> { await this.tryRun("kill-session", "-t", name); }
 
   async listWindows(session: string): Promise<TmuxWindow[]> {
@@ -99,11 +106,30 @@ export class Tmux {
     } catch { return []; }
   }
 
+  async listPaneIds(): Promise<Set<string>> {
+    try {
+      const raw = await this.run("list-panes", "-a", "-F", "#{pane_id}");
+      return new Set(raw.split("\n").filter(Boolean));
+    } catch { return new Set(); }
+  }
+
   async killPane(target: string): Promise<void> { await this.tryRun("kill-pane", "-t", target); }
 
   async getPaneCommand(target: string): Promise<string> {
     const raw = await this.run("list-panes", "-t", target, "-F", "#{pane_current_command}");
     return raw.split("\n")[0] || "";
+  }
+
+  async getPaneCommands(targets: string[]): Promise<Record<string, string>> {
+    const result: Record<string, string> = {};
+    try {
+      const raw = await this.run("list-panes", "-a", "-F", "#{session_name}:#{window_index}|||#{pane_current_command}");
+      for (const line of raw.split("\n").filter(Boolean)) {
+        const [target, cmd] = line.split("|||");
+        if (targets.includes(target)) result[target] = cmd || "";
+      }
+    } catch {}
+    return result;
   }
 
   async capture(target: string, lines = 80): Promise<string> {
@@ -116,6 +142,18 @@ export class Tmux {
     const c = Math.max(1, Math.min(cfgLimit("ptyCols"), Math.floor(cols)));
     const r = Math.max(1, Math.min(cfgLimit("ptyRows"), Math.floor(rows)));
     await this.tryRun("resize-pane", "-t", target, "-x", c, "-y", r);
+  }
+
+  async splitWindow(target: string): Promise<void> { await this.run("split-window", "-t", target); }
+
+  async selectPane(target: string, opts: { title?: string } = {}): Promise<void> {
+    const args: (string | number)[] = ["-t", target];
+    if (opts.title) args.push("-T", opts.title);
+    await this.run("select-pane", ...args);
+  }
+
+  async selectLayout(target: string, layout: string): Promise<void> {
+    await this.run("select-layout", "-t", target, layout);
   }
 
   async sendKeys(target: string, ...keys: string[]): Promise<void> {
@@ -132,9 +170,7 @@ export class Tmux {
     await hostExec(`printf '%s' '${escaped}' | tmux ${socketFlag}load-buffer -`, this.host);
   }
 
-  async pasteBuffer(target: string): Promise<void> {
-    await this.run("paste-buffer", "-t", target);
-  }
+  async pasteBuffer(target: string): Promise<void> { await this.run("paste-buffer", "-t", target); }
 
   async sendText(target: string, text: string): Promise<void> {
     if (text.includes("\n") || text.length > 500) {
@@ -157,6 +193,10 @@ export class Tmux {
 
   async setOption(target: string, option: string, value: string): Promise<void> {
     await this.tryRun("set-option", "-t", target, option, value);
+  }
+
+  async set(target: string, option: string, value: string): Promise<void> {
+    await this.tryRun("set", "-t", target, option, value);
   }
 }
 

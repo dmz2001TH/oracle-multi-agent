@@ -38,6 +38,7 @@ import { hooksApi } from "./hooks.js";
 import { commandsApi } from "./commands.js";
 import { skillsApi } from "./skills.js";
 import { vaultApi } from "./vault.js";
+import { workflowsApi } from "./workflows.js";
 
 export const api = new Hono();
 
@@ -76,3 +77,4 @@ api.route("/", hooksApi);
 api.route("/", commandsApi);
 api.route("/", skillsApi);
 api.route("/", vaultApi);
+api.route("/", workflowsApi);

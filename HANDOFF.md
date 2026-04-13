@@ -45,8 +45,8 @@
 | 14 | **maw-js** | _ref/maw-js/ | ✅ Fleet patterns adapted (src/commands/index.ts → /fleet) |
 | 15 | **oracle-vault-report** | _ref/vault-report/ | ✅ Vault dashboard (public/vault.html + /api/vault/*) |
 | 16 | **pulse-cli** | — | ✅ Project board CLI (src/commands/index.ts → /pulse add/done/list) |
-| 17 | **multi-agent-workflow-kit** | _ref/workflow-kit/ | ✅ Cloned, patterns referenced |
-| 18 | **claude-code-statusline** | nazt/claude-code-statusline | ✅ Cloned, patterns referenced |
+| 17 | **multi-agent-workflow-kit** | _ref/workflow-kit/ | ✅ Workflow patterns (src/workflows/index.ts: sequential/parallel/fan-out/review/pipeline + /workflow command) |
+| 18 | **claude-code-statusline** | nazt/claude-code-statusline | ✅ Statusline (scripts/statusline.sh: dir/git/agents/uptime/mem) |
 | 19 | **หนังสือ "รูปสอนสุญญตา"** | book.buildwithoracle.com | ✅ 5 principles + Rule 6 (src/knowledge/oracle-principles.md, /philosophy command) |
 
 ### Batch 3: Semantic Search (เปลี่ยน TF-IDF เป็น Embedding จริง)

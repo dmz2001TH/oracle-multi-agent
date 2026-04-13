@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { homedir, hostname, platform, arch } from "node:os";
 import { execSync } from "node:child_process";
 import { listSkillsByCategory, searchSkills, getSkillCount } from "../skills/registry.js";
+import { listWorkflowTemplates, getWorkflowTemplate } from "../workflows/index.js";
 
 const ORACLE_DIR = join(homedir(), ".oracle");
 const MEMORY_DIR = join(ORACLE_DIR, "memory");
@@ -1018,6 +1019,70 @@ export interface CommandResult {
 
 type CommandHandler = (args: string, ctx: CommandContext) => CommandResult;
 
+// ─── /workflow — Multi-Agent Workflow Templates ─────────────────────────────
+
+export function workflow(args: string, ctx: CommandContext): CommandResult {
+  const action = args?.trim().split(/\s+/)[0] || "list";
+  const rest = args?.trim().split(/\s+/).slice(1).join(" ") || "";
+
+  switch (action) {
+    case "list":
+    case "ls": {
+      const templates = listWorkflowTemplates();
+      return {
+        status: "ok",
+        message: [
+          "⚙️ **Multi-Agent Workflow Templates**",
+          "",
+          ...templates.map(t => `- **${t.name}** (${t.pattern}, ${t.steps} steps) — ${t.description}`),
+          "",
+          "ใช้ /workflow show <name> เพื่อดูรายละเอียด",
+        ].join("\n"),
+      };
+    }
+
+    case "show":
+    case "get": {
+      if (!rest) return { status: "ok", message: "ใช้: /workflow show <template-name>" };
+      const template = getWorkflowTemplate(rest);
+      if (!template) return { status: "ok", message: `❌ ไม่พบ template: ${rest}` };
+
+      return {
+        status: "ok",
+        message: [
+          `⚙️ **${template.name}** (${template.pattern})`,
+          template.description,
+          "",
+          "### Steps",
+          ...template.steps.map((s, i) =>
+            `${i + 1}. **${s.name}** [${s.role}] — ${s.task}${s.dependsOn ? ` (depends: ${s.dependsOn.join(", ")})` : ""}`
+          ),
+        ].join("\n"),
+        data: template,
+      };
+    }
+
+    default: {
+      // Try to show a template by name
+      const template = getWorkflowTemplate(action);
+      if (template) {
+        return workflow(`show ${action}`, ctx);
+      }
+      return {
+        status: "ok",
+        message: [
+          "⚙️ **Workflow Commands**",
+          "",
+          "/workflow list       — List all templates",
+          "/workflow show <name> — Show template details",
+          "",
+          "Available patterns: sequential, parallel, fan-out, review, pipeline",
+        ].join("\n"),
+      };
+    }
+  }
+}
+
 const COMMANDS: Record<string, CommandHandler> = {
   awaken,
   recap,
@@ -1034,6 +1099,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   resonance,
   fleet,
   pulse,
+  workflow,
 };
 
 export function listCommands(): { name: string; description: string }[] {
@@ -1053,6 +1119,7 @@ export function listCommands(): { name: string; description: string }[] {
     { name: "resonance", description: "🎵 Capture what resonates" },
     { name: "fleet", description: "🚢 Fleet census — all oracles across nodes" },
     { name: "pulse", description: "📊 Project board — tasks, issues, status" },
+    { name: "workflow", description: "⚙️ Multi-agent workflow templates" },
   ];
 }
 

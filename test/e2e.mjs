@@ -117,6 +117,18 @@ await test('POST /api/commands/execute /pulse add + list', async () => {
   assert(listData.message.includes('E2E test task'), 'task not in list');
 });
 
+await test('POST /api/commands/execute /workflow list', async () => {
+  const { data } = await api('POST', '/api/commands/execute', { input: '/workflow list' });
+  assert(data.ok, 'workflow list not ok');
+  assert(data.message.includes('research-report'), 'missing workflow');
+});
+
+await test('GET /api/workflows returns templates', async () => {
+  const { data } = await api('GET', '/api/workflows');
+  assert(data.ok, 'workflows not ok');
+  assert(data.workflows.length >= 5, 'expected 5+ workflows');
+});
+
 // ─── Skills API ─────────────────────────────────────────────────────────────
 console.log('\n⚡ Skills API');
 

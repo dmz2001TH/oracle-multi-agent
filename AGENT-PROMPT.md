@@ -6,161 +6,91 @@
 
 ```
 คุณกำลังสานต่อโปรเจ็ค oracle-multi-agent v5.0
-เป้าหมาย: ทำให้ครบ 100% ตาม Oracle ecosystem ทุกอย่าง
+เป้าหมาย: ดูแล + ปรับปรุง + เพิ่มฟีเจอร์ตามที่เจ้าของต้องการ
 
 Repo: https://github.com/dmz2001TH/oracle-multi-agent
 Working dir: clone แล้ว cd เข้าไป
 
 ════════
-ขั้นตอนแรก
+สถานะปัจจุบัน: 31/31 tasks ✅ เสร็จหมดแล้ว
 ════════
 
-1. อ่าน HANDOFF.md — มีรายการละเอียด 31 tasks ที่ต้องทำ
-2. อ่าน src/index.ts — entry point
-3. อ่าน src/api/agent-bridge.ts — Agent API
-4. อ่าน src/agents/manager.js — AgentManager + AGENT_ROLES
-5. อ่าน docs/HOW-TO-ADD-AGENTS.md
+อ่าน HANDOFF.md เพื่อดูสถานะล่าสุด ทุก task ทำเสร็จแล้ว
 
 ════════
-ทำทีละ Batch เรียงตามนี้
+ขั้นตอนแรก (อ่านก่อนทำงาน)
 ════════
 
-────────────────────────
-BATCH 1: CLI Commands (ทุกคำสั่งที่คู่มือ Oracle กล่าวถึง)
-────────────────────────
+1. อ่าน HANDOFF.md — สถานะ tasks ทั้งหมด
+2. อ่าน src/index.ts — entry point (Hono server, WebSocket, static files)
+3. อ่าน src/commands/index.ts — CLI commands ทั้ง 15 ตัว
+4. อ่าน src/api/index.ts — API routers 34+ endpoints
+5. อ่าน src/api/agent-bridge.ts — Agent API (spawn, chat, stop)
+6. อ่าน src/agents/manager.js — AgentManager + AGENT_ROLES
+7. อ่าน public/index.html — Dashboard (static HTML)
+8. อ่าน public/vault.html — Vault dashboard
 
-สร้างไฟล์ใน src/commands/ ทีละตัว:
+════════
+สิ่งที่มีอยู่แล้ว (อย่าสร้างซ้ำ)
+════════
 
-1. /awaken — Identity Setup Ceremony
-   - ถามผู้ใช้ 3 คำถาม: ชื่อ, บุคลิก, สิ่งที่สนใจ
-   - สร้าง ψ/memory/identity.md
-   - บันทึก identity ลง SQLite memory
-   - อ้างอิง 5 principles จาก "รูปสอนสุญญตา"
-   - ดู pattern จาก _ref/oracle-framework/
+CLI Commands (15 ตัว):
+- /awaken — Identity setup ceremony
+- /recap — Session summary
+- /fyi <info> — Save to memory
+- /rrr — Daily retrospective
+- /standup — Daily standup
+- /feel <mood> — Mood logger
+- /forward — Session handoff
+- /trace <query> [--deep|--oracle] — Universal search
+- /learn [repo] — Study repository
+- /who-are-you — Oracle identity
+- /philosophy — 5 Principles + Rule 6
+- /skills — List/search 55 skills
+- /resonance — Capture what resonates
+- /fleet — Fleet census (agents, nodes, skills)
+- /pulse — Project board (add/done/list tasks)
 
-2. /recap — Session Summary
-   - อ่าน memories จาก SQLite (24h ล่าสุด)
-   - สร้าง summary: ทำอะไรไป, เรียนรู้อะไร, ต้องทำต่อ
+API Endpoints:
+- GET /health — Health check
+- GET /api/commands — List commands
+- POST /api/commands/execute — Execute command
+- GET /api/skills — List/search skills
+- GET /api/vault/stats — ψ/ stats
+- GET /api/vault/files — List ψ/ files
+- POST /api/vault/search — Search ψ/ files
+- GET /api/v2/agents — List agents
+- POST /api/v2/agents/spawn — Spawn agent
+- POST /api/v2/agents/:id/chat — Chat with agent
+- ...และอีก 30+ endpoints
 
-3. /fyi <info> — Save to Memory
-   - บันทึกเป็น memory entry (category: note)
-   - auto-tag จาก content
+Dashboard:
+- http://localhost:3456 — Main dashboard (agents, chat, commands, stats)
+- http://localhost:3456/vault — Vault dashboard (ψ/ stats, search, skills, principles)
 
-4. /rrr — Daily Retrospective
-   - สรุปทั้งวันจาก memories + messages + tasks
-   - บันทึก learnings สำคัญ
+ψ/ Structure:
+- ψ/memory/journal/ — Daily journal entries
+- ψ/memory/resonance/ — What resonates
+- ψ/memory/retrospectives/ — RRR entries
+- ψ/memory/handoffs/ — Session handoffs
+- ψ/memory/mood/ — Mood tracking
+- ψ/memory/traces/ — Deep trace logs
+- ψ/memory/pulse/ — Project tasks
 
-5. /standup — Daily Standup
-   - แสดง: tasks pending, ทำเมื่อวาน, blockers
+External References:
+- _ref/skills-cli/ — 55 skills from oracle-skills-cli
+- _ref/oracle-v3/ — Memory patterns from oracle-v3
+- _ref/maw-js/ — Fleet patterns (empty, patterns already adapted)
+- _ref/vault-report/ — Vault patterns (already adapted)
+- _ref/workflow-kit/ — Workflow patterns
+- _ref/claude-code-statusline/ — Statusline patterns
 
-6. /feel <mood> — Mood Logger
-   - เก็บ mood entry, ปรับการทำงานตาม mood
+E2E Tests:
+- test/e2e.mjs — 23/23 tests passed
 
-7. /forward — Session Handoff
-   - สร้าง handoff file ใน ψ/inbox/
-
-8. /trace [query] — Universal Search
-   - ค้นใน git log + grep files + SQLite memory
-   - --deep mode: ค้นเชิงลึก, วิเคราะห์ dependencies
-
-9. /learn [repo] — Study Repository
-   - git clone --depth 1
-   - อ่าน README + package.json + key files
-   - สร้าง summary + บันทึก learnings
-
-10. /who-are-you — Oracle Identity
-    - อ่าน ψ/memory/identity.md
-    - แสดง persona + principles + history
-
-────────────────────────
-BATCH 2: ดึง External Tools เข้ามาใช้ (Adapt ให้เป็นของเรา)
-────────────────────────
-
-ดึง source code จาก repos ภายนอกมาดู แล้ว adapt เข้าระบบเรา:
-
-11. oracle-skills-cli — ดึง 30+ skills มาใช้
-    - Clone: git clone --depth 1 https://github.com/Soul-Brews-Studio/arra-oracle-skills-cli.git /tmp/skills-cli
-    - ดูว่ามี skills อะไรบ้าง
-    - แต่ละ skill = ความสามารถที่เพิ่มให้ agent
-    - แปลงให้ทำงานใน oracle-multi-agent (ไม่ต้องพึ่ง Claude Code)
-    - สร้างเป็น plugins ใน src/plugins/ หรือ tools ใน src/memory/tools/
-
-12. oracle-v3 (memory core) — ดึง memory patterns
-    - Clone: git clone --depth 1 https://github.com/Soul-Brews-Studio/arra-oracle-v3.git /tmp/oracle-v3
-    - ดู MCP server architecture
-    - ดึง patterns มาใช้กับ memory system ของเรา
-
-13. maw-js — ดึง transport + fleet patterns
-    - มีอยู่แล้วใน _ref/maw-js/
-    - ดู CLI commands, fleet management, transport layer
-    - ดึงมาใช้กับ fleet commands ของเรา
-
-14. oracle-vault-report — Integrate เข้า dashboard
-    - มีอยู่แล้วใน _ref/vault-report/
-    - สร้างหน้า Vault ใน dashboard
-    - แสดง: repo count, file count, skills, sync status
-    - สร้าง API endpoint /api/vault/stats
-
-15. pulse-cli — Project Board
-    - สร้าง CLI สำหรับ project board
-    - เชื่อม GitHub Issues API
-    - แสดง timeline, task assignment
-    - สร้าง src/commands/pulse-enhanced.ts
-
-16. multi-agent-workflow-kit — ดู Python patterns
-    - มีอยู่แล้วใน _ref/workflow-kit/
-    - ดู orchestration patterns
-    - แปลงมาเป็น TypeScript
-
-17. claude-code-statusline — Terminal status line
-    - Clone: git clone --depth 1 https://github.com/nazt/claude-code-statusline.git /tmp/statusline
-    - สร้าง status line สำหรับ terminal
-    - แสดง: เวลา, project, agent, context usage
-
-18. หนังสือ "รูปสอนสุญญตา" — ดึง 5 principles
-    - Fetch: https://book.buildwithoracle.com
-    - ดึง 5 principles มาใส่ใน Oracle identity system
-    - ใช้เป็น foundation ของ /awaken
-
-────────────────────────
-BATCH 3: Semantic Search (เปลี่ยน TF-IDF เป็น Embedding จริง)
-────────────────────────
-
-19. npm install @xenova/transformers
-20. แก้ src/memory/vector/factory.ts — ใช้ real embeddings (all-MiniLM-L6-v2)
-21. แก้ src/memory/tools/search.ts — hybrid: FTS5 keyword + vector semantic
-22. ทดสอบ: บันทึก memory หลายๆ ตัว, ค้นหาด้วย semantic query
-
-────────────────────────
-BATCH 4: ψ/ Structure & Vault
-────────────────────────
-
-23. สร้าง ψ/ directory structure (inbox/, memory/, writing/, lab/, outbox/, sessions/, traces/, threads/)
-24. สร้าง Vault API: GET/POST /api/vault/:section
-25. สร้างหน้า Vault ใน dashboard
-
-────────────────────────
-BATCH 5: Production & VPS
-────────────────────────
-
-26. สร้าง docs/VPS-DEPLOY.md
-    - Ubuntu 22.04 setup
-    - Node.js 20 + tmux + git
-    - PM2 setup (มี ecosystem.config.cjs แล้ว)
-    - nginx reverse proxy config
-    - SSL with certbot
-
-27. สร้าง oracle-multi-agent.service (systemd)
-
-28. สร้าง Dockerfile + docker-compose.yml
-
-────────────────────────
-BATCH 6: Testing & Documentation
-────────────────────────
-
-29. End-to-end test: spawn → chat → memory → search → dashboard
-30. API test suite
-31. อัพเดท README.md
+Docs:
+- docs/DEPLOY.md — VPS deploy guide (systemd, Docker, Nginx)
+- docs/HOW-TO-ADD-AGENTS.md — How to add agents
 
 ════════
 วิธีรัน
@@ -172,6 +102,16 @@ npx tsx src/index.ts
 # เปิด http://localhost:3456
 
 ════════
+วิธีเทส
+════════
+
+# เริ่ม server ก่อน
+npx tsx src/index.ts
+
+# แล้วรันเทส (อีก terminal)
+npx tsx test/e2e.mjs
+
+════════
 วิธีอัพขึ้น GitHub
 ════════
 
@@ -181,7 +121,7 @@ git remote set-url origin https://dmz2001TH:TOKEN@github.com/dmz2001TH/oracle-mu
 git push origin main
 git remote set-url origin https://github.com/dmz2001TH/oracle-multi-agent.git
 
-TOKEN = ถามเจ้าของโปรเจ็ค
+TOKEN = ถามเจ้าของโปรเจ็ค อย่า commit token ลง repo
 
 ════════
 สไตล์การทำงานกับเจ้าของโปรเจ็ค
@@ -198,13 +138,12 @@ TOKEN = ถามเจ้าของโปรเจ็ค
 สำคัญ
 ════════
 
-- ทำทีละ batch เสร็จแล้ว commit + push ทุกครั้ง
-- ดึง source code จาก external repos มาดูได้ (git clone --depth 1)
-- Adapt ทุกอย่างให้เข้ากับระบบเรา ไม่ต้อง copy ตรงๆ
+- ทำเสร็จแล้ว commit + push ทุกครั้ง + อัพ HANDOFF.md ด้วย
 - ถ้า TypeScript compile error → แก้ก่อน commit
 - หลักการ: "Nothing is Deleted" — ไม่ลบโค้ดเก่า แต่ปรับปรุงแทน
-- Dashboard = public/index.html (static HTML + React CDN) ไม่ใช่ Vite build — แก้ไขที่นี่โดยตรง
-- WebSocket path ต้องเป็น /ws (แก้แล้ว อย่าเผลอลบ)
-- มี API routers 2 ตัว: src/api/index.ts + src/api/agent-bridge.ts — ระวัง route ชนกัน
-- TOKEN = ถามเจ้าของโปรเจ็ค อย่า commit token ลง repo
+- Dashboard = public/index.html (static HTML) — แก้ไขที่นี่โดยตรง
+- WebSocket path ต้องเป็น /ws
+- มี API routers หลายตัว — ระวัง route ชนกัน
+- อย่า commit token ลง repo
+- รัน E2E tests ก่อน push ทุกครั้ง: npx tsx test/e2e.mjs
 ```

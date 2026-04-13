@@ -10,7 +10,7 @@ AI agents that remember, communicate, and collaborate — with a real-time web d
 
 ## What's New in v5.0
 
-- ⚡ **13 CLI Commands** — `/awaken`, `/recap`, `/fyi`, `/rrr`, `/standup`, `/feel`, `/forward`, `/trace`, `/learn`, `/who-are-you`, `/philosophy`, `/skills`, `/resonance`
+- ⚡ **15 CLI Commands** — `/awaken`, `/recap`, `/fyi`, `/rrr`, `/standup`, `/feel`, `/forward`, `/trace` (smart + deep), `/learn`, `/who-are-you`, `/philosophy`, `/skills`, `/resonance`, `/fleet`, `/pulse`
 - 📋 **55 Skills Registry** — adapted from oracle-skills-cli (identity, session, memory, emotion, dev, github, team, research, automation)
 - 📜 **Oracle 5 Principles** — รูปสอนสุญญตา (Nothing is Deleted, Patterns Over Intentions, External Brain, Curiosity Creates Existence, Form and Formless)
 - 🔐 **ψ/ Knowledge Root** — structured memory tree (resonance, learnings, retrospectives, journal, decisions, handoffs, mood)
@@ -42,12 +42,14 @@ Type in chat (WebSocket) or call via API (`POST /api/commands/execute`):
 | `/standup` | 🧍 Daily standup |
 | `/feel <mood>` | 💭 Mood logger |
 | `/forward` | 🔄 Session handoff |
-| `/trace <query>` | 🔍 Universal search |
+| `/trace <query>` | 🔍 Universal search (smart / --deep / --oracle) |
 | `/learn <repo>` | 📚 Study repository |
 | `/who-are-you` | 🔮 Oracle identity |
 | `/philosophy` | 📜 5 Principles + Rule 6 |
 | `/skills` | 📋 List/search 55 skills |
 | `/resonance` | 🎵 Capture what resonates |
+| `/fleet` | 🚢 Fleet census (agents, nodes, skills) |
+| `/pulse` | 📊 Project board (add/done/list tasks) |
 | `/help` | ❓ Show all commands |
 
 ## Quick Start

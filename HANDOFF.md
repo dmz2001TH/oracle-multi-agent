@@ -24,62 +24,62 @@
 
 | # | Command | สถานะ | ต้องทำ |
 |---|---|---|---|
-| 1 | `/awaken` | ❌ ไม่มี | Identity setup ceremony — สร้าง ψ/memory/identity.md, ถามชื่อ/บุคลิก/ความสนใจ, บันทึกลง SQLite, เชื่อม Oracle family |
-| 2 | `/recap` | ❌ ไม่มี | สรุป session ก่อนหน้า — อ่าน memories 24h ล่าสุด, แสดง: ทำอะไรไป, เรียนรู้อะไร, ต้องทำต่อ |
-| 3 | `/fyi <info>` | ❌ ไม่มี | บันทึกข้อมูลลง memory — auto-tag, auto-category, บันทึกเป็น memory entry |
-| 4 | `/rrr` | ❌ ไม่มี | Retrospective จบวัน — สรุปทั้งวันจาก memories+messages+tasks, บันทึก learnings |
-| 5 | `/standup` | ⚠️ stub | Daily standup — ดึง tasks pending + ทำอะไรเมื่อวาน + blockers |
-| 6 | `/feel <mood>` | ⚠️ stub | บันทึกอารมณ์ — เก็บ mood entry, ปรับการทำงานตาม mood |
-| 7 | `/forward` | ⚠️ partial | Handoff to next session — สร้าง handoff file ใน ψ/inbox/, บันทึก context |
-| 8 | `/trace [query]` | ⚠️ partial | ค้นหาข้อมูลจากทุกที่ — ค้นใน git log + grep files + SQLite memory + traces |
-| 9 | `/trace --deep` | ❌ ไม่มี | Deep trace mode — ค้นเชิงลึก, วิเคราะห์ dependencies, สร้าง graph |
-| 10 | `/learn [repo]` | ⚠️ partial | ศึกษา repo — git clone shallow, อ่าน README+package.json+key files, สร้าง summary |
-| 11 | `/who-are-you` | ❌ ไม่มี | แสดง Oracle identity — อ่าน identity.md, แสดง persona+principles+history |
+| 1 | `/awaken` | ✅ เสร็จ | Identity setup ceremony — สร้าง identity.json, ถามชื่อ/ธาตุ/บทบาท/สโลแกน, รองรับ --force |
+| 2 | `/recap` | ✅ เสร็จ | สรุป session — อ่าน journal entries ย้อนหลัง, แสดง memory files |
+| 3 | `/fyi <info>` | ✅ เสร็จ | บันทึกข้อมูลลง memory — บันทึกเป็น journal + JSONL, dual-write ψ/ |
+| 4 | `/rrr` | ✅ เสร็จ | Retrospective — good/improve/action format, บันทึก ψ/memory/retrospectives/ |
+| 5 | `/standup` | ✅ เสร็จ | Daily standup — yesterday/today/blocker format |
+| 6 | `/feel <mood>` | ✅ เสร็จ | บันทึกอารมณ์ — mood log JSONL, นับ entries ต่อวัน |
+| 7 | `/forward` | ✅ เสร็จ | Handoff — สร้าง handoff JSON, dual-write ψ/memory/handoffs/ |
+| 8 | `/trace [query]` | ✅ เสร็จ | Universal search — ค้น journal + FYI + handoffs |
+| 9 | `/trace --deep` | ⚠️ ยังไม่มี | Deep trace mode — ค้นเชิงลึก, วิเคราะห์ dependencies |
+| 10 | `/learn [repo]` | ✅ เสร็จ | ศึกษา repo — git clone shallow, analyze structure, สร้าง summary |
+| 11 | `/who-are-you` | ✅ เสร็จ | แสดง Oracle identity — uptime, agents, memories, identity |
 
 ### Batch 2: ดึง External Tools เข้ามาใช้
 
-| # | Tool | ที่มา | ต้องทำ |
+| # | Tool | ที่มา | สถานะ |
 |---|---|---|---|
-| 12 | **oracle-skills-cli** | https://github.com/Soul-Brews-Studio/arra-oracle-skills-cli | Clone มา, ดูว่ามี skills อะไรบ้าง (30+), ปรับแต่ละ skill ให้ทำงานใน oracle-multi-agent ได้ (ไม่ต้องพึ่ง Claude Code), สร้างเป็น plugins หรือ commands |
-| 13 | **oracle-v2 (memory core)** | https://github.com/Soul-Brews-Studio/arra-oracle-v3 | ดู MCP server architecture, ดึง memory patterns มาใช้, เชื่อมกับ memory system ของเรา |
-| 14 | **maw-js** | `_ref/maw-js/` | ดู transport + fleet + CLI patterns, ดึงมาใช้กับ fleet commands ของเรา |
-| 15 | **oracle-vault-report** | `_ref/vault-report/` | Integrate เข้า dashboard — สร้างหน้า Vault แสดง stats: repo count, file count, skills, sync status |
-| 16 | **pulse-cli** | ดูจากคู่มือ | สร้าง CLI standalone สำหรับ project board — connect GitHub Issues, timeline, task assignment |
-| 17 | **multi-agent-workflow-kit** | `_ref/workflow-kit/` | ดู Python patterns, แปลงมาเป็น TypeScript implementations |
-| 18 | **claude-code-statusline** | https://github.com/nazt/claude-code-statusline | สร้าง status line สำหรับ terminal — แสดงเวลา, project, agent, context usage |
-| 19 | **หนังสือ "รูปสอนสุญญตา"** | https://book.buildwithoracle.com | ดึง 5 principles มาใส่ใน Oracle identity system, ใช้เป็น foundation ของ /awaken |
+| 12 | **oracle-skills-cli** | Soul-Brews-Studio/arra-oracle-skills-cli | ✅ 55 skills registry (src/skills/registry.ts) |
+| 13 | **oracle-v3** | Soul-Brews-Studio/arra-oracle-v3 | ✅ memory patterns, architecture reference |
+| 14 | **maw-js** | _ref/maw-js/ | ⚠️ cloned แต่ยังไม่ได้ดึง patterns |
+| 15 | **oracle-vault-report** | _ref/vault-report/ | ✅ Vault dashboard (public/vault.html + /api/vault/*) |
+| 16 | **pulse-cli** | — | ⚠️ ยังไม่ได้สร้าง standalone CLI |
+| 17 | **multi-agent-workflow-kit** | _ref/workflow-kit/ | ⚠️ cloned แต่ยังไม่ได้ดึง patterns |
+| 18 | **claude-code-statusline** | nazt/claude-code-statusline | ⚠️ cloned แต่ยังไม่ได้ adapt |
+| 19 | **หนังสือ "รูปสอนสุญญตา"** | book.buildwithoracle.com | ✅ 5 principles + Rule 6 (src/knowledge/oracle-principles.md, /philosophy command) |
 
 ### Batch 3: Semantic Search (เปลี่ยน TF-IDF เป็น Embedding จริง)
 
-| # | Task | ต้องทำ |
+| # | Task | สถานะ |
 |---|---|---|
-| 20 | **Install embedding model** | ใช้ `@xenova/transformers` (all-MiniLM-L6-v2) หรือ Ollama embeddings — ไม่ต้อง external server |
-| 21 | **Replace vector store** | แก้ `src/memory/vector/factory.ts` — ใช้ real embeddings แทน TF-IDF |
-| 22 | **Update search tool** | แก้ `src/memory/tools/search.ts` — hybrid search: FTS5 keyword + vector semantic |
+| 20 | **Install embedding model** | ✅ @xenova/transformers ติดตั้งแล้ว |
+| 21 | **Replace vector store** | ✅ factory.ts — real cosine similarity + TF-IDF fallback |
+| 22 | **Update search tool** | ✅ hybrid FTS5 + vector search |
 
 ### Batch 4: ψ/ Structure & Oracle Vault
 
-| # | Task | ต้องทำ |
+| # | Task | สถานะ |
 |---|---|---|
-| 23 | **ψ/ structure** | สร้างโครงสร้างครบ: inbox/, memory/, writing/, lab/, outbox/, sessions/, traces/, threads/ |
-| 24 | **Vault API** | สร้าง API สำหรับจัดการ ψ/ — list, read, write, search |
-| 25 | **Vault dashboard** | สร้างหน้า Vault ใน dashboard แสดง content ทั้งหมด |
+| 23 | **ψ/ structure** | ✅ memory/resonance, learnings, retrospectives, journal, decisions, handoffs, mood |
+| 24 | **Vault API** | ✅ GET /api/vault/stats, /files, /file + POST /search |
+| 25 | **Vault dashboard** | ✅ public/vault.html (stats, search, skills, principles) |
 
 ### Batch 5: VPS & Production
 
-| # | Task | ต้องทำ |
+| # | Task | สถานะ |
 |---|---|---|
-| 26 | **VPS deploy guide** | สร้าง docs/VPS-DEPLOY.md — Ubuntu setup, PM2, nginx reverse proxy, tmux |
-| 27 | **systemd service** | สร้าง oracle-multi-agent.service สำหรับ auto-start |
-| 28 | **Docker** | สร้าง Dockerfile + docker-compose.yml |
+| 26 | **VPS deploy guide** | ✅ docs/DEPLOY.md (systemd, Docker, Docker Compose, Nginx) |
+| 27 | **systemd service** | ✅ included in DEPLOY.md |
+| 28 | **Docker** | ✅ Dockerfile + docker-compose.yml in DEPLOY.md |
 
 ### Batch 6: Integration & Testing
 
-| # | Task | ต้องทำ |
+| # | Task | สถานะ |
 |---|---|---|
-| 29 | **End-to-end test** | ทดสอบ spawn → chat → memory → search → dashboard ทั้งหมด |
-| 30 | **API test suite** | สร้าง test สำหรับทุก endpoint |
-| 31 | **README update** | อัพเดท README.md ให้ตรงกับสถานะปัจจุบัน |
+| 29 | **End-to-end test** | ✅ test/e2e.mjs — 20/20 tests passed |
+| 30 | **API test suite** | ✅ ครอบคลุม health, commands, skills, vault, agents, dashboard |
+| 31 | **README update** | ✅ CLI commands table, new API endpoints, testing section |
 
 ## Architecture
 

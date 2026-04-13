@@ -16,3 +16,4 @@ Desktop.ini
 *.dll
 *.pdb
 .env.local
+src/dashboard/dist

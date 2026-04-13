@@ -7,6 +7,7 @@
 
 import 'dotenv/config';
 import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { loadConfig } from './config.js';
@@ -16,6 +17,9 @@ import { api } from './api/index.js';
 import { mountViews } from './views/index.js';
 import { agentBridgeApi } from './api/agent-bridge.js';
 import { memoryBridgeApi } from './api/memory-bridge.js';
+import { join, dirname } from 'path';
+import { existsSync } from 'fs';
+import { fileURLToPath } from 'url';
 
 const config = loadConfig();
 const processManager = createProcessManager();
@@ -33,6 +37,19 @@ app.route('/', memoryBridgeApi);
 
 // Views (demo, federation, timemachine)
 mountViews(app);
+
+// Dashboard — serve built React app from /dashboard/dist
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DASHBOARD_DIST = join(__dirname, 'dashboard', 'dist');
+const hasDist = existsSync(DASHBOARD_DIST);
+
+if (hasDist) {
+  // Serve static assets
+  app.get('/assets/*', serveStatic({ root: DASHBOARD_DIST }));
+  // Serve HTML pages
+  app.get('/', serveStatic({ path: 'index.html', root: DASHBOARD_DIST }));
+  app.get('/*.html', serveStatic({ root: DASHBOARD_DIST }));
+}
 
 // Health endpoint
 app.get('/health', (c) => c.json({
@@ -64,7 +81,11 @@ console.log(`   pid: ${process.pid}`);
 
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`   listening on http://0.0.0.0:${info.port}`);
-  console.log(`   dashboard: cd src/dashboard && npx vite (port 5173)`);
+  if (hasDist) {
+    console.log(`   dashboard: http://0.0.0.0:${info.port}`);
+  } else {
+    console.log(`   dashboard: cd src/dashboard && npx vite (port 5173)`);
+  }
   console.log(`\n   📡 v2 API ready:`);
   console.log(`      POST /api/v2/agents/spawn   — spawn agent`);
   console.log(`      GET  /api/v2/agents          — list agents`);

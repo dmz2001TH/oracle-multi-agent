@@ -22,8 +22,8 @@ const processType = hasTmux() ? 'tmux' : 'node-pty';
 const app = new Hono();
 app.use('*', cors());
 
-// API routes
-app.route('/api', api);
+// API routes — sub-routers already include /api/ prefix
+app.route('/', api);
 // Views (demo, federation, timemachine)
 mountViews(app);
 

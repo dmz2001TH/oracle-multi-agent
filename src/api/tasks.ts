@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, unlink
 import { join } from "path";
 import { homedir } from "os";
 import type { Task, CreateTaskInput, UpdateTaskInput, TaskStatus } from "../lib/schemas.js";
+import { validateBody, schemas } from "../lib/validate.js";
 
 export const tasksApi = new Hono();
 
@@ -71,9 +72,11 @@ tasksApi.get("/api/tasks/:id", (c) => {
   return c.json(task);
 });
 
-// Create task (TaskCreate)
+// Create task (TaskCreate, validated)
 tasksApi.post("/api/tasks", async (c) => {
-  const input: CreateTaskInput = await c.req.json();
+  const input = await c.req.json();
+  const check = validateBody(input, schemas.createTask);
+  if (check.error) return c.json({ error: check.error }, 400);
   const id = nextId();
   const now = new Date().toISOString();
 
@@ -99,12 +102,14 @@ tasksApi.post("/api/tasks", async (c) => {
   return c.json(task, 201);
 });
 
-// Update task (TaskUpdate)
+// Update task (TaskUpdate, validated)
 tasksApi.patch("/api/tasks/:id", async (c) => {
   const task = loadTask(c.req.param("id"));
   if (!task) return c.json({ error: "task not found" }, 404);
 
-  const input: UpdateTaskInput = await c.req.json();
+  const input = await c.req.json();
+  const check = validateBody(input, schemas.updateTask);
+  if (check.error) return c.json({ error: check.error }, 400);
 
   // Check blockedBy before allowing claim
   if (input.status === "in_progress" && task.blockedBy?.length) {

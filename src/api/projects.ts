@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, unlink
 import { join } from "path";
 import { homedir } from "os";
 import type { Project, Task } from "../lib/schemas.js";
+import { validateBody, schemas } from "../lib/validate.js";
 
 export const projectsApi = new Hono();
 
@@ -39,13 +40,11 @@ function loadTask(id: string): Task | null {
   try { return JSON.parse(readFileSync(join(TASKS_DIR, `${id}.json`), "utf-8")); } catch { return null; }
 }
 
-// Create project
+// Create project (validated)
 projectsApi.post("/api/projects", async (c) => {
   const input = await c.req.json();
-
-  if (!input.name) {
-    return c.json({ error: "name is required" }, 400);
-  }
+  const check = validateBody(input, schemas.createProject);
+  if (check.error) return c.json({ error: check.error }, 400);
 
   if (loadProject(input.name)) {
     return c.json({ error: `project "${input.name}" already exists` }, 409);
@@ -148,4 +147,40 @@ projectsApi.delete("/api/projects/:name/tasks/:taskId", (c) => {
   saveProject(project);
 
   return c.json(project);
+});
+
+// Auto-organize: scan unassigned tasks and group by owner/team
+projectsApi.post("/api/projects/:name/auto-organize", (c) => {
+  const project = loadProject(c.req.param("name"));
+  if (!project) return c.json({ error: "project not found" }, 404);
+
+  ensureDir();
+  const tasksDir = TASKS_DIR;
+  if (!existsSync(tasksDir)) return c.json({ project, added: 0, message: "no tasks found" });
+
+  const files = readdirSync(tasksDir).filter(f => f.endsWith(".json"));
+  const allTasks: Task[] = files
+    .map(f => { try { return JSON.parse(readFileSync(join(tasksDir, f), "utf-8")); } catch { return null; } })
+    .filter(Boolean) as Task[];
+
+  // Find tasks that match this project (by team or unassigned, pending status)
+  const existingIds = new Set(project.tasks);
+  let added = 0;
+
+  for (const task of allTasks) {
+    if (existingIds.has(task.id)) continue;
+    // Auto-match: tasks with same team as project name, or unassigned pending tasks
+    if (task.status === "pending" && (!task.team || task.team === project.name)) {
+      project.tasks.push(task.id);
+      existingIds.add(task.id);
+      added++;
+    }
+  }
+
+  if (added > 0) {
+    project.updatedAt = new Date().toISOString();
+    saveProject(project);
+  }
+
+  return c.json({ project, added, message: added > 0 ? `organized ${added} tasks into "${project.name}"` : "no new tasks to organize" });
 });

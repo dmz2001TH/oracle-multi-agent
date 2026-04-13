@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, unlink
 import { join } from "path";
 import { homedir } from "os";
 import type { ThinkProposal } from "../lib/schemas.js";
+import { validateBody, schemas } from "../lib/validate.js";
 
 export const thinkApi = new Hono();
 
@@ -38,13 +39,11 @@ function loadProposal(id: string): ThinkProposal | null {
   try { return JSON.parse(readFileSync(proposalPath(id), "utf-8")); } catch { return null; }
 }
 
-// Create proposal
+// Create proposal (validated)
 thinkApi.post("/api/think", async (c) => {
   const input = await c.req.json();
-
-  if (!input.title || !input.oracle) {
-    return c.json({ error: "title and oracle are required" }, 400);
-  }
+  const check = validateBody(input, schemas.thinkProposal);
+  if (check.error) return c.json({ error: check.error }, 400);
 
   const proposal: ThinkProposal = {
     id: nextId(),
@@ -70,6 +69,7 @@ thinkApi.get("/api/think", (c) => {
 
   const oracle = c.req.query("oracle");
   const status = c.req.query("status");
+  const oracles = c.req.query("oracles"); // comma-separated: ?oracles=dev,qa,admin
 
   const files = readdirSync(THINK_DIR).filter(f => f.endsWith(".json"));
   let proposals: ThinkProposal[] = files
@@ -79,6 +79,10 @@ thinkApi.get("/api/think", (c) => {
     .filter(Boolean) as ThinkProposal[];
 
   if (oracle) proposals = proposals.filter(p => p.oracle === oracle);
+  if (oracles) {
+    const oracleList = oracles.split(",").map(s => s.trim()).filter(Boolean);
+    proposals = proposals.filter(p => oracleList.includes(p.oracle));
+  }
   if (status) proposals = proposals.filter(p => p.status === status);
 
   proposals.sort((a, b) => b.ts.localeCompare(a.ts));

@@ -21,26 +21,40 @@ export async function cmdMeetingCreate(args: string[]) {
   }
 
   if (!topicParts.length) {
-    console.error("usage: oracle meeting create \"topic\" [--participants dev,qa,admin]");
+    console.error("usage: oracle meeting create \"topic\" [--participants dev,qa,admin] [--dry-run]");
     process.exit(1);
   }
 
   const topic = topicParts.join(" ");
   let participants: string[] = [];
+  let dryRun = false;
   const flags = args.slice(i);
   for (let j = 0; j < flags.length; j++) {
     if (flags[j] === "--participants" && flags[j + 1]) {
       participants = flags[++j].split(",").map(s => s.trim());
+    } else if (flags[j] === "--dry-run" || flags[j] === "--dry") {
+      dryRun = true;
     }
   }
 
   try {
-    const meeting = await maw.fetch<Meeting>("/api/meetings", {
+    const query = dryRun ? "?dry=true" : "";
+    const res = await maw.fetch<any>(`/api/meetings${query}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topic, participants }),
     });
-    console.log(`\x1b[32m✓\x1b[0m Meeting #${meeting.id}: "${topic}"`);
+
+    if (dryRun) {
+      console.log(`\x1b[36m── DRY RUN ──\x1b[0m`);
+      console.log(`  topic: ${topic}`);
+      console.log(`  participants: ${participants.join(", ") || "none"}`);
+      console.log(`  status: scheduled`);
+      console.log(`\x1b[90m  (use without --dry-run to create)\x1b[0m\n`);
+      return;
+    }
+
+    console.log(`\x1b[32m✓\x1b[0m Meeting #${res.id}: "${topic}"`);
     if (participants.length) console.log(`  participants: ${participants.join(", ")}`);
   } catch (err: any) {
     console.error(`error: ${err.message}`);

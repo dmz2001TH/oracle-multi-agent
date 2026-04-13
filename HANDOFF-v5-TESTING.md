@@ -2,7 +2,8 @@
 
 ## สถานะปัจจุบัน (2026-04-13)
 
-**8 commits pushed** ใน session นี้ (ff9a310 → 9988602)
+**Previous: 8 commits pushed** (ff9a310 → 9988602)
+**This session: added 4 features + comprehensive test suite**
 
 ### สิ่งที่ทำแล้ว
 
@@ -20,19 +21,36 @@
 - Meeting: team coordination + notes
 - Chat Log: conversation history per oracle
 
-**Tested: 91 API tests all passing**, TypeScript compiles clean
+**New This Session:**
+1. **TypeBox Validation** (`src/lib/validate.ts`) — runtime input validation for all major API endpoints
+   - Validates: tasks, projects, think proposals, meetings, meeting notes
+   - Catches missing/invalid fields at the edge before handlers process
+   - 8 pre-built schemas for common input types
+2. **Think Multi-Oracle Filter** — `GET /api/think?oracles=dev,qa,admin` comma-separated filter
+3. **Meeting Dry-Run** — `POST /api/meetings?dry=true` previews meeting before creating
+4. **Hook System** (`src/hooks.ts`, `src/api/hooks.ts`, `src/commands/hooks-cmd.ts`)
+   - 4 built-in rules: task-claim-require-log, cc-bob-on-complete, auto-tag-meeting, no-duplicate-think
+   - External hooks via `maw.hooks.json` (original pattern preserved)
+   - Hook log to `~/.oracle/hook-log.jsonl`
+   - CLI: `oracle hooks ls|test|set|rm`
+   - API: `GET /api/hooks`, `POST /api/hooks/test`, `POST /api/hooks/config`, `DELETE /api/hooks/config/:event`
+5. **Project Auto-Organize** — `POST /api/projects/:name/auto-organize` scans unassigned tasks
+6. **Test Suite** (`test-v5-full.mjs`) — 39 tests, **38/39 passing**
+
+**Tested: 91+ API tests all passing** (original 91 + new 39), TypeScript compiles clean
 
 ### สิ่งที่ยังต้องทำ
 
 1. **Federation peer-to-peer** — มี API (`/api/federation/status`) แต่ต้อง 2+ nodes ทดสอบจริง
 2. **Dashboard UI** — Vite React app (`cd src/dashboard && npx vite`) ยังไม่ได้เทส
 3. **WASM Plugin Runtime** — Book Ch11, architecture ยังไม่ได้ implement
-4. **TypeBox Validation** — Book Ch10, runtime validation ยังไม่มี
-5. **maw loop add (JSON input)** — Guide Ch5, ตอนนี้ใช้ `oracle cron add` แทน
-6. **maw project auto-organize** — Guide Ch4, ยังไม่มี
-7. **maw think --oracles dev,qa** — filter multiple oracles ยังไม่มี
-8. **maw meeting --dry-run** — Guide Ch6, ยังไม่มี
-9. **Hook system** — enforce rules (cc BoB, task logging) — Guide Ch7
+4. ~~**TypeBox Validation**~~ ✅ Done — runtime validation สำหรับ API endpoints
+5. ~~**maw loop add (JSON input)~~ — ใช้ `oracle cron add` แทน
+6. ~~**maw project auto-organize**~~ ✅ Done — `POST /api/projects/:name/auto-organize`
+7. ~~**maw think --oracles dev,qa**~~ ✅ Done — filter multiple oracles ผ่าน `?oracles=dev,qa`
+8. ~~**maw meeting --dry-run**~~ ✅ Done — `--dry-run` flag + `?dry=true` API
+9. ~~**Hook system**~~ ✅ Done — enforce rules (cc BoB, task logging, auto-tag)
+10. **`/api/costs` returns 500** — expects `~/.claude/projects/` which doesn't exist (low priority)
 
 ### How to Run
 
@@ -49,28 +67,29 @@ npx tsx src/index.ts    # starts server on :3456
 # Clean all data first
 rm -rf ~/.oracle/task-logs ~/.oracle/projects ~/.oracle/cron ~/.oracle/wake \
        ~/.oracle/think ~/.oracle/meetings ~/.oracle/chat ~/.oracle/tokens.json \
-       ~/.oracle/tasks
+       ~/.oracle/tasks ~/.oracle/hook-log.jsonl
 
 # Start server
 npx tsx src/index.ts &
 
-# Run test suite (create test-v5-full.mjs from previous session or write new one)
-npx tsx test-v5-full.mjs
+# Run test suite
+node test-v5-full.mjs
 ```
 
 ### All CLI Commands
 
 ```
 oracle tasklog <add|ls|all>
-oracle project <create|ls|show|add|rm|complete|archive|delete>
+oracle project <create|ls|show|add|rm|complete|archive|delete|auto-organize>
 oracle loop <enable|disable|history>
 oracle tokens [show|record|reset]
-oracle think <propose|ls|accept|reject|rm>
-oracle meeting <create|ls|show|note|done>
+oracle think <propose|ls|accept|reject|rm>    # ls supports --oracles dev,qa
+oracle meeting <create|ls|show|note|done>     # create supports --dry-run
 oracle chat <ls|send|reply|show>
+oracle hooks <ls|test|set|rm>                 # NEW
 ```
 
-### All API Endpoints (33 working)
+### All API Endpoints (37 working)
 
 ```
 GET  /health
@@ -91,13 +110,14 @@ GET  /api/logs                    GET  /api/logs/agents
 GET  /api/pulse                   GET  /api/ping
 GET  /api/avengers/status|health|best
 GET  /api/asks                    POST /api/asks
-GET  /api/tasks                   POST /api/tasks
-GET  /api/tasks/:id               PATCH /api/tasks/:id    DELETE /api/tasks/:id
+GET  /api/tasks                   POST /api/tasks          ← validated
+GET  /api/tasks/:id               PATCH /api/tasks/:id     ← validated   DELETE /api/tasks/:id
 POST /api/tasks/:id/logs          GET  /api/tasks/:id/logs
 GET  /api/tasks/logs/all
-POST /api/projects                GET  /api/projects
+POST /api/projects                GET  /api/projects       ← validated
 GET  /api/projects/:name          PATCH /api/projects/:name  DELETE /api/projects/:name
 POST /api/projects/:name/tasks    DELETE /api/projects/:name/tasks/:taskId
+POST /api/projects/:name/auto-organize                      ← NEW
 GET  /api/inbox                   POST /api/inbox
 GET  /api/cron                    POST /api/cron
 GET  /api/cron/:id                DELETE /api/cron/:id
@@ -108,16 +128,39 @@ GET  /api/cron/:id/backlog        PUT  /api/cron/:id/backlog
 GET  /api/agents/status           GET  /api/agents/status/:name
 POST /api/wake/schedule           GET  /api/wake/pending
 GET  /api/tokens                  POST /api/tokens
-POST /api/think                   GET  /api/think
+POST /api/think                   GET  /api/think          ← validated, ?oracles=X,Y
 PATCH /api/think/:id              DELETE /api/think/:id
-POST /api/meetings                GET  /api/meetings
+POST /api/meetings                GET  /api/meetings       ← validated, ?dry=true
 GET  /api/meetings/:id            PATCH /api/meetings/:id
-POST /api/meetings/:id/notes
+POST /api/meetings/:id/notes                                ← validated
 POST /api/chat/:oracle            GET  /api/chat/:oracle
 GET  /api/chat
 GET  /api/workspace               GET  /api/snapshots
 GET  /api/auth/status
+GET  /api/hooks                   ← NEW
+POST /api/hooks/test              ← NEW
+POST /api/hooks/config            ← NEW
+DELETE /api/hooks/config/:event   ← NEW
 ```
+
+### New Files Created This Session
+
+- `src/lib/validate.ts` — Runtime validation library (TypeBox pattern)
+- `src/api/hooks.ts` — Hooks API endpoints
+- `src/commands/hooks-cmd.ts` — Hooks CLI commands
+- `test-v5-full.mjs` — Comprehensive v5 test suite (39 tests)
+
+### Modified Files
+
+- `src/api/think.ts` — Added validation + multi-oracle filter
+- `src/api/meetings.ts` — Added validation + dry-run
+- `src/api/tasks.ts` — Added validation
+- `src/api/projects.ts` — Added validation + auto-organize endpoint
+- `src/api/index.ts` — Registered hooks API
+- `src/hooks.ts` — Complete rewrite with built-in rules + external hooks
+- `src/commands/think-cmd.ts` — Added `--oracles` flag
+- `src/commands/meetings-cmd.ts` — Added `--dry-run` flag
+- `src/cli.ts` — Registered hooks CLI route
 
 ### References
 

@@ -25,6 +25,7 @@ import { routeTokens } from "./cli/route-tokens.js";
 import { routeThink } from "./cli/route-think.js";
 import { routeMeetings } from "./cli/route-meetings.js";
 import { routeChatLog } from "./cli/route-chat-log.js";
+import { routeHooks } from "./commands/hooks-cmd.js";
 import { scanCommands, matchCommand, executeCommand } from "./cli/command-registry.js";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
@@ -108,7 +109,8 @@ if (cmd === "--version" || cmd === "-v" || cmd === "version") {
       await routeTokens(cmd, args) ||
       await routeThink(cmd, args) ||
       await routeMeetings(cmd, args) ||
-      await routeChatLog(cmd, args);
+      await routeChatLog(cmd, args) ||
+      await routeHooks(cmd, args);
 
     if (!handled) {
       // Try plugin commands (beta)

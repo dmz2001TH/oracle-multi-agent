@@ -59,6 +59,7 @@ export async function cmdThinkList(args: string[]) {
   const params = new URLSearchParams();
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--oracle" && args[i + 1]) params.set("oracle", args[++i]);
+    else if (args[i] === "--oracles" && args[i + 1]) params.set("oracles", args[++i]);
     else if (args[i] === "--status" && args[i + 1]) params.set("status", args[++i]);
   }
 

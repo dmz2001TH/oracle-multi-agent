@@ -34,6 +34,7 @@ import { tokensApi } from "./tokens.js";
 import { thinkApi } from "./think.js";
 import { meetingsApi } from "./meetings.js";
 import { chatLogApi } from "./chat-log.js";
+import { hooksApi } from "./hooks.js";
 
 export const api = new Hono();
 
@@ -68,3 +69,4 @@ api.route("/", tokensApi);
 api.route("/", thinkApi);
 api.route("/", meetingsApi);
 api.route("/", chatLogApi);
+api.route("/", hooksApi);

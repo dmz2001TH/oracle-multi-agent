@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 
 import { join } from "path";
 import { homedir } from "os";
 import type { Meeting } from "../lib/schemas.js";
+import { validateBody, schemas } from "../lib/validate.js";
 
 export const meetingsApi = new Hono();
 
@@ -39,18 +40,33 @@ function loadMeeting(id: string): Meeting | null {
   try { return JSON.parse(readFileSync(meetingPath(id), "utf-8")); } catch { return null; }
 }
 
-// Create meeting
+// Create meeting (validated)
 meetingsApi.post("/api/meetings", async (c) => {
   const input = await c.req.json();
+  const check = validateBody(input, schemas.meetingCreate);
+  if (check.error) return c.json({ error: check.error }, 400);
 
-  if (!input.topic) {
-    return c.json({ error: "topic is required" }, 400);
+  const dryRun = c.req.query("dry") === "true";
+  const topic = input.topic;
+  const participants = input.participants || [];
+
+  if (dryRun) {
+    return c.json({
+      dryRun: true,
+      preview: {
+        topic,
+        participants,
+        status: "scheduled",
+        ts: new Date().toISOString(),
+        _message: `Meeting would be created: "${topic}" with ${participants.length} participants`,
+      },
+    });
   }
 
   const meeting: Meeting = {
     id: nextId(),
-    topic: input.topic,
-    participants: input.participants || [],
+    topic,
+    participants,
     status: "scheduled",
     notes: "",
     ts: new Date().toISOString(),
@@ -86,12 +102,16 @@ meetingsApi.get("/api/meetings/:id", (c) => {
   return c.json(meeting);
 });
 
-// Add notes
+// Add notes (validated)
 meetingsApi.post("/api/meetings/:id/notes", async (c) => {
   const meeting = loadMeeting(c.req.param("id"));
   if (!meeting) return c.json({ error: "meeting not found" }, 404);
 
-  const { note, author } = await c.req.json();
+  const body = await c.req.json();
+  const check = validateBody(body, schemas.meetingNote);
+  if (check.error) return c.json({ error: check.error }, 400);
+
+  const { note, author } = body;
   const timestamp = new Date().toLocaleTimeString();
   const prefix = author ? `[${author} ${timestamp}]` : `[${timestamp}]`;
   meeting.notes += `${prefix} ${note}\n`;

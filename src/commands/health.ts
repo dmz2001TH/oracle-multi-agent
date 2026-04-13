@@ -2,22 +2,69 @@ import { execSync } from "child_process";
 import { loadConfig, cfgTimeout } from "../config.js";
 import { curlFetch } from "../curl-fetch.js";
 import { tmux } from "../tmux.js";
+import { hasTmux, devNull, isWindows } from "../platform.js";
+
+function getDiskInfo(): { status: string; detail: string } {
+  try {
+    if (isWindows) {
+      const out = execSync("wmic logicaldisk get size,freespace,caption 2>NUL", { encoding: "utf-8" }).trim();
+      const lines = out.split("\n").filter(l => l.trim() && !/Caption/i.test(l));
+      if (lines.length > 0) {
+        const parts = lines[0].trim().split(/\s+/);
+        const freeGB = Math.round(parseInt(parts[1] || "0") / 1e9);
+        return { status: freeGB < 5 ? "warn" : "ok", detail: `${freeGB}GB free` };
+      }
+      return { status: "warn", detail: "unknown" };
+    }
+    const df = execSync("df -h /tmp | tail -1", { encoding: "utf-8" }).trim();
+    const parts = df.split(/\s+/);
+    const avail = parts[3] || "?";
+    const pct = parseInt(parts[4] || "0");
+    return { status: pct > 90 ? "warn" : "ok", detail: `${avail} free` };
+  } catch {
+    return { status: "warn", detail: "unknown" };
+  }
+}
+
+function getMemoryInfo(): { status: string; detail: string } {
+  try {
+    if (isWindows) {
+      const out = execSync("wmic os get FreePhysicalMemory /value 2>NUL", { encoding: "utf-8" }).trim();
+      const match = out.match(/FreePhysicalMemory=(\d+)/);
+      if (match) {
+        const availMB = Math.round(parseInt(match[1]) / 1024);
+        return { status: availMB < 500 ? "warn" : "ok", detail: `${availMB}MB available` };
+      }
+      return { status: "warn", detail: "unknown" };
+    }
+    const mem = execSync("free -m | grep Mem", { encoding: "utf-8" }).trim();
+    const parts = mem.split(/\s+/);
+    const avail = parseInt(parts[6] || "0");
+    return { status: avail < 500 ? "warn" : "ok", detail: `${avail}MB available` };
+  } catch {
+    return { status: "warn", detail: "unknown" };
+  }
+}
 
 export async function cmdHealth() {
   const checks: { name: string; status: string; detail: string }[] = [];
 
   // 1. tmux
-  try {
-    const sessions = await tmux.listSessions();
-    checks.push({ name: "tmux server", status: "ok", detail: `running (${sessions.length} sessions)` });
-  } catch {
-    checks.push({ name: "tmux server", status: "fail", detail: "not running" });
+  if (hasTmux()) {
+    try {
+      const sessions = await tmux.listSessions();
+      checks.push({ name: "tmux server", status: "ok", detail: `running (${sessions.length} sessions)` });
+    } catch {
+      checks.push({ name: "tmux server", status: "fail", detail: "not running" });
+    }
+  } else {
+    checks.push({ name: "tmux server", status: "none", detail: "not available (using node-pty)" });
   }
 
   // 2. maw server
   try {
     const config = loadConfig();
-    const port = loadConfig().port;
+    const port = config.port;
     const res = await fetch(`http://localhost:${port}/api/sessions`, { signal: AbortSignal.timeout(cfgTimeout("health")) });
     if (res.ok) {
       const data = await res.json();
@@ -31,29 +78,14 @@ export async function cmdHealth() {
   }
 
   // 3. disk
-  try {
-    const df = execSync("df -h /tmp | tail -1", { encoding: "utf-8" }).trim();
-    const parts = df.split(/\s+/);
-    const avail = parts[3] || "?";
-    const pct = parseInt(parts[4] || "0");
-    checks.push({ name: "disk /tmp", status: pct > 90 ? "warn" : "ok", detail: `${avail} free` });
-  } catch {
-    checks.push({ name: "disk /tmp", status: "warn", detail: "unknown" });
-  }
+  checks.push({ name: "disk", ...getDiskInfo() });
 
   // 4. memory
-  try {
-    const mem = execSync("free -m | grep Mem", { encoding: "utf-8" }).trim();
-    const parts = mem.split(/\s+/);
-    const avail = parseInt(parts[6] || "0");
-    checks.push({ name: "memory", status: avail < 500 ? "warn" : "ok", detail: `${avail}MB available` });
-  } catch {
-    checks.push({ name: "memory", status: "warn", detail: "unknown" });
-  }
+  checks.push({ name: "memory", ...getMemoryInfo() });
 
   // 5. pm2
   try {
-    const pm2 = execSync("pm2 jlist 2>/dev/null", { encoding: "utf-8" });
+    const pm2 = execSync(`pm2 jlist 2>${devNull}`, { encoding: "utf-8" });
     const procs = JSON.parse(pm2);
     const maw = procs.find((p: any) => p.name === "maw");
     if (maw) {

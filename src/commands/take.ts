@@ -1,6 +1,7 @@
 import { listSessions, hostExec } from "../ssh.js";
 import { tmux } from "../tmux.js";
 import { buildCommandInDir } from "../config.js";
+import { hasTmux } from "../platform.js";
 
 /**
  * maw take <source-session>:<window> [target-session]
@@ -8,9 +9,17 @@ import { buildCommandInDir } from "../config.js";
  * Vesicle transport — move a tmux window from one oracle session to another.
  * If target-session is omitted, uses the current tmux session.
  *
+ * Note: requires tmux. Not available on Windows without WSL.
+ *
  * The window's worktree/cwd stays the same. Only the tmux home changes.
  */
 export async function cmdTake(source: string, targetSession?: string) {
+  if (!hasTmux()) {
+    console.error("\x1b[31merror\x1b[0m: 'take' requires tmux (not available on this platform)");
+    console.error("  hint: install tmux or use WSL on Windows");
+    process.exit(1);
+  }
+
   // Parse source — "neo:skills-cli" or "neo:3"
   const [srcSession, srcWindow] = source.includes(":") ? source.split(":", 2) : [source, ""];
 

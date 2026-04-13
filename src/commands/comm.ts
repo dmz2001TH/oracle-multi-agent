@@ -162,7 +162,8 @@ function resolveMyName(config: ReturnType<typeof loadConfig>): string {
     const tmuxSession = execSync("tmux display-message -p '#{session_name}'", { encoding: "utf-8" }).trim();
     if (tmuxSession) return tmuxSession.replace(/^\d+-/, "");
   } catch {}
-  return config.node || "cli";
+  // Fallback: hostname or node name
+  return config.node || require("os").hostname() || "local";
 }
 
 export async function cmdSend(query: string, message: string, force = false) {

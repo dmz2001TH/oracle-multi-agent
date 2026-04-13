@@ -4,9 +4,14 @@ import { buildCommand, buildCommandInDir, cfgTimeout, loadConfig, saveConfig } f
 import { restoreTabOrder } from "../tab-order.js";
 import { takeSnapshot } from "../snapshot.js";
 import { execSync } from "child_process";
+import { hasTmux, devNull, isWindows } from "../platform.js";
 
 /** Attach to tmux session — switch-client if inside tmux, attach if fresh shell */
 async function attachToSession(session: string) {
+  if (!hasTmux()) {
+    console.log(`\x1b[90m(tmux not available — session '${session}' is running in background)\x1b[0m`);
+    return;
+  }
   if (process.env.TMUX) {
     await tmux.switchClient(session);
   } else {
@@ -33,7 +38,12 @@ export async function isPaneIdle(paneTarget: string): Promise<boolean> {
     )).trim();
     if (!panePid) return true;
     // pgrep -P shows direct children — if any, the shell is busy
-    const children = (await hostExec(`pgrep -P ${panePid} 2>/dev/null || true`)).trim();
+    if (isWindows) {
+      // Windows: use wmic to check child processes
+      const children = (await hostExec(`wmic process where (ParentProcessId=${panePid}) get ProcessId 2>${devNull} | find /c /v ""`)).trim();
+      return children === "0" || children === "1"; // 1 = header only
+    }
+    const children = (await hostExec(`pgrep -P ${panePid} 2>${devNull} || true`)).trim();
     return children.length === 0;
   } catch {
     return true; // fail-safe to current behavior
@@ -184,10 +194,10 @@ export async function cmdWake(oracle: string, opts: { task?: string; newWt?: str
       const wtPath = `${parentDir}/${repoName}.wt-${wtName}`;
       const branch = `agents/${wtName}`;
       const safe = (s: string) => s.replace(/'/g, "'\\''");
-      try { await hostExec(`git -C '${safe(repoPath)}' rev-parse HEAD 2>/dev/null`); } catch {
+      try { await hostExec(`git -C '${safe(repoPath)}' rev-parse HEAD 2>${devNull}`); } catch {
         await hostExec(`git -C '${safe(repoPath)}' commit --allow-empty -m "init: bootstrap for worktree"`);
       }
-      try { await hostExec(`git -C '${safe(repoPath)}' branch -D '${safe(branch)}' 2>/dev/null`); } catch { /* ok */ }
+      try { await hostExec(`git -C '${safe(repoPath)}' branch -D '${safe(branch)}' 2>${devNull}`); } catch { /* ok */ }
       await hostExec(`git -C '${safe(repoPath)}' worktree add '${safe(wtPath)}' -b '${safe(branch)}'`);
       console.log(`\x1b[32m+\x1b[0m worktree: ${wtPath} (${branch})`);
       targetPath = wtPath;

@@ -10,6 +10,13 @@ AI agents that remember, communicate, and collaborate — with a real-time web d
 
 ## What's New in v5.0
 
+- ⚡ **13 CLI Commands** — `/awaken`, `/recap`, `/fyi`, `/rrr`, `/standup`, `/feel`, `/forward`, `/trace`, `/learn`, `/who-are-you`, `/philosophy`, `/skills`, `/resonance`
+- 📋 **55 Skills Registry** — adapted from oracle-skills-cli (identity, session, memory, emotion, dev, github, team, research, automation)
+- 📜 **Oracle 5 Principles** — รูปสอนสุญญตา (Nothing is Deleted, Patterns Over Intentions, External Brain, Curiosity Creates Existence, Form and Formless)
+- 🔐 **ψ/ Knowledge Root** — structured memory tree (resonance, learnings, retrospectives, journal, decisions, handoffs, mood)
+- 🧠 **Real Embeddings** — @xenova/transformers for local semantic search (Xenova/all-MiniLM-L6-v2)
+- 🔍 **Vault API** — ψ/ directory scanner, stats, search
+- 🏠 **Vault Dashboard** — public/vault.html (stats, search, skills, principles)
 - 🧠 **Memory Tools (16 tools)** — search, reflect, learn, list, stats, concepts, supersede, verify, trace, schedule, handoff, inbox, forum, read — all backed by Drizzle ORM + SQLite FTS5
 - 💬 **Forum System** — Threaded discussions with Oracle auto-reply, linked to knowledge base
 - 🔍 **Trace System** — Discovery tracing with dig points (files, commits, issues), linked chains
@@ -21,6 +28,27 @@ AI agents that remember, communicate, and collaborate — with a real-time web d
 - 🧩 **Plugin System** — Hook-based extensibility with builtin plugins
 - 📡 **Hono API** — 19 REST endpoints, WebSocket support
 - ⌨️ **Full CLI** — Command registry with route modules
+
+## CLI Commands
+
+Type in chat (WebSocket) or call via API (`POST /api/commands/execute`):
+
+| Command | Description |
+|---------|-------------|
+| `/awaken` | ⚡ Identity setup ceremony |
+| `/recap` | 📋 Session summary |
+| `/fyi <info>` | 📝 Save to memory |
+| `/rrr` | 🔄 Daily retrospective |
+| `/standup` | 🧍 Daily standup |
+| `/feel <mood>` | 💭 Mood logger |
+| `/forward` | 🔄 Session handoff |
+| `/trace <query>` | 🔍 Universal search |
+| `/learn <repo>` | 📚 Study repository |
+| `/who-are-you` | 🔮 Oracle identity |
+| `/philosophy` | 📜 5 Principles + Rule 6 |
+| `/skills` | 📋 List/search 55 skills |
+| `/resonance` | 🎵 Capture what resonates |
+| `/help` | ❓ Show all commands |
 
 ## Quick Start
 
@@ -173,8 +201,33 @@ oracle-multi-agent/
 | `/api/federation/peers` | GET/POST | Federation peers |
 | `/api/federation/ping` | POST | Ping peers |
 | `/api/broadcast` | POST | Broadcast to all agents |
+
+### New v5.0 Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/commands` | GET | List CLI commands |
+| `/api/commands/execute` | POST | Execute CLI command |
+| `/api/commands/:name` | POST | Execute by name |
+| `/api/skills` | GET | List/search skills (30+) |
+| `/api/skills/:name` | GET | Get skill details |
+| `/api/vault/stats` | GET | ψ/ directory statistics |
+| `/api/vault/files` | GET | List ψ/ files |
+| `/api/vault/file` | GET | Read ψ/ file |
+| `/api/vault/search` | POST | Search ψ/ files |
+| `/vault` | GET | Vault dashboard |
 | `/api/costs` | GET | API costs |
 | `/api/plugins` | GET | Plugins list |
+
+## Testing
+
+```bash
+# Start server
+npx tsx src/index.ts
+
+# Run E2E tests (in another terminal)
+npx tsx test/e2e.mjs
+```
 
 ## Credits
 

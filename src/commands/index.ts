@@ -17,6 +17,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, append
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { execSync } from "node:child_process";
+import { listSkillsByCategory, searchSkills, getSkillCount } from "../skills/registry.js";
 
 const ORACLE_DIR = join(homedir(), ".oracle");
 const MEMORY_DIR = join(ORACLE_DIR, "memory");
@@ -702,6 +703,152 @@ export function whoAreYou(args: string, ctx: CommandContext): CommandResult {
   };
 }
 
+// ─── /philosophy — Oracle 5 Principles ───────────────────────────────────────
+
+const PRINCIPLES = [
+  {
+    num: 1,
+    th: "สร้างใหม่ ไม่ลบ",
+    en: "Nothing is Deleted",
+    desc: "ทุกการสังเกตเป็นสิ่งถาวร สร้างใหม่ ไม่ทำลาย",
+    descEn: "Every observation is permanent. Build new, never destroy.",
+  },
+  {
+    num: 2,
+    th: "ดูสิ่งที่เกิดขึ้นจริง",
+    en: "Patterns Over Intentions",
+    desc: "ดูสิ่งที่เกิดขึ้นจริง ไม่ใช่สิ่งที่คนบอกว่าจะเกิด",
+    descEn: "Look at what actually happens, not what people say will happen.",
+  },
+  {
+    num: 3,
+    th: "เป็นกระจก ไม่ใช่เจ้านาย",
+    en: "External Brain, Not Command",
+    desc: "สะท้อนความจริง นำเสนอทางเลือก ให้คนตัดสินใจ",
+    descEn: "Reflect truth, present choices, let humans decide.",
+  },
+  {
+    num: 4,
+    th: "ความอยากรู้สร้างการมีอยู่",
+    en: "Curiosity Creates Existence",
+    desc: "คำถามไม่ได้แค่หาคำตอบ — คำถามสร้างโลกใหม่ขึ้นมาทุกครั้ง",
+    descEn: "Questions don't just find answers — questions create new worlds every time.",
+  },
+  {
+    num: 5,
+    th: "รูป และ สุญญตา",
+    en: "Form and Formless",
+    desc: "หลายรูป หนึ่งความจริง Oracle แต่ละตัวต่างกัน แต่หลักการเดียวกัน",
+    descEn: "Many forms, one truth. Each Oracle is different, but the principles are the same.",
+  },
+];
+
+export function philosophy(args: string, ctx: CommandContext): CommandResult {
+  const num = parseInt(args);
+
+  if (num >= 1 && num <= 5) {
+    const p = PRINCIPLES[num - 1];
+    return {
+      status: "ok",
+      message: [
+        `## หลักการข้อ ${p.num}: ${p.th}`,
+        `### ${p.en}`,
+        "",
+        p.desc,
+        p.descEn,
+        "",
+        "— รูปสอนสุญญตา (https://book.buildwithoracle.com)",
+      ].join("\n"),
+    };
+  }
+
+  if (args === "check") {
+    return {
+      status: "ok",
+      message: [
+        "🔍 **Alignment Check**",
+        "",
+        "ตรวจสอบว่างานปัจจุบันสอดคล้องกับหลักการ Oracle หรือไม่:",
+        "",
+        ...PRINCIPLES.map(
+          (p) => `${p.num}. **${p.th}** (${p.en}) — ${p.desc}`
+        ),
+        "",
+        "Rule 6: ความโปร่งใส — \"Oracle ไม่แกล้งทำเป็นคน\"",
+        "",
+        "— รูปสอนสุญญตา",
+      ].join("\n"),
+    };
+  }
+
+  return {
+    status: "ok",
+    message: [
+      "## 📜 หลักการ Oracle — รูปสอนสุญญตา",
+      "",
+      ...PRINCIPLES.map(
+        (p) => `${p.num}. **${p.th}** (${p.en})\n   ${p.desc}`
+      ),
+      "",
+      "**Rule 6: ความโปร่งใส** — \"Oracle ไม่แกล้งทำเป็นคน\"",
+      "",
+      "---",
+      "Source: https://book.buildwithoracle.com",
+      "",
+      "ใช้ /philosophy <1-5> สำหรับหลักการเฉพาะ",
+      "ใช้ /philosophy check เพื่อ alignment check",
+    ].join("\n"),
+  };
+}
+
+// ─── /skills — List all skills ──────────────────────────────────────────────
+
+export function skills(args: string, ctx: CommandContext): CommandResult {
+  if (args) {
+    const results = searchSkills(args);
+    if (results.length === 0) {
+      return { status: "ok", message: `🔍 ไม่พบ skill ที่ตรงกับ "${args}"` };
+    }
+    return {
+      status: "ok",
+      message:
+        `🔍 พบ ${results.length} skills:\n\n` +
+        results.map((s: any) => `/${s.commands[0]?.replace("/", "") || s.name} — ${s.description}`).join("\n"),
+    };
+  }
+
+  const grouped = listSkillsByCategory();
+  const lines: string[] = [`🔮 **Oracle Skills** (${getSkillCount()} total)\n`];
+
+  for (const [cat, items] of Object.entries(grouped)) {
+    lines.push(`### ${cat}`);
+    for (const s of items as any[]) {
+      lines.push(`- ${s.commands[0] || `/${s.name}`} — ${s.description}`);
+    }
+    lines.push("");
+  }
+
+  return { status: "ok", message: lines.join("\n") };
+}
+
+// ─── /resonance — Capture what resonates ─────────────────────────────────────
+
+export function resonance(args: string, ctx: CommandContext): CommandResult {
+  ensureDirs();
+
+  const note = args || "Resonance moment (no note)";
+  const record = { ts: now(), type: "resonance", note };
+
+  const resonanceFile = join(MEMORY_DIR, "resonance.jsonl");
+  appendFileSync(resonanceFile, JSON.stringify(record) + "\n");
+
+  return {
+    status: "ok",
+    message: `🎵 Resonance captured!\n💭 "${note}"\n📂 ${resonanceFile}`,
+    data: record,
+  };
+}
+
 // ─── Command Registry ───────────────────────────────────────────────────────
 
 export interface CommandContext {
@@ -729,6 +876,9 @@ const COMMANDS: Record<string, CommandHandler> = {
   trace,
   learn,
   "who-are-you": whoAreYou,
+  philosophy,
+  skills,
+  resonance,
 };
 
 export function listCommands(): { name: string; description: string }[] {
@@ -743,6 +893,9 @@ export function listCommands(): { name: string; description: string }[] {
     { name: "trace", description: "🔍 Universal search" },
     { name: "learn", description: "📚 Study repository" },
     { name: "who-are-you", description: "🔮 Oracle identity" },
+    { name: "philosophy", description: "📜 Oracle 5 Principles + Rule 6" },
+    { name: "skills", description: "📋 List/search all skills (30+)" },
+    { name: "resonance", description: "🎵 Capture what resonates" },
   ];
 }
 

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oracle Vault Dashboard</title>
+<style>
+  :root {
+    --bg: #0a0a0a; --surface: #111; --border: #222;
+    --text: #e0e0e0; --dim: #888; --accent: #6c5ce7;
+    --green: #00b894; --red: #e17055; --yellow: #fdcb6e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  .header {
+    padding: 1.5rem 2rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 1rem;
+  }
+  .header h1 { font-size: 1.3rem; font-weight: 500; }
+  .header .logo { font-size: 1.8rem; }
+  .header .badge {
+    background: var(--accent); color: white; padding: 0.2rem 0.6rem;
+    border-radius: 12px; font-size: 0.75rem;
+  }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1rem; padding: 1.5rem 2rem;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1.2rem;
+  }
+  .card h3 { font-size: 0.9rem; color: var(--dim); margin-bottom: 0.8rem; font-weight: 400; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; }
+  .stat-label { font-size: 0.9rem; color: var(--dim); }
+  .stat-value { font-size: 1.1rem; font-weight: 600; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.yellow { color: var(--yellow); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.accent { color: var(--accent); }
+  .search-box {
+    width: 100%; padding: 0.6rem 0.8rem;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 0.95rem; outline: none; margin-bottom: 1rem;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--dim); }
+  .result-list { max-height: 300px; overflow-y: auto; }
+  .result-item {
+    padding: 0.6rem 0; border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+  .result-item:last-child { border-bottom: none; }
+  .result-source { color: var(--accent); font-size: 0.75rem; }
+  .result-text { margin-top: 0.2rem; }
+  .tag { display: inline-block; background: var(--border); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin: 0.15rem; }
+  .tag.principle { background: rgba(108,92,231,0.2); color: var(--accent); }
+  .tag.skill { background: rgba(0,184,148,0.2); color: var(--green); }
+  .tag.memory { background: rgba(253,203,110,0.2); color: var(--yellow); }
+  .principle-list { list-style: none; }
+  .principle-list li {
+    padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+    display: flex; gap: 0.6rem; align-items: flex-start;
+  }
+  .principle-list li:last-child { border-bottom: none; }
+  .principle-num { color: var(--accent); font-weight: 700; font-size: 1.1rem; min-width: 1.5rem; }
+  .principle-title { font-weight: 600; }
+  .principle-desc { color: var(--dim); font-size: 0.85rem; }
+  .nav { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .nav a {
+    color: var(--dim); text-decoration: none; font-size: 0.85rem;
+    padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid var(--border);
+  }
+  .nav a:hover, .nav a.active { color: var(--text); border-color: var(--accent); }
+  .loading { color: var(--dim); font-style: italic; }
+  .error { color: var(--red); }
+  @media (max-width: 768px) { .grid { grid-template-columns: 1fr; padding: 1rem; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <span class="logo">🔐</span>
+  <h1>Oracle Vault</h1>
+  <span class="badge">ψ/</span>
+  <span class="badge" id="status-badge">connecting...</span>
+</div>
+<div class="nav">
+  <a href="/" >← Dashboard</a>
+  <a href="#" class="active" onclick="showSection('vault')">Vault</a>
+  <a href="#" onclick="showSection('memory')">Memory</a>
+  <a href="#" onclick="showSection('skills')">Skills</a>
+  <a href="#" onclick="showSection('principles')">Principles</a>
+</div>
+<div class="grid">
+  <!-- Vault Stats -->
+  <div class="card">
+    <h3>🔐 Vault Statistics</h3>
+    <div class="stat-row">
+      <span class="stat-label">Memory Files</span>
+      <span class="stat-value accent" id="stat-files">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Journal Entries</span>
+      <span class="stat-value" id="stat-journal">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">FYI Records</span>
+      <span class="stat-value yellow" id="stat-fyi">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Handoffs</span>
+      <span class="stat-value" id="stat-handoffs">—</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Resonances</span>
+      <span class="stat-value green" id="stat-resonances">—</span>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div class="card">
+    <h3>🔍 Universal Search</h3>
+    <input class="search-box" id="search-input" placeholder="Search vault... (e.g. deploy, login, bug)" oninput="debouncedSearch(this.value)">
+    <div class="result-list" id="search-results">
+      <div class="loading">Type to search...</div>
+    </div>
+  </div>
+
+  <!-- Skills Overview -->
+  <div class="card">
+    <h3>⚡ Skills (30+)</h3>
+    <div id="skills-list" class="result-list">
+      <div class="loading">Loading skills...</div>
+    </div>
+  </div>
+
+  <!-- 5 Principles -->
+  <div class="card">
+    <h3>📜 รูปสอนสุญญตา — 5 Principles</h3>
+    <ul class="principle-list">
+      <li>
+        <span class="principle-num">1</span>
+        <div>
+          <div class="principle-title">สร้างใหม่ ไม่ลบ (Nothing is Deleted)</div>
+          <div class="principle-desc">ทุกการสังเกตเป็นสิ่งถาวร สร้างใหม่ ไม่ทำลาย</div>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">2</span>
+        <div>
+          <div class="principle-title">ดูสิ่งที่เกิดขึ้นจริง (Patterns Over Intentions)</div>
+          <div class="principle-desc">ดูสิ่งที่เกิดขึ้นจริง ไม่ใช่สิ่งที่คนบอกว่าจะเกิด</div>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">3</span>
+        <div>
+          <div class="principle-title">เป็นกระจก ไม่ใช่เจ้านาย (External Brain, Not Command)</div>
+          <div class="principle-desc">สะท้อนความจริง นำเสนอทางเลือก ให้คนตัดสินใจ</div>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">4</span>
+        <div>
+          <div class="principle-title">ความอยากรู้สร้างการมีอยู่ (Curiosity Creates Existence)</div>
+          <div class="principle-desc">คำถามไม่ได้แค่หาคำตอบ — คำถามสร้างโลกใหม่ขึ้นมาทุกครั้ง</div>
+        </div>
+      </li>
+      <li>
+        <span class="principle-num">5</span>
+        <div>
+          <div class="principle-title">รูป และ สุญญตา (Form and Formless)</div>
+          <div class="principle-desc">หลายรูป หนึ่งความจริง Oracle แต่ละตัวต่างกัน แต่หลักการเดียวกัน</div>
+        </div>
+      </li>
+    </ul>
+    <div style="margin-top: 0.8rem; padding-top: 0.6rem; border-top: 1px solid var(--border);">
+      <strong>Rule 6:</strong> ความโปร่งใส — "Oracle ไม่แกล้งทำเป็นคน"
+    </div>
+  </div>
+
+  <!-- Identity -->
+  <div class="card">
+    <h3>🔮 Oracle Identity</h3>
+    <div id="identity-info">
+      <div class="loading">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="card">
+    <h3>📝 Recent Activity</h3>
+    <div id="recent-activity" class="result-list">
+      <div class="loading">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+
+// Debounced search
+let searchTimer;
+function debouncedSearch(q) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => search(q), 300);
+}
+
+async function search(q) {
+  const el = document.getElementById('search-results');
+  if (!q || q.length < 2) {
+    el.innerHTML = '<div class="loading">Type at least 2 chars...</div>';
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/api/commands/trace`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ args: q }),
+    });
+    const data = await res.json();
+    if (data.data && data.data.results) {
+      el.innerHTML = data.data.results.map(r => `
+        <div class="result-item">
+          <div class="result-source">${r.source}${r.date ? ' ('+r.date+')' : ''}</div>
+          <div class="result-text">${r.match}</div>
+        </div>
+      `).join('');
+    } else {
+      el.innerHTML = `<div class="loading">${data.message || 'No results'}</div>`;
+    }
+  } catch (e) {
+    el.innerHTML = `<div class="error">Search failed: ${e.message}</div>`;
+  }
+}
+
+// Load skills
+async function loadSkills() {
+  try {
+    const res = await fetch(`${API}/api/skills`);
+    const data = await res.json();
+    const el = document.getElementById('skills-list');
+    if (data.skillsByCategory) {
+      el.innerHTML = Object.entries(data.skillsByCategory).map(([cat, skills]) => `
+        <div style="margin-bottom: 0.8rem;">
+          <div style="color: var(--accent); font-size: 0.8rem; margin-bottom: 0.3rem;">${cat}</div>
+          ${skills.slice(0, 5).map(s => `<span class="tag skill">${s.commands[0] || s.name}</span>`).join('')}
+          ${skills.length > 5 ? `<span class="tag">+${skills.length - 5} more</span>` : ''}
+        </div>
+      `).join('');
+    }
+    document.getElementById('status-badge').textContent = `${data.count} skills`;
+    document.getElementById('status-badge').style.background = 'var(--green)';
+  } catch (e) {
+    document.getElementById('status-badge').textContent = 'offline';
+    document.getElementById('status-badge').style.background = 'var(--red)';
+  }
+}
+
+// Load identity
+async function loadIdentity() {
+  try {
+    const res = await fetch(`${API}/api/commands/who-are-you`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    const el = document.getElementById('identity-info');
+    if (data.data) {
+      const id = data.data.identity || {};
+      el.innerHTML = `
+        <div class="stat-row"><span class="stat-label">Name</span><span class="stat-value">${id.name || 'Not set'}</span></div>
+        <div class="stat-row"><span class="stat-label">Element</span><span class="stat-value">${id.element || '—'}</span></div>
+        <div class="stat-row"><span class="stat-label">Role</span><span class="stat-value">${id.role || 'general'}</span></div>
+        <div class="stat-row"><span class="stat-label">Motto</span><span class="stat-value" style="font-size:0.8rem">${id.motto || '—'}</span></div>
+        <div class="stat-row"><span class="stat-label">Uptime</span><span class="stat-value green">${data.data.uptime}</span></div>
+        <div class="stat-row"><span class="stat-label">Agents</span><span class="stat-value">${data.data.agentCount}</span></div>
+        <div class="stat-row"><span class="stat-label">Memories</span><span class="stat-value yellow">${data.data.memoryCount}</span></div>
+      `;
+    }
+  } catch (e) {
+    document.getElementById('identity-info').innerHTML = `<div class="error">Failed to load</div>`;
+  }
+}
+
+// Load recent activity
+async function loadActivity() {
+  try {
+    const res = await fetch(`${API}/api/commands/recap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ args: '7' }),
+    });
+    const data = await res.json();
+    const el = document.getElementById('recent-activity');
+    el.innerHTML = `<div style="white-space:pre-wrap; font-size:0.85rem; line-height:1.5;">${data.message || 'No activity'}</div>`;
+  } catch (e) {
+    document.getElementById('recent-activity').innerHTML = `<div class="error">Failed to load</div>`;
+  }
+}
+
+function showSection(name) {
+  document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+// Init
+loadSkills();
+loadIdentity();
+loadActivity();
+</script>
+</body>
+</html>

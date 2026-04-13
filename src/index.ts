@@ -168,6 +168,15 @@ app.get('/api/maw-log', (c) => {
 
 // Redirect /agents.html → / (agents panel is in main dashboard now)
 app.get('/agents.html', (c) => c.redirect('/', 301));
+// Vault dashboard
+app.get('/vault', (c) => {
+  const vaultHtml = join(__dirname, '..', 'public', 'vault.html');
+  try {
+    const { readFileSync } = require('node:fs');
+    const html = readFileSync(vaultHtml, 'utf-8');
+    return c.html(html);
+  } catch { return c.text('Vault dashboard not found', 404); }
+});
 
 // GET /api/plugins — list loaded plugins
 app.get('/api/plugins', async (c) => {

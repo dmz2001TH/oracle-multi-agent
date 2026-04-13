@@ -1,157 +1,147 @@
-import { listSessions, hostExec } from "../ssh.js";
-import { tmux } from "../tmux.js";
-import { loadConfig } from "../config.js";
-import type { Session } from "../ssh.js";
+/**
+ * Overview Command — Chapter 13: What The Human Sees
+ *
+ * War room: live status of multiple agents at a glance.
+ *
+ * Usage:
+ *   oracle overview              — show all running agents
+ *   oracle overview agent1 agent2 — show specific agents
+ */
 
-export interface OverviewTarget {
-  session: string;
-  window: number;
-  windowName: string;
-  oracle: string;
+import { execSync } from "node:child_process";
+import { readFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
+
+const AGENTS_DIR = join(homedir(), ".oracle", "agents");
+const STUCK_THRESHOLD_MS = 10 * 60 * 1000;
+
+interface AgentOverview {
+  name: string;
+  status: "working" | "idle" | "stuck" | "done" | "dead";
+  lastLine: string;
+  heartbeatAge: string | null;
+  task: string | null;
+  branch: string | null;
 }
 
-export const PANES_PER_PAGE = 9;
+function listTmuxNames(): string[] {
+  try {
+    const raw = execSync("tmux list-sessions -F '#{session_name}' 2>/dev/null", { encoding: "utf-8" }).trim();
+    return raw ? raw.split("\n").filter(Boolean) : [];
+  } catch { return []; }
+}
 
-export function buildTargets(sessions: Session[], filters: string[]): OverviewTarget[] {
-  let targets = sessions
-    .filter(s => /^\d+-/.test(s.name) && s.name !== "0-overview")
-    .map(s => {
-      const active = s.windows.find(w => w.active) || s.windows[0];
-      const oracleName = s.name.replace(/^\d+-/, "");
-      return { session: s.name, window: active?.index ?? 1, windowName: active?.name ?? oracleName, oracle: oracleName };
+function captureLastLine(name: string): string {
+  try {
+    const content = execSync(
+      `tmux capture-pane -t '${name}' -p -S -3 2>/dev/null`,
+      { encoding: "utf-8" }
+    ).trim();
+    const lines = content.split("\n").filter(l => l.trim());
+    return lines.pop() || "(empty)";
+  } catch { return "(unreachable)"; }
+}
+
+function readHeartbeat(name: string): { ts: string; status: string; task: string; branch: string } | null {
+  try { return JSON.parse(readFileSync(join(AGENTS_DIR, name, "heartbeat.json"), "utf-8")); } catch { return null; }
+}
+
+function hasClaudeProcess(name: string): boolean {
+  try {
+    const cmd = execSync(
+      `tmux list-panes -t '${name}' -F '#{pane_current_command}' 2>/dev/null`,
+      { encoding: "utf-8" }
+    ).trim();
+    return cmd.split("\n").some(l => /claude|codex/i.test(l));
+  } catch { return false; }
+}
+
+export function cmdOverview(names: string[] = []): void {
+  mkdirSync(AGENTS_DIR, { recursive: true });
+
+  // Get session names to show
+  const allSessions = listTmuxNames();
+  const targetNames = names.length > 0
+    ? names.filter(n => allSessions.includes(n))
+    : allSessions;
+
+  if (!targetNames.length) {
+    console.log("\x1b[90mno agents running (no tmux sessions found)\x1b[0m");
+    return;
+  }
+
+  // Show unfound names
+  const notFound = names.filter(n => !allSessions.includes(n));
+  for (const n of notFound) {
+    console.log(`\x1b[33m⚠\x1b[0m agent not found: ${n}`);
+  }
+
+  console.log(`\n\x1b[36m═══ OVERVIEW ═══\x1b[0m\n`);
+
+  const overviews: AgentOverview[] = [];
+
+  for (const name of targetNames) {
+    const hb = readHeartbeat(name);
+    const lastLine = captureLastLine(name);
+    const hasClaude = hasClaudeProcess(name);
+
+    let status: AgentOverview["status"] = "dead";
+    let heartbeatAge: string | null = null;
+
+    if (hb) {
+      const age = Date.now() - new Date(hb.ts).getTime();
+      heartbeatAge = `${Math.round(age / 1000)}s`;
+
+      if (age > STUCK_THRESHOLD_MS) {
+        status = "stuck";
+      } else if (hb.status === "DONE" || hb.status === "done") {
+        status = "done";
+      } else if (hb.status === "working" || hb.status === "PROGRESS") {
+        status = "working";
+      } else {
+        status = hasClaude ? "working" : "idle";
+      }
+    } else {
+      status = hasClaude ? "working" : "idle";
+    }
+
+    overviews.push({
+      name,
+      status,
+      lastLine,
+      heartbeatAge,
+      task: hb?.task || null,
+      branch: hb?.branch || null,
     });
-
-  if (filters.length) {
-    targets = targets.filter(t => filters.some(f => t.oracle.includes(f) || t.session.includes(f)));
   }
 
-  return targets;
-}
+  // Render
+  for (const a of overviews) {
+    const dot = a.status === "working" ? "\x1b[32m●\x1b[0m"
+      : a.status === "stuck" ? "\x1b[31m●\x1b[0m"
+      : a.status === "done" ? "\x1b[36m●\x1b[0m"
+      : "\x1b[90m●\x1b[0m";
 
-const PANE_COLORS = [
-  "colour204",  // pink
-  "colour114",  // green
-  "colour81",   // blue
-  "colour220",  // yellow
-  "colour177",  // purple
-  "colour208",  // orange
-  "colour44",   // cyan
-  "colour196",  // red
-  "colour83",   // lime
-  "colour141",  // lavender
-];
+    const statusStr = a.status === "working" ? "\x1b[32mworking\x1b[0m"
+      : a.status === "stuck" ? "\x1b[31mSTUCK\x1b[0m"
+      : a.status === "done" ? "\x1b[36mdone\x1b[0m"
+      : "\x1b[90midle\x1b[0m";
 
-export function paneColor(index: number): string {
-  return PANE_COLORS[index % PANE_COLORS.length];
-}
+    const hbStr = a.heartbeatAge ? `  hb: ${a.heartbeatAge} ago` : "";
+    const taskStr = a.task ? `\n     task: ${a.task}` : "";
+    const branchStr = a.branch ? `  [${a.branch}]` : "";
 
-export function paneTitle(t: OverviewTarget): string {
-  return `${t.oracle} (${t.session}:${t.window})`;
-}
-
-export function processMirror(raw: string, lines: number): string {
-  const sep = '─'.repeat(60);
-  const filtered = raw
-    .replace(/[─━]{6,}/g, sep)
-    .split('\n')
-    .filter(l => l.trim() !== '');
-  const visible = filtered.slice(-lines);
-  const pad = Math.max(0, lines - visible.length);
-  return '\n'.repeat(pad) + visible.join('\n');
-}
-
-export function mirrorCmd(t: OverviewTarget): string {
-  const target = encodeURIComponent(`${t.session}:${t.window}`);
-  const port = loadConfig().port;
-  return `watch --color -t -n0.5 'curl -s "http://localhost:${port}/api/mirror?target=${target}&lines=\\$(tput lines)"'`;
-}
-
-export function pickLayout(count: number): string {
-  if (count <= 2) return "even-horizontal";
-  return "tiled";  // 2×2 grid
-}
-
-export function chunkTargets(targets: OverviewTarget[]): OverviewTarget[][] {
-  const pages: OverviewTarget[][] = [];
-  for (let i = 0; i < targets.length; i += PANES_PER_PAGE) {
-    pages.push(targets.slice(i, i + PANES_PER_PAGE));
-  }
-  return pages;
-}
-
-export async function cmdOverview(filterArgs: string[]) {
-  const kill = filterArgs.includes("--kill") || filterArgs.includes("-k");
-  const filters = filterArgs.filter(a => !a.startsWith("-"));
-
-  // Kill existing overview
-  await tmux.killSession("0-overview");
-  if (kill) { console.log("overview killed"); return; }
-
-  // Gather oracle targets
-  const sessions = await listSessions();
-  const targets = buildTargets(sessions, filters);
-
-  if (!targets.length) { console.error("no oracle sessions found"); return; }
-
-  const pages = chunkTargets(targets);
-
-  // Create overview session with first window
-  await tmux.newSession("0-overview", { window: "page-1" });
-
-  // Style: pane borders
-  await tmux.set("0-overview", "pane-border-status", "top");
-  await tmux.set("0-overview", "pane-border-format", " #{pane_title} ");
-  await tmux.set("0-overview", "pane-border-style", "fg=colour238");
-  await tmux.set("0-overview", "pane-active-border-style", "fg=colour45");
-
-  // Style: status bar
-  await tmux.set("0-overview", "status-style", "bg=colour235,fg=colour248");
-  await tmux.set("0-overview", "status-left-length", "40");
-  await tmux.set("0-overview", "status-right-length", "60");
-  await tmux.set("0-overview", "status-left", `#[fg=colour16,bg=colour204,bold] \u2588 MAW #[fg=colour204,bg=colour238] #[fg=colour255,bg=colour238] ${targets.length} oracles #[fg=colour238,bg=colour235] `);
-  await tmux.set("0-overview", "status-right", `#[fg=colour238,bg=colour235]#[fg=colour114,bg=colour238] \u25cf live #[fg=colour81,bg=colour238] %H:%M #[fg=colour16,bg=colour81,bold] %d-%b `);
-  await tmux.set("0-overview", "status-justify", "centre");
-  await tmux.set("0-overview", "window-status-format", "#[fg=colour248,bg=colour235] #I:#W ");
-  await tmux.set("0-overview", "window-status-current-format", "#[fg=colour16,bg=colour45,bold] #I:#W ");
-
-  for (let p = 0; p < pages.length; p++) {
-    const page = pages[p];
-    const winName = `page-${p + 1}`;
-
-    // First page uses the already-created window
-    if (p > 0) {
-      await tmux.newWindow("0-overview", winName);
-    }
-
-    // First pane — set colored title and start mirror
-    const baseIdx = p * PANES_PER_PAGE;
-    const pane0 = `0-overview:${winName}.0`;
-    const color0 = paneColor(baseIdx);
-    await tmux.selectPane(pane0, { title: `#[fg=${color0},bold]${paneTitle(page[0])}#[default]` });
-    await tmux.sendKeys(pane0, mirrorCmd(page[0]), "Enter");
-
-    // Split for remaining targets in this page
-    for (let i = 1; i < page.length; i++) {
-      await tmux.splitWindow(`0-overview:${winName}`);
-      const paneId = `0-overview:${winName}.${i}`;
-      const color = paneColor(baseIdx + i);
-      await tmux.selectPane(paneId, { title: `#[fg=${color},bold]${paneTitle(page[i])}#[default]` });
-      await tmux.sendKeys(paneId, mirrorCmd(page[i]), "Enter");
-      await tmux.selectLayout(`0-overview:${winName}`, "tiled");
-    }
-
-    // Final layout for this page
-    const layout = pickLayout(page.length);
-    await tmux.selectLayout(`0-overview:${winName}`, layout);
+    console.log(`${dot} ${a.name.padEnd(20)} ${statusStr}${branchStr}${hbStr}${taskStr}`);
+    console.log(`     \x1b[90m⤷ ${a.lastLine.slice(0, 80)}\x1b[0m`);
   }
 
-  // Go back to first window
-  await tmux.selectWindow("0-overview:page-1");
+  // Summary
+  const working = overviews.filter(a => a.status === "working").length;
+  const stuck = overviews.filter(a => a.status === "stuck").length;
+  const idle = overviews.filter(a => a.status === "idle" || a.status === "dead").length;
 
-  console.log(`\x1b[32m✅\x1b[0m overview: ${targets.length} oracles across ${pages.length} page${pages.length > 1 ? 's' : ''}`);
-  for (let p = 0; p < pages.length; p++) {
-    console.log(`  page-${p + 1}: ${pages[p].map(t => t.oracle).join(', ')}`);
-  }
-  console.log(`\n  attach: tmux attach -t 0-overview`);
-  if (pages.length > 1) console.log(`  navigate: Ctrl-b n/p (next/prev page)`);
+  console.log();
+  console.log(`  ${working} working  ${stuck > 0 ? `\x1b[31m${stuck} stuck\x1b[0m` : "0 stuck"}  ${idle} idle`);
+  console.log();
 }

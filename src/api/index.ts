@@ -39,6 +39,7 @@ import { commandsApi } from "./commands.js";
 import { skillsApi } from "./skills.js";
 import { vaultApi } from "./vault.js";
 import { workflowsApi } from "./workflows.js";
+import { oracleV2Api } from "./oracle-v2-bridge.js";
 
 export const api = new Hono();
 
@@ -78,3 +79,4 @@ api.route("/", commandsApi);
 api.route("/", skillsApi);
 api.route("/", vaultApi);
 api.route("/", workflowsApi);
+api.route("/", oracleV2Api);

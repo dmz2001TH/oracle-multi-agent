@@ -1199,6 +1199,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   find,
   "soul-sync": soulSync,
   contacts,
+  "oracle-v2": oracleV2,
 };
 
 export function listCommands(): { name: string; description: string }[] {
@@ -1225,6 +1226,7 @@ export function listCommands(): { name: string; description: string }[] {
     { name: "find", description: "🔍 Quick memory search (alias for trace --oracle)" },
     { name: "soul-sync", description: "🔄 Sync memory between ψ/ and ~/.oracle/" },
     { name: "contacts", description: "👥 List oracle contacts" },
+    { name: "oracle-v2", description: "🔮 Oracle-v2 MCP server status & bridge API" },
   ];
 }
 
@@ -1859,6 +1861,65 @@ export function contacts(args: string, ctx: CommandContext): CommandResult {
     ].join("\n"),
     data: { contacts: contactList },
   };
+}
+
+// ─── /oracle-v2 — Oracle-v2 MCP server status & tools ──────────────────────
+
+export function oracleV2(args: string, ctx: CommandContext): CommandResult {
+  const action = args?.trim().split(/\s+/)[0] || "status";
+
+  switch (action) {
+    case "status":
+    case "check": {
+      return {
+        status: "ok",
+        message: [
+          "🔮 **Oracle-v2 MCP Server**",
+          "",
+          "Port: 47778",
+          "Status: ต้องรันแยก (`cd _ref/oracle-v2 && bun src/server.ts`)",
+          "",
+          "### Bridge API (ผ่าน oracle-multi-agent)",
+          "- GET  /api/oracle-v2/status       — health check",
+          "- GET  /api/oracle-v2/search?q=X   — search knowledge",
+          "- POST /api/oracle-v2/learn         — add knowledge",
+          "- GET  /api/oracle-v2/stats         — DB statistics",
+          "- GET  /api/oracle-v2/list          — browse documents",
+          "- GET  /api/oracle-v2/reflect       — random principle",
+          "- POST /api/oracle-v2/forum         — create thread",
+          "- GET  /api/oracle-v2/forum         — list threads",
+          "- POST /api/oracle-v2/trace         — log trace",
+          "- GET  /api/oracle-v2/trace         — list traces",
+          "- GET  /api/oracle-v2/inbox         — check inbox",
+          "- POST /api/oracle-v2/inbox         — manage inbox",
+          "- POST /api/oracle-v2/handoff       — create handoff",
+          "- GET  /api/oracle-v2/concepts      — browse concepts",
+          "- GET  /api/oracle-v2/schedule      — get schedule",
+          "- POST /api/oracle-v2/schedule      — create task",
+          "",
+          "### วิธีรัน",
+          "```bash",
+          "cd _ref/oracle-v2",
+          "bun install",
+          "bun src/server.ts",
+          "```",
+          "",
+          "แล้ว bridge API จะเชื่อมอัตโนมัติที่ port 3456 → 47778",
+        ].join("\n"),
+      };
+    }
+
+    default: {
+      return {
+        status: "ok",
+        message: [
+          "🔮 **Oracle-v2 Commands**",
+          "",
+          "/oracle-v2 status   — ดูสถานะ + API endpoints",
+        ].join("\n"),
+      };
+    }
+  }
 }
 
 export function executeCommand(input: string, ctx: CommandContext = {}): CommandResult {

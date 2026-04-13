@@ -226,7 +226,7 @@ export async function handleScheduleList(ctx: ToolContext, input: OracleSchedule
   const statusFilter = input.status || 'pending';
 
   // Build where conditions
-  const conditions = [];
+  const conditions: any[] = [];
 
   if (statusFilter !== 'all') {
     conditions.push(eq(schedule.status, statusFilter));

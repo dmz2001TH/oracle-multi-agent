@@ -186,7 +186,7 @@ export async function handleTraceGet(input: GetTraceInput): Promise<ToolResponse
 
   console.error(`[MCP:TRACE_GET] id=${input.traceId} query="${trace.query}"`);
 
-  let chain = undefined;
+  let chain: any = undefined;
   if (input.includeChain) {
     chain = getTraceLinkedChain(input.traceId);
   }

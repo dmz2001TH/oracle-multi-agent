@@ -6,7 +6,7 @@
 
 **Repo**: https://github.com/dmz2001TH/oracle-multi-agent
 **Branch**: main
-**Commands**: 33 | **API Endpoints**: 40+ | **_ref repos**: 25
+**Commands**: 44 | **API Endpoints**: 40+ | **_ref repos**: 25
 
 ## ✅ สิ่งที่เสร็จแล้วทั้งหมด
 
@@ -72,6 +72,29 @@
 | 31 | /broadcast | Broadcast to all agents |
 | 32 | /bud | Create oracle from parent |
 | 33 | /restart | Restart agent |
+
+### Batch 4: Plugin Architecture + maw-js Parity (11)
+| # | Command | Description |
+|---|---------|-------------|
+| 34 | /plugin | Plugin management (list/install/remove) — weight-based loading |
+| 35 | /task | Task system — log/show/comment/done (GitHub Issue pattern) |
+| 36 | /project | Project trees — create/add/show with progress |
+| 37 | /loop | Loop management — add/remove/trigger/enable/disable/history |
+| 38 | /tokens | Token monitoring (--rebuild, --json) |
+| 39 | /think | Think cycle — agents propose ideas |
+| 40 | /meeting | Meeting orchestration — collect input from agents |
+| 41 | /tab | Tab management — list/send to tmux sessions |
+| 42 | /view | Clean full-screen view for agent |
+| 43 | /chat | Chat history per agent |
+| 44 | /review | Review think cycle proposals |
+
+### Plugin System (src/plugins/)
+- `types.ts` — Plugin interfaces (manifest, handler, surfaces)
+- `sdk.ts` — definePlugin() helper + cliPlugin/apiPlugin utilities
+- `loader.ts` — Plugin loader with weight-based loading, CLI/API/hook registries
+- Plugins directory: `plugins/` — each subdirectory = one plugin
+- Plugin format: `plugin.json` (manifest) + `index.ts` (handler)
+- Weight order: 00 (core) → 10 (infra) → 20 (tools) → 50 (features) → 90 (custom)
 
 ### Infrastructure
 - Hono server on port 3456

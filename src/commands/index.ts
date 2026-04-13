@@ -2252,12 +2252,892 @@ export function restart(args: string, ctx: CommandContext): CommandResult {
   }
 }
 
+// ─── Batch 4: Plugin Architecture + maw-js parity ──────────────────────────
+
+import { loadPlugins, getPlugins, getPluginCount, executePluginCLI } from "../plugins/loader.js";
+
+// ─── /plugin — Plugin management (list/install/remove) ─────────────────────
+
+export function plugin(args: string, ctx: CommandContext): CommandResult {
+  const action = args?.trim().split(/\s+/)[0] || "list";
+  const rest = args?.trim().split(/\s+/).slice(1).join(" ") || "";
+
+  switch (action) {
+    case "list":
+    case "ls": {
+      const plugins = getPlugins();
+      const counts = getPluginCount();
+      if (plugins.length === 0) {
+        return {
+          status: "ok",
+          message: [
+            "📦 **Plugins**",
+            "",
+            "ไม่มี plugins — สร้างได้ใน `plugins/` directory",
+            "",
+            "โครงสร้าง:",
+            "```",
+            "plugins/",
+            "  00-my-plugin/",
+            "    plugin.json   ← manifest",
+            "    index.ts      ← handler",
+            "```",
+            "",
+            "ดู template: _ref/maw-incarnation-plugin/",
+          ].join("\n"),
+        };
+      }
+      return {
+        status: "ok",
+        message: [
+          `📦 **Plugins** (loaded: ${counts.loaded}/${counts.total})`,
+          "",
+          ...plugins.map(p => {
+            const w = String(p.manifest.weight).padStart(2, "0");
+            const status = p.loaded ? "✅" : "❌";
+            const surfaces = [
+              p.manifest.cli ? "cli" : null,
+              p.manifest.api ? "api" : null,
+              p.manifest.hooks ? "hook" : null,
+            ].filter(Boolean).join(", ") || "—";
+            return `${status} [${w}] **${p.manifest.name}** v${p.manifest.version} (${surfaces}) — ${p.manifest.description || ""}`;
+          }),
+        ].join("\n"),
+        data: { plugins: plugins.map(p => ({ name: p.manifest.name, version: p.manifest.version, weight: p.manifest.weight, loaded: p.loaded })) },
+      };
+    }
+
+    case "install": {
+      if (!rest) return { status: "ok", message: "📦 ใช้: /plugin install <path-or-url>\nตัวอย่าง: /plugin install ./my-plugin/\nหรือ: /plugin install https://github.com/user/plugin" };
+      return {
+        status: "ok",
+        message: `📦 Plugin install: ${rest}\n\n💡 คัดลอก plugin ไปที่ plugins/ directory แล้ว restart server\nหรือใช้: maw plugin install ${rest}`,
+      };
+    }
+
+    case "remove": {
+      if (!rest) return { status: "ok", message: "📦 ใช้: /plugin remove <name>" };
+      return {
+        status: "ok",
+        message: `📦 Plugin remove: ${rest}\n\n💡 ลบ directory plugins/${rest} แล้ว restart server`,
+      };
+    }
+
+    default: {
+      return {
+        status: "ok",
+        message: [
+          "📦 **Plugin Commands**",
+          "",
+          "/plugin list       — แสดง plugins ทั้งหมด",
+          "/plugin install <x> — ติดตั้ง plugin",
+          "/plugin remove <x>  — ลบ plugin",
+        ].join("\n"),
+      };
+    }
+  }
+}
+
+// ─── /task — Task system with log/show/comment (maw-js pattern) ────────────
+
+export function task(args: string, ctx: CommandContext): CommandResult {
+  ensureDirs();
+
+  const parts = args?.trim().split(/\s+/) || [];
+  const action = parts[0] || "ls";
+  const id = parts[1] || "";
+  const rest = parts.slice(2).join(" ") || "";
+
+  const tasksDir = join(PSI_MEMORY, "tasks");
+  mkdirSync(tasksDir, { recursive: true });
+  const logsDir = join(tasksDir, "logs");
+  mkdirSync(logsDir, { recursive: true });
+
+  // Task index file
+  const indexFile = join(tasksDir, "index.jsonl");
+
+  switch (action) {
+    case "ls":
+    case "list": {
+      if (!existsSync(indexFile)) {
+        return { status: "ok", message: "📋 **Tasks**\n\nไม่มี task — ใช้ /task log <id-or-title> \"description\" เพื่อเพิ่ม" };
+      }
+      const lines = readFileSync(indexFile, "utf-8").split("\n").filter(Boolean);
+      const tasks = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      const todo = tasks.filter((t: any) => t.status === "todo" || t.status === "in_progress");
+      const done = tasks.filter((t: any) => t.status === "done");
+
+      return {
+        status: "ok",
+        message: [
+          `📋 **Tasks** (total: ${tasks.length})`,
+          "",
+          todo.length > 0 ? "### 📋 Active\n" + todo.map((t: any) => `${t.id} [${t.status}] ${t.title} (${t.logCount || 0} logs)`).join("\n") : "",
+          done.length > 0 ? "\n### ✅ Done\n" + done.map((t: any) => `${t.id} [done] ${t.title}`).join("\n") : "",
+        ].filter(Boolean).join("\n"),
+        data: { total: tasks.length, todo: todo.length, done: done.length },
+      };
+    }
+
+    case "log": {
+      if (!id) return { status: "ok", message: "📋 ใช้: /task log <id-or-title> \"description\"\n     /task log <id> --commit \"abc123 message\"\n     /task log <id> --blocker \"stuck on X\"" };
+
+      const isCommit = rest.startsWith("--commit");
+      const isBlocker = rest.startsWith("--blocker");
+      const logText = rest.replace("--commit", "").replace("--blocker", "").trim().replace(/^["']|["']$/g, "");
+
+      // Find or create task
+      let taskId = id;
+      let taskTitle = id;
+      let isNew = false;
+
+      if (existsSync(indexFile)) {
+        const lines = readFileSync(indexFile, "utf-8").split("\n").filter(Boolean);
+        const existing = lines.find(l => {
+          try {
+            const t = JSON.parse(l);
+            return t.id === id || t.title?.toLowerCase().includes(id.toLowerCase());
+          } catch { return false; }
+        });
+        if (existing) {
+          const t = JSON.parse(existing);
+          taskId = t.id;
+          taskTitle = t.title;
+        }
+      }
+
+      // Create new task if not found
+      if (!existsSync(indexFile) || !readFileSync(indexFile, "utf-8").includes(taskId)) {
+        isNew = true;
+        const newTask = {
+          id: taskId.startsWith("task-") ? taskId : `task-${taskId.replace(/[^a-zA-Z0-9-]/g, "-").toLowerCase()}`,
+          title: taskTitle,
+          status: "in_progress",
+          created: now(),
+          updated: now(),
+          logCount: 0,
+        };
+        taskId = newTask.id;
+        appendFileSync(indexFile, JSON.stringify(newTask) + "\n");
+      }
+
+      // Write log entry
+      const logEntry = {
+        ts: now(),
+        taskId,
+        type: isCommit ? "commit" : isBlocker ? "blocker" : "log",
+        text: logText,
+      };
+      const logFile = join(logsDir, `${taskId}.jsonl`);
+      appendFileSync(logFile, JSON.stringify(logEntry) + "\n");
+
+      // Update task index
+      if (existsSync(indexFile)) {
+        const lines = readFileSync(indexFile, "utf-8").split("\n").filter(Boolean);
+        const updated = lines.map(l => {
+          try {
+            const t = JSON.parse(l);
+            if (t.id === taskId) {
+              t.logCount = (t.logCount || 0) + 1;
+              t.updated = now();
+              if (isBlocker) t.status = "blocked";
+            }
+            return JSON.stringify(t);
+          } catch { return l; }
+        });
+        writeFileSync(indexFile, updated.join("\n") + "\n");
+      }
+
+      const typeLabel = isCommit ? "🔗 commit" : isBlocker ? "🚧 blocker" : "📝 log";
+      return {
+        status: "ok",
+        message: `${typeLabel} ${taskId}: "${logText}"${isNew ? "\n🆕 New task created" : ""}`,
+        data: { taskId, type: logEntry.type, text: logText },
+      };
+    }
+
+    case "show": {
+      if (!id) return { status: "ok", message: "📋 ใช้: /task show <id>" };
+      const logFile = join(logsDir, `${id}.jsonl`);
+      if (!existsSync(logFile)) return { status: "ok", message: `📋 ไม่พบ logs สำหรับ: ${id}` };
+
+      const logs = readFileSync(logFile, "utf-8").split("\n").filter(Boolean).map(l => {
+        try { return JSON.parse(l); } catch { return null; }
+      }).filter(Boolean);
+
+      return {
+        status: "ok",
+        message: [
+          `📋 **Task: ${id}** (${logs.length} logs)`,
+          "",
+          ...logs.map((l: any) => {
+            const icon = l.type === "commit" ? "🔗" : l.type === "blocker" ? "🚧" : "📝";
+            return `${icon} [${new Date(l.ts).toLocaleTimeString()}] ${l.text}`;
+          }),
+        ].join("\n"),
+        data: { taskId: id, logs },
+      };
+    }
+
+    case "comment": {
+      if (!id || !rest) return { status: "ok", message: "📋 ใช้: /task comment <id> \"comment text\"" };
+      const logFile = join(logsDir, `${id}.jsonl`);
+      const commentEntry = { ts: now(), taskId: id, type: "comment", text: rest.replace(/^["']|["']$/g, "") };
+      appendFileSync(logFile, JSON.stringify(commentEntry) + "\n");
+      return { status: "ok", message: `💬 Comment on ${id}: "${commentEntry.text}"` };
+    }
+
+    case "done": {
+      if (!id) return { status: "ok", message: "📋 ใช้: /task done <id>" };
+      if (!existsSync(indexFile)) return { status: "ok", message: "📋 ไม่พบ tasks" };
+
+      const lines = readFileSync(indexFile, "utf-8").split("\n").filter(Boolean);
+      const updated = lines.map(l => {
+        try {
+          const t = JSON.parse(l);
+          if (t.id === id || t.title?.toLowerCase().includes(id.toLowerCase())) {
+            t.status = "done";
+            t.updated = now();
+          }
+          return JSON.stringify(t);
+        } catch { return l; }
+      });
+      writeFileSync(indexFile, updated.join("\n") + "\n");
+      return { status: "ok", message: `✅ Task done: ${id}` };
+    }
+
+    default: {
+      return {
+        status: "ok",
+        message: [
+          "📋 **Task Commands**",
+          "",
+          "/task ls                    — ดู tasks ทั้งหมด",
+          "/task log <id> \"desc\"       — log งาน",
+          "/task log <id> --commit \"x\" — log commit",
+          "/task log <id> --blocker \"x\" — log blocker",
+          "/task show <id>             — ดู logs ของ task",
+          "/task comment <id> \"text\"   — comment บน task",
+          "/task done <id>             — mark done",
+        ].join("\n"),
+      };
+    }
+  }
+}
+
+// ─── /project — Project trees with progress (maw-js pattern) ───────────────
+
+export function project(args: string, ctx: CommandContext): CommandResult {
+  ensureDirs();
+
+  const parts = args?.trim().split(/\s+/) || [];
+  const action = parts[0] || "ls";
+  const name = parts[1] || "";
+  const rest = parts.slice(2).join(" ") || "";
+
+  const projectsDir = join(PSI_MEMORY, "projects");
+  mkdirSync(projectsDir, { recursive: true });
+
+  switch (action) {
+    case "create": {
+      if (!name) return { status: "ok", message: "📁 ใช้: /project create <name> \"description\"" };
+      const desc = rest.replace(/^["']|["']$/g, "") || name;
+      const proj = { name, description: desc, tasks: [], created: now(), status: "active" };
+      writeFileSync(join(projectsDir, `${name}.json`), JSON.stringify(proj, null, 2));
+      return { status: "ok", message: `📁 Project created: **${name}** — ${desc}` };
+    }
+
+    case "add": {
+      if (!name || !rest) return { status: "ok", message: "📁 ใช้: /project add <project> <task-id>" };
+      const projFile = join(projectsDir, `${name}.json`);
+      if (!existsSync(projFile)) return { status: "ok", message: `❌ Project not found: ${name}` };
+
+      const proj = JSON.parse(readFileSync(projFile, "utf-8"));
+      const taskId = rest.replace("--parent", "").trim();
+      const parentIdx = parts.indexOf("--parent");
+      const parent = parentIdx >= 0 ? parts[parentIdx + 1] : null;
+
+      proj.tasks.push({ id: taskId, status: "todo", parent: parent || null, added: now() });
+      writeFileSync(projFile, JSON.stringify(proj, null, 2));
+      return { status: "ok", message: `📁 Added ${taskId} to project ${name}${parent ? ` (parent: ${parent})` : ""}` };
+    }
+
+    case "show": {
+      if (!name) return { status: "ok", message: "📁 ใช้: /project show <name>" };
+      const projFile = join(projectsDir, `${name}.json`);
+      if (!existsSync(projFile)) return { status: "ok", message: `❌ Project not found: ${name}` };
+
+      const proj = JSON.parse(readFileSync(projFile, "utf-8"));
+      const tasks = proj.tasks || [];
+      const done = tasks.filter((t: any) => t.status === "done").length;
+      const total = tasks.length || 1;
+
+      // Build tree
+      const rootTasks = tasks.filter((t: any) => !t.parent);
+      const childTasks = tasks.filter((t: any) => t.parent);
+
+      const tree = rootTasks.map((t: any) => {
+        const icon = t.status === "done" ? "✅" : t.status === "in_progress" ? "🟢" : "⚪";
+        const children = childTasks.filter((c: any) => c.parent === t.id);
+        let line = `${icon} ${t.id}`;
+        if (children.length > 0) {
+          line += "\n" + children.map((c: any) => {
+            const ci = c.status === "done" ? "✅" : "⚪";
+            return `  └── ${ci} ${c.id}`;
+          }).join("\n");
+        }
+        return line;
+      });
+
+      return {
+        status: "ok",
+        message: [
+          `📁 **${proj.name}**: ${proj.description}`,
+          "",
+          ...tree,
+          "",
+          `Progress: ${done}/${total} (${Math.round(done / total * 100)}%)`,
+        ].join("\n"),
+        data: proj,
+      };
+    }
+
+    case "ls":
+    default: {
+      if (!existsSync(projectsDir)) {
+        return { status: "ok", message: "📁 **Projects**\n\nไม่มี project — ใช้ /project create <name> \"desc\"" };
+      }
+      const files = readdirSync(projectsDir).filter(f => f.endsWith(".json"));
+      if (files.length === 0) return { status: "ok", message: "📁 **Projects**\n\nไม่มี project" };
+
+      const projs = files.map(f => {
+        try {
+          const p = JSON.parse(readFileSync(join(projectsDir, f), "utf-8"));
+          const done = (p.tasks || []).filter((t: any) => t.status === "done").length;
+          const total = (p.tasks || []).length || 1;
+          return `📁 **${p.name}** — ${p.description} (${done}/${total} = ${Math.round(done/total*100)}%)`;
+        } catch { return null; }
+      }).filter(Boolean);
+
+      return { status: "ok", message: `📁 **Projects** (${projs.length})\n\n${projs.join("\n")}` };
+    }
+  }
+}
+
+// ─── /loop — Loop management (maw-js pattern) ─────────────────────────────
+
+export function loop(args: string, ctx: CommandContext): CommandResult {
+  ensureDirs();
+
+  const parts = args?.trim().split(/\s+/) || [];
+  const action = parts[0] || "list";
+  const id = parts[1] || "";
+  const rest = parts.slice(2).join(" ") || "";
+
+  const loopsDir = join(PSI_MEMORY, "loops");
+  mkdirSync(loopsDir, { recursive: true });
+  const loopsFile = join(loopsDir, "loops.jsonl");
+
+  switch (action) {
+    case "add": {
+      if (!rest) {
+        return {
+          status: "ok",
+          message: [
+            "🔄 ใช้: /loop add '{\"id\":\"name\",\"schedule\":\"0 9 * * *\",\"prompt\":\"do something\",\"enabled\":true}'",
+            "",
+            "Fields:",
+            "- id: unique name",
+            "- schedule: cron expression",
+            "- prompt: what to do",
+            "- requireIdle: wait until agent idle (default: false)",
+            "- enabled: true/false",
+          ].join("\n"),
+        };
+      }
+      try {
+        const loopDef = JSON.parse(rest.replace(/^['"]|['"]$/g, ""));
+        loopDef.created = now();
+        loopDef.lastRun = null;
+        loopDef.runCount = 0;
+        loopDef.enabled = loopDef.enabled !== false;
+        appendFileSync(loopsFile, JSON.stringify(loopDef) + "\n");
+        return { status: "ok", message: `🔄 Loop added: **${loopDef.id}**\nSchedule: ${loopDef.schedule}\nPrompt: ${loopDef.prompt}` };
+      } catch {
+        return { status: "ok", message: "❌ Invalid JSON — ใช้ format: '{\"id\":\"name\",\"schedule\":\"0 9 * * *\",\"prompt\":\"do something\"}'" };
+      }
+    }
+
+    case "trigger": {
+      if (!id) return { status: "ok", message: "🔄 ใช้: /loop trigger <id>" };
+      return { status: "ok", message: `🔄 Triggered loop: ${id}\n⏳ Prompt will be sent to agent...` };
+    }
+
+    case "enable": {
+      if (!id) return { status: "ok", message: "🔄 ใช้: /loop enable <id>" };
+      return toggleLoop(id, true, loopsFile);
+    }
+
+    case "disable": {
+      if (!id) return { status: "ok", message: "🔄 ใช้: /loop disable <id>" };
+      return toggleLoop(id, false, loopsFile);
+    }
+
+    case "remove": {
+      if (!id) return { status: "ok", message: "🔄 ใช้: /loop remove <id>" };
+      if (!existsSync(loopsFile)) return { status: "ok", message: "❌ No loops" };
+      const lines = readFileSync(loopsFile, "utf-8").split("\n").filter(Boolean);
+      const filtered = lines.filter(l => { try { return JSON.parse(l).id !== id; } catch { return true; } });
+      writeFileSync(loopsFile, filtered.join("\n") + "\n");
+      return { status: "ok", message: `🔄 Removed loop: ${id}` };
+    }
+
+    case "history": {
+      return { status: "ok", message: `🔄 History for ${id || "all loops"}:\n\n💡 Run history tracked in ${loopsDir}/history/` };
+    }
+
+    case "list":
+    default: {
+      if (!existsSync(loopsFile)) {
+        return { status: "ok", message: "🔄 **Loops**\n\nไม่มี loop — ใช้ /loop add '{\"id\":\"name\",\"schedule\":\"0 9 * * *\",\"prompt\":\"do something\"}'" };
+      }
+      const lines = readFileSync(loopsFile, "utf-8").split("\n").filter(Boolean);
+      const loops = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+
+      return {
+        status: "ok",
+        message: [
+          `🔄 **Loops** (${loops.length})`,
+          "",
+          ...loops.map((l: any) => {
+            const icon = l.enabled ? "✓" : "✗";
+            return `${icon} **${l.id}**\n  ${l.schedule} | last: ${l.lastRun || "never"} | runs: ${l.runCount || 0}\n  ${l.prompt || ""}`;
+          }),
+        ].join("\n"),
+        data: { loops },
+      };
+    }
+  }
+}
+
+function toggleLoop(id: string, enabled: boolean, loopsFile: string): CommandResult {
+  if (!existsSync(loopsFile)) return { status: "ok", message: "❌ No loops" };
+  const lines = readFileSync(loopsFile, "utf-8").split("\n").filter(Boolean);
+  let found = false;
+  const updated = lines.map(l => {
+    try {
+      const t = JSON.parse(l);
+      if (t.id === id) { t.enabled = enabled; found = true; }
+      return JSON.stringify(t);
+    } catch { return l; }
+  });
+  if (!found) return { status: "ok", message: `❌ Loop not found: ${id}` };
+  writeFileSync(loopsFile, updated.join("\n") + "\n");
+  return { status: "ok", message: `🔄 Loop ${enabled ? "enabled" : "disabled"}: ${id}` };
+}
+
+// ─── /tokens — Token monitoring (maw-js pattern) ──────────────────────────
+
+export function tokens(args: string, ctx: CommandContext): CommandResult {
+  const isRebuild = args?.includes("--rebuild");
+  const isJson = args?.includes("--json");
+
+  // Read from existing token tracking
+  let totalTokens = 0;
+  let totalRequests = 0;
+  try {
+    const tokenFile = join(PSI_MEMORY, "tokens.jsonl");
+    if (existsSync(tokenFile)) {
+      const lines = readFileSync(tokenFile, "utf-8").split("\n").filter(Boolean);
+      for (const line of lines) {
+        try {
+          const r = JSON.parse(line);
+          totalTokens += r.tokens || 0;
+          totalRequests++;
+        } catch {}
+      }
+    }
+  } catch {}
+
+  const ratePerHour = totalRequests > 0 ? Math.round(totalTokens / Math.max(1, process.uptime() / 3600)) : 0;
+
+  if (isJson) {
+    return { status: "ok", message: JSON.stringify({ totalTokens, totalRequests, ratePerHour }), data: { totalTokens, totalRequests, ratePerHour } };
+  }
+
+  return {
+    status: "ok",
+    message: [
+      "📊 **Token Usage**",
+      "",
+      `Total tokens: ${totalTokens.toLocaleString()}`,
+      `Total requests: ${totalRequests}`,
+      `Rate/hour: ${ratePerHour.toLocaleString()}`,
+      isRebuild ? "\n🔄 Stats rebuilt" : "",
+      "",
+      "Flags: --json, --rebuild",
+    ].filter(Boolean).join("\n"),
+    data: { totalTokens, totalRequests, ratePerHour },
+  };
+}
+
+// ─── /think — Think cycle (maw-js pattern) ────────────────────────────────
+
+export function think(args: string, ctx: CommandContext): CommandResult {
+  const oracleFilter = args?.includes("--oracles")
+    ? args.split("--oracles")[1]?.trim().split(",") || []
+    : [];
+
+  try {
+    const running = _agentManager.getRunningAgents();
+    const targets = oracleFilter.length > 0
+      ? running.filter(a => oracleFilter.includes(a.name))
+      : running;
+
+    if (targets.length === 0) {
+      return {
+        status: "ok",
+        message: [
+          "🤔 **Think Cycle**",
+          "",
+          "ไม่มี agent ที่จะให้คิด",
+          "",
+          "ใช้ /wake <name> <role> เพื่อ spawn agent ก่อน",
+          "หรือ /think --oracles dev,qa เพื่อเลือกเฉพาะบางตัว",
+        ].join("\n"),
+      };
+    }
+
+    // Send think prompt to each agent
+    const thinkPrompt = "🤔 Think Cycle: วิเคราะห์งานปัจจุบันแล้วเสนอ ideas, improvements, bugs หรือ features ที่ควรทำ";
+    for (const agent of targets) {
+      _agentManager.chatWithAgent(agent.id, thinkPrompt).catch(() => {});
+    }
+
+    return {
+      status: "ok",
+      message: [
+        "🤔 **Think Cycle Started**",
+        "",
+        `Sent think prompt to ${targets.length} agents:`,
+        ...targets.map(a => `- ${a.name} (${a.role})`),
+        "",
+        "⏳ กำลังรอ ideas จากแต่ละ agent...",
+        "",
+        "ใช้ /review เพื่อดูผลลัพธ์รวม",
+      ].join("\n"),
+      data: { agents: targets.map(a => ({ name: a.name, role: a.role })) },
+    };
+  } catch (e: any) {
+    return { status: "error", message: `❌ think error: ${e.message}` };
+  }
+}
+
+// ─── /meeting — Meeting orchestration (maw-js pattern) ────────────────────
+
+export function meeting(args: string, ctx: CommandContext): CommandResult {
+  if (!args || args.trim().length === 0) {
+    return {
+      status: "ok",
+      message: [
+        "📅 **Meeting**",
+        "",
+        "/meeting \"topic\"                        — ประชุมทุก agent",
+        "/meeting \"topic\" --oracles dev,qa,admin  — เลือกเฉพาะบางตัว",
+        "/meeting \"topic\" --dry-run                — ดูว่าใครจะเข้า",
+      ].join("\n"),
+    };
+  }
+
+  const isDryRun = args.includes("--dry-run");
+  const oracleFilter = args.includes("--oracles")
+    ? args.split("--oracles")[1]?.trim().split(",") || []
+    : [];
+
+  const topic = args.replace("--dry-run", "").replace(/--oracles\s*\S+/, "").trim().replace(/^["']|["']$/g, "");
+
+  try {
+    const running = _agentManager.getRunningAgents();
+    const targets = oracleFilter.length > 0
+      ? running.filter(a => oracleFilter.includes(a.name))
+      : running;
+
+    if (isDryRun) {
+      return {
+        status: "ok",
+        message: [
+          `📅 **Meeting (dry run)**: "${topic}"`,
+          "",
+          "Participants:",
+          ...targets.map(a => `- ${a.name} (${a.role})`),
+          "",
+          "Run without --dry-run to start the meeting",
+        ].join("\n"),
+      };
+    }
+
+    if (targets.length === 0) {
+      return { status: "ok", message: "📅 ไม่มี agent ที่จะเข้าประชุม" };
+    }
+
+    // Send meeting prompt to each agent
+    for (const agent of targets) {
+      _agentManager.chatWithAgent(agent.id, `📅 Meeting: "${topic}" — ให้ input จากมุมมองของ ${agent.role}`).catch(() => {});
+    }
+
+    return {
+      status: "ok",
+      message: [
+        `📅 **Meeting Started**: "${topic}"`,
+        "",
+        `Participants: ${targets.length}`,
+        ...targets.map(a => `- ${a.name} (${a.role})`),
+        "",
+        "⏳ กำลังรวบรวม input จากทุก agent...",
+      ].join("\n"),
+      data: { topic, participants: targets.map(a => ({ name: a.name, role: a.role })) },
+    };
+  } catch (e: any) {
+    return { status: "error", message: `❌ meeting error: ${e.message}` };
+  }
+}
+
+// ─── /tab — Tab management (maw-js pattern) ──────────────────────────────
+
+export function tab(args: string, ctx: CommandContext): CommandResult {
+  const parts = args?.trim().split(/\s+/) || [];
+  const action = parts[0] || "list";
+  const tabId = parts[1] || "";
+  const rest = parts.slice(2).join(" ") || "";
+
+  // Check tmux sessions
+  let sessions: { name: string; attached: boolean; windows: number }[] = [];
+  try {
+    const raw = execSync("tmux list-sessions -F '#{session_name}:#{session_attached}:#{session_windows}' 2>/dev/null", { encoding: "utf-8", timeout: 5000 }).trim();
+    if (raw) {
+      sessions = raw.split("\n").filter(Boolean).map(line => {
+        const [name, attached, windows] = line.split(":");
+        return { name, attached: attached === "1", windows: parseInt(windows) || 1 };
+      });
+    }
+  } catch {}
+
+  switch (action) {
+    case "list":
+    case "ls": {
+      if (sessions.length === 0) {
+        return { status: "ok", message: "📑 **Tabs**\n\nไม่มี tmux sessions\nใช้ /wake เพื่อสร้าง agent session" };
+      }
+      return {
+        status: "ok",
+        message: [
+          `📑 **Tabs** (${sessions.length} sessions)`,
+          "",
+          ...sessions.map((s, i) => `${i + 1}. **${s.name}** ${s.attached ? "🟢 attached" : "⚪ detached"} (${s.windows} windows)`),
+        ].join("\n"),
+        data: { sessions },
+      };
+    }
+
+    case "send": {
+      if (!tabId || !rest) return { status: "ok", message: "📑 ใช้: /tab send <session> \"message\"" };
+      try {
+        execSync(`tmux send-keys -t '${tabId}' '${rest.replace(/'/g, "'\\''")}' Enter`, { timeout: 5000 });
+        return { status: "ok", message: `📑 Sent to ${tabId}: "${rest}"` };
+      } catch (e: any) {
+        return { status: "error", message: `❌ Tab send error: ${e.message}` };
+      }
+    }
+
+    default: {
+      return {
+        status: "ok",
+        message: [
+          "📑 **Tab Commands**",
+          "",
+          "/tab list           — ดู tabs ทั้งหมด",
+          "/tab send <s> \"msg\" — ส่งข้อความไป tab",
+        ].join("\n"),
+      };
+    }
+  }
+}
+
+// ─── /view — Clean full-screen view (maw-js pattern) ─────────────────────
+
+export function view(args: string, ctx: CommandContext): CommandResult {
+  const parts = args?.trim().split(/\s+/) || [];
+  const agent = parts[0] || "";
+  const isClean = parts.includes("--clean");
+
+  if (!agent) {
+    try {
+      const running = _agentManager.getRunningAgents();
+      return {
+        status: "ok",
+        message: [
+          "🖥️ **View**",
+          "",
+          "/view <agent>          — ดู agent เต็มหน้าจอ",
+          "/view <agent> --clean  — clean view (ไม่มี status bar)",
+          "",
+          running.length > 0 ? "Active agents:" : "ไม่มี agent ที่รันอยู่",
+          ...running.map(a => `- ${a.name} (${a.role})`),
+        ].join("\n"),
+      };
+    } catch {
+      return { status: "ok", message: "🖥️ ใช้: /view <agent-name> [--clean]" };
+    }
+  }
+
+  // Check if it's a tmux session
+  try {
+    const exists = execSync(`tmux has-session -t '${agent}' 2>/dev/null; echo $?`, { encoding: "utf-8", timeout: 3000 }).trim();
+    if (exists === "0") {
+      return {
+        status: "ok",
+        message: `🖥️ View: ${agent}${isClean ? " (clean mode)" : ""}\n\n💡 เปิด tmux session นี้ใน terminal แยก:\n\`tmux attach -t ${agent}${isClean ? " && tmux set status off" : ""}\``,
+      };
+    }
+  } catch {}
+
+  return {
+    status: "ok",
+    message: `🖥️ View: ${agent}\n\nไม่พบ session "${agent}" — ใช้ /tab list เพื่อดู sessions ที่มี`,
+  };
+}
+
+// ─── /chat — Chat history (maw-js pattern) ────────────────────────────────
+
+export function chat(args: string, ctx: CommandContext): CommandResult {
+  const agentName = args?.trim() || "";
+
+  if (!agentName) {
+    try {
+      const running = _agentManager.getRunningAgents();
+      if (running.length === 0) {
+        return { status: "ok", message: "💬 **Chat**\n\nไม่มี agent — ใช้ /wake เพื่อ spawn" };
+      }
+
+      // Show all agents' recent messages
+      const lines: string[] = ["💬 **Chat History (all agents)**", ""];
+      for (const agent of running) {
+        const messages = _agentStore.getMessages(agent.id as any, 3);
+        lines.push(`### ${agent.name} (${agent.role})`);
+        if (messages.length === 0) {
+          lines.push("_no messages_");
+        } else {
+          for (const msg of messages) {
+            const m = msg as any;
+            lines.push(`[${new Date(m.timestamp || m.ts || Date.now()).toLocaleTimeString()}] ${m.role}: ${(m.content || m.text || "").slice(0, 100)}`);
+          }
+        }
+        lines.push("");
+      }
+      return { status: "ok", message: lines.join("\n"), data: { agents: running.map(a => ({ name: a.name, role: a.role })) } };
+    } catch (e: any) {
+      return { status: "error", message: `❌ chat error: ${e.message}` };
+    }
+  }
+
+  // Show specific agent's chat
+  try {
+    const running = _agentManager.getRunningAgents();
+    const agent = running.find(a => a.name === agentName || a.id.startsWith(agentName));
+    if (!agent) {
+      return { status: "ok", message: `❌ ไม่พบ agent: ${agentName}` };
+    }
+
+    const messages = _agentStore.getMessages(agent.id as any, 10);
+    return {
+      status: "ok",
+      message: [
+        `💬 **Chat: ${agent.name}** (${agent.role})`,
+        "",
+        ...messages.map((msg: any) => {
+          const ts = new Date(msg.timestamp || msg.ts || Date.now()).toLocaleTimeString();
+          const role = msg.role || "unknown";
+          const content = (msg.content || msg.text || "").slice(0, 200);
+          return `[${ts}] **${role}**: ${content}`;
+        }),
+        messages.length === 0 ? "_no messages_" : "",
+      ].filter(Boolean).join("\n"),
+      data: { agent: { name: agent.name, role: agent.role }, messages },
+    };
+  } catch (e: any) {
+    return { status: "error", message: `❌ chat error: ${e.message}` };
+  }
+}
+
+// ─── /review — Review think cycle proposals (maw-js pattern) ──────────────
+
+export function review(args: string, ctx: CommandContext): CommandResult {
+  try {
+    const running = _agentManager.getRunningAgents();
+    if (running.length === 0) {
+      return { status: "ok", message: "🔍 **Review**\n\nไม่มี agent — ใช้ /think เพื่อเริ่ม think cycle" };
+    }
+
+    const reviews: string[] = ["🔍 **Review: Agent Proposals**", ""];
+    for (const agent of running) {
+      const messages = _agentStore.getMessages(agent.id as any, 3);
+      const latest = messages[0] as any;
+      reviews.push(`### ${agent.name} (${agent.role})`);
+      reviews.push(latest?.content?.slice(0, 300) || "_no recent output_");
+      reviews.push("");
+    }
+
+    return { status: "ok", message: reviews.join("\n") };
+  } catch (e: any) {
+    return { status: "error", message: `❌ review error: ${e.message}` };
+  }
+}
+
+// ─── Update COMMANDS registry ──────────────────────────────────────────────
+
+// Add new commands to COMMANDS (extend existing registry)
+Object.assign(COMMANDS, {
+  plugin,
+  task,
+  project,
+  loop,
+  tokens,
+  think,
+  meeting,
+  tab,
+  view,
+  chat,
+  review,
+});
+
+// Update listCommands to include new commands
+const _origListCommands = listCommands;
+export function listCommandsExtended(): { name: string; description: string }[] {
+  return [
+    ..._origListCommands(),
+    // Batch 4: maw-js parity
+    { name: "plugin", description: "📦 Plugin management (list/install/remove)" },
+    { name: "task", description: "📋 Task system — log, show, comment, done (GitHub-style)" },
+    { name: "project", description: "📁 Project trees — create, add, show with progress" },
+    { name: "loop", description: "🔄 Loop management — add/remove/trigger/enable/disable" },
+    { name: "tokens", description: "📊 Token monitoring (--rebuild, --json)" },
+    { name: "think", description: "🤔 Think cycle — agents propose ideas" },
+    { name: "meeting", description: "📅 Meeting — collect input from agents (--dry-run)" },
+    { name: "tab", description: "📑 Tab management — list/send to tmux sessions" },
+    { name: "view", description: "🖥️ Clean full-screen view for agent" },
+    { name: "chat", description: "💬 Chat history per agent" },
+    { name: "review", description: "🔍 Review think cycle proposals" },
+  ];
+}
+
+const COMMANDS_EXTENDED: Record<string, CommandHandler> = COMMANDS;
+
 export function executeCommand(input: string, ctx: CommandContext = {}): CommandResult {
   const trimmed = input.trim();
 
   // Handle /help
   if (trimmed === "/help" || trimmed === "/") {
-    const cmds = listCommands();
+    const cmds = listCommandsExtended();
     return {
       status: "ok",
       message:

@@ -46,11 +46,8 @@ const DASHBOARD_DIST = join(__dirname, 'dashboard', 'dist');
 const hasDist = existsSync(DASHBOARD_DIST);
 
 if (hasDist) {
-  // Serve static assets
-  app.get('/assets/*', serveStatic({ root: DASHBOARD_DIST }));
-  // Serve HTML pages
-  app.get('/', serveStatic({ path: 'index.html', root: DASHBOARD_DIST }));
-  app.get('/*.html', serveStatic({ root: DASHBOARD_DIST }));
+  // Serve all static files from dashboard dist (assets, html, favicon, etc.)
+  app.get('/*', serveStatic({ root: DASHBOARD_DIST }));
 }
 
 // Health endpoint

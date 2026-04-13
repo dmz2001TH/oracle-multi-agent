@@ -17,6 +17,11 @@ import { homedir } from "os";
 import { MemoryStore } from "../memory/store.js";
 import { AgentManager } from "../agents/manager.js";
 
+// WebSocket broadcast helper (set by index.ts)
+function wsBroadcast(data: any) {
+  try { (globalThis as any).__wsBroadcast?.(data); } catch {}
+}
+
 // Initialize store and manager (singleton)
 const DB_PATH = process.env.ORACLE_DB_PATH || join(homedir(), ".config", "oracle", "oracle.db");
 const store = new MemoryStore(DB_PATH);
@@ -111,6 +116,7 @@ agentBridgeApi.post("/api/v2/agents/spawn", async (c) => {
 
   try {
     const result = await manager.spawnAgent(name, role, personality);
+    wsBroadcast({ type: 'agent_spawned', agent: result });
     return c.json(result, 201);
   } catch (err: any) {
     return c.json({ error: err.message }, 400);
@@ -138,6 +144,7 @@ agentBridgeApi.delete("/api/v2/agents/:id", (c) => {
   const id = c.req.param("id");
   try {
     manager.stopAgent(id);
+    wsBroadcast({ type: 'agent_stopped', agentId: id });
     return c.json({ ok: true, stopped: id });
   } catch (err: any) {
     return c.json({ error: err.message }, 400);

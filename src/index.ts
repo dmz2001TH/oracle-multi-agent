@@ -18,8 +18,10 @@ import { mountViews } from './views/index.js';
 import { agentBridgeApi } from './api/agent-bridge.js';
 import { memoryBridgeApi } from './api/memory-bridge.js';
 import { join, dirname } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { WebSocketServer } from 'ws';
+import type { IncomingMessage } from 'http';
 
 const config = loadConfig();
 const processManager = createProcessManager();
@@ -70,6 +72,33 @@ app.get('/health', (c) => c.json({
   },
 }));
 
+// ─── Dashboard stub routes (prevent 404s) ──────────────────────
+
+// GET /api/ui-state — return all UI state keys (stub: empty object)
+app.get('/api/ui-state', (c) => c.json({}));
+
+// GET /api/pin-info — dashboard pinned info
+app.get('/api/pin-info', (c) => c.json({ locked: false, pinned: [] }));
+
+// GET /api/tokens/rate — token rate limit info
+app.get('/api/tokens/rate', (c) => c.json({ rate: 0, window: 3600, remaining: Infinity }));
+
+// GET /favicon.svg — serve favicon from dashboard public dir
+const FAVICON_PATH = join(DASHBOARD_DIST, 'favicon.svg');
+const FAVICON_PUBLIC = join(__dirname, 'dashboard', 'public', 'favicon.svg');
+const faviconFile = existsSync(FAVICON_PATH) ? FAVICON_PATH : existsSync(FAVICON_PUBLIC) ? FAVICON_PUBLIC : null;
+if (faviconFile) {
+  app.get('/favicon.svg', (c) => {
+    const svg = readFileSync(faviconFile, 'utf-8');
+    return c.body(svg, 200, { 'Content-Type': 'image/svg+xml' });
+  });
+} else {
+  // Fallback: simple SVG favicon
+  app.get('/favicon.svg', (c) => {
+    return c.body('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="#6366f1"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="16" font-family="sans-serif">🧠</text></svg>', 200, { 'Content-Type': 'image/svg+xml' });
+  });
+}
+
 const port = Number(process.env.HUB_PORT || config.port || 3456);
 
 console.log(`🧠 Oracle Multi-Agent v5.0`);
@@ -79,13 +108,14 @@ console.log(`   provider: ${process.env.LLM_PROVIDER || 'gemini'}`);
 console.log(`   model: ${process.env.AGENT_MODEL || 'gemini-2.0-flash'}`);
 console.log(`   pid: ${process.pid}`);
 
-serve({ fetch: app.fetch, port }, (info) => {
+const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`   listening on http://0.0.0.0:${info.port}`);
   if (hasDist) {
     console.log(`   dashboard: http://0.0.0.0:${info.port}`);
   } else {
     console.log(`   dashboard: cd src/dashboard && npx vite (port 5173)`);
   }
+  console.log(`   websocket: ws://0.0.0.0:${info.port}/ws`);
   console.log(`\n   📡 v2 API ready:`);
   console.log(`      POST /api/v2/agents/spawn   — spawn agent`);
   console.log(`      GET  /api/v2/agents          — list agents`);
@@ -94,3 +124,47 @@ serve({ fetch: app.fetch, port }, (info) => {
   console.log(`      GET  /api/v2/memory/stats    — KB stats`);
   console.log(`      POST /api/v2/agents/broadcast — broadcast`);
 });
+
+// ─── WebSocket /ws — Dashboard real-time updates ────────────────
+const wss = new WebSocketServer({ server: server as any, path: '/ws' });
+
+// Broadcast helper — send to all connected WS clients
+function wsBroadcast(data: any) {
+  const msg = JSON.stringify(data);
+  for (const client of wss.clients) {
+    if (client.readyState === 1) { // OPEN
+      client.send(msg);
+    }
+  }
+}
+
+// Make broadcast available to other modules (agent-bridge, etc.)
+(globalThis as any).__wsBroadcast = wsBroadcast;
+
+wss.on('connection', (ws, req: IncomingMessage) => {
+  const ip = req.socket.remoteAddress;
+  console.log(`🔌 WebSocket connected: ${ip}`);
+
+  // Send initial heartbeat
+  ws.send(JSON.stringify({ type: 'connected', ts: Date.now() }));
+
+  ws.on('message', (raw) => {
+    try {
+      const msg = JSON.parse(raw.toString());
+      // Handle subscribe/ping from dashboard
+      if (msg.type === 'ping') {
+        ws.send(JSON.stringify({ type: 'pong', ts: Date.now() }));
+      }
+    } catch {}
+  });
+
+  ws.on('close', () => {
+    console.log(`🔌 WebSocket disconnected: ${ip}`);
+  });
+
+  ws.on('error', (err) => {
+    console.error(`🔌 WebSocket error:`, err.message);
+  });
+});
+
+console.log(`   🔌 WebSocket ready on /ws`);

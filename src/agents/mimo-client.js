@@ -166,10 +166,11 @@ export class MiMoAgent extends EventEmitter {
       }
 
       case 'tell': {
-        const agents = await this._hubGet('/api/agents');
-        const target = agents.find(a => a.name.toLowerCase() === args.agent_name.toLowerCase());
+        const res = await this._hubGet('/api/agents');
+        const agentList = Array.isArray(res) ? res : (res?.agents || []);
+        const target = agentList.find(a => a.name.toLowerCase() === args.agent_name.toLowerCase());
         if (!target) {
-          return { error: `Agent "${args.agent_name}" not found. Available: ${agents.map(a => a.name).join(', ')}` };
+          return { error: `Agent "${args.agent_name}" not found. Available: ${agentList.map(a => a.name).join(', ')}` };
         }
         await this._hubPost(`/api/agents/${this.id}/tell/${target.id}`, { message: args.message });
         await this._hubPost(`/api/agent-callback/${this.id}`, {
@@ -180,8 +181,9 @@ export class MiMoAgent extends EventEmitter {
       }
 
       case 'list_agents': {
-        const agents = await this._hubGet('/api/agents');
-        return { agents: agents.map(a => ({ name: a.name, role: a.role, status: a.status })) };
+        const res = await this._hubGet('/api/agents');
+        const agentList = Array.isArray(res) ? res : (res?.agents || []);
+        return { agents: agentList.map(a => ({ name: a.name, role: a.role, status: a.status })) };
       }
 
       case 'get_messages': {
@@ -191,10 +193,9 @@ export class MiMoAgent extends EventEmitter {
 
       case 'create_task': {
         await this._hubPost('/api/tasks', {
-          title: args.title,
+          subject: args.title,      // API uses 'subject', tool uses 'title'
           description: args.description || '',
-          assignedTo: args.assigned_to || this.name,
-          priority: args.priority || 1,
+          owner: args.assigned_to || this.name,  // API uses 'owner', tool uses 'assigned_to'
         });
         return { success: true, task: args.title };
       }

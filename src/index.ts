@@ -46,8 +46,21 @@ const DASHBOARD_DIST = join(__dirname, 'dashboard', 'dist');
 const hasDist = existsSync(DASHBOARD_DIST);
 
 if (hasDist) {
-  // Serve all static files from dashboard dist (assets, html, favicon, etc.)
-  app.get('/*', serveStatic({ root: DASHBOARD_DIST }));
+  // Serve all static files from dashboard dist
+  app.get('/*', (c) => {
+    let reqPath = new URL(c.req.url).pathname;
+    if (reqPath === '/') reqPath = '/index.html';
+    const filePath = join(DASHBOARD_DIST, reqPath);
+    if (!existsSync(filePath)) return c.notFound();
+    const content = readFileSync(filePath);
+    const ext = reqPath.split('.').pop() || '';
+    const mimeTypes: Record<string, string> = {
+      'html': 'text/html', 'js': 'application/javascript', 'css': 'text/css',
+      'json': 'application/json', 'svg': 'image/svg+xml', 'png': 'image/png',
+      'jpg': 'image/jpeg', 'ico': 'image/x-icon', 'woff2': 'font/woff2', 'woff': 'font/woff',
+    };
+    return c.body(content, 200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+  });
 }
 
 // Health endpoint

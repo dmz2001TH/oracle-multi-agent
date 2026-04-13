@@ -358,6 +358,29 @@ wss.on('connection', (ws: any, req: any) => {
       const msg = JSON.parse(raw.toString());
       if (msg.type === 'ping') {
         ws.send(JSON.stringify({ type: 'pong', ts: Date.now() }));
+        return;
+      }
+      // Handle CLI commands via / prefix in chat
+      if (msg.type === 'chat' && typeof msg.text === 'string' && msg.text.startsWith('/')) {
+        import("./commands/index.js").then(({ executeCommand }) => {
+          const result = executeCommand(msg.text, { sessionId: msg.sessionId });
+          ws.send(JSON.stringify({
+            type: 'reply',
+            role: 'oracle',
+            message: result.message,
+            ts: new Date().toISOString(),
+            cmd: true,
+            status: result.status,
+          }));
+        }).catch((err: any) => {
+          ws.send(JSON.stringify({
+            type: 'reply',
+            role: 'oracle',
+            message: `❌ Command error: ${err.message}`,
+            ts: new Date().toISOString(),
+          }));
+        });
+        return;
       }
     } catch {}
   });

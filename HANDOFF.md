@@ -32,7 +32,7 @@
 | 6 | `/feel <mood>` | ✅ เสร็จ | บันทึกอารมณ์ — mood log JSONL, นับ entries ต่อวัน |
 | 7 | `/forward` | ✅ เสร็จ | Handoff — สร้าง handoff JSON, dual-write ψ/memory/handoffs/ |
 | 8 | `/trace [query]` | ✅ เสร็จ | Universal search — ค้น journal + FYI + handoffs |
-| 9 | `/trace --deep` | ⚠️ ยังไม่มี | Deep trace mode — ค้นเชิงลึก, วิเคราะห์ dependencies |
+| 9 | `/trace --deep` | ✅ เสร็จ | Deep trace: code grep + git history + deps + save trace log to ψ/ |
 | 10 | `/learn [repo]` | ✅ เสร็จ | ศึกษา repo — git clone shallow, analyze structure, สร้าง summary |
 | 11 | `/who-are-you` | ✅ เสร็จ | แสดง Oracle identity — uptime, agents, memories, identity |
 
@@ -42,9 +42,9 @@
 |---|---|---|---|
 | 12 | **oracle-skills-cli** | Soul-Brews-Studio/arra-oracle-skills-cli | ✅ 55 skills registry (src/skills/registry.ts) |
 | 13 | **oracle-v3** | Soul-Brews-Studio/arra-oracle-v3 | ✅ memory patterns, architecture reference |
-| 14 | **maw-js** | _ref/maw-js/ | ⚠️ cloned แต่ยังไม่ได้ดึง patterns |
+| 14 | **maw-js** | _ref/maw-js/ | ✅ Fleet patterns adapted (src/commands/index.ts → /fleet) |
 | 15 | **oracle-vault-report** | _ref/vault-report/ | ✅ Vault dashboard (public/vault.html + /api/vault/*) |
-| 16 | **pulse-cli** | — | ⚠️ ยังไม่ได้สร้าง standalone CLI |
+| 16 | **pulse-cli** | — | ✅ Project board CLI (src/commands/index.ts → /pulse add/done/list) |
 | 17 | **multi-agent-workflow-kit** | _ref/workflow-kit/ | ⚠️ cloned แต่ยังไม่ได้ดึง patterns |
 | 18 | **claude-code-statusline** | nazt/claude-code-statusline | ⚠️ cloned แต่ยังไม่ได้ adapt |
 | 19 | **หนังสือ "รูปสอนสุญญตา"** | book.buildwithoracle.com | ✅ 5 principles + Rule 6 (src/knowledge/oracle-principles.md, /philosophy command) |

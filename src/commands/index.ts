@@ -15,7 +15,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
+import { homedir, hostname, platform, arch } from "node:os";
 import { execSync } from "node:child_process";
 import { listSkillsByCategory, searchSkills, getSkillCount } from "../skills/registry.js";
 
@@ -433,34 +433,44 @@ export function trace(args: string, ctx: CommandContext): CommandResult {
       message: [
         "🔍 **Universal Search (/trace)**",
         "",
-        "/trace <query>",
+        "/trace <query>              — Smart search (default)",
+        "/trace <query> --deep       — Deep trace: code + deps + git + memory",
+        "/trace <query> --oracle     — Memory only (fastest)",
         "",
         "ค้นหาใน:",
-        "- Journal entries (FYI, RRR, Standup)",
-        "- Memory files (.jsonl)",
-        "- Handoffs",
-        "- Agent definitions",
+        "- Journal entries, Memory files, Handoffs",
+        "- Source code (grep)",
+        "- Git history (--deep)",
+        "- Dependencies (--deep)",
         "",
         "ตัวอย่าง:",
         "/trace login bug",
-        "/trace deploy",
+        "/trace deploy --deep",
       ].join("\n"),
     };
   }
 
-  const query = args.toLowerCase();
+  // Parse flags
+  const isDeep = args.includes("--deep");
+  const isOracle = args.includes("--oracle");
+  const cleanQuery = args.replace("--deep", "").replace("--oracle", "").trim().toLowerCase();
+
+  if (!cleanQuery) {
+    return { status: "ok", message: "❌ ต้องระบุ query" };
+  }
+
   const results: { source: string; match: string; date?: string }[] = [];
 
-  // Search journal files
+  // 1. Search memory files (always)
   try {
     if (existsSync(JOURNAL_DIR)) {
       const files = readdirSync(JOURNAL_DIR).sort().reverse();
       for (const file of files) {
         const content = readFileSync(join(JOURNAL_DIR, file), "utf-8");
-        if (content.toLowerCase().includes(query)) {
+        if (content.toLowerCase().includes(cleanQuery)) {
           const lines = content.split("\n");
           for (const line of lines) {
-            if (line.toLowerCase().includes(query)) {
+            if (line.toLowerCase().includes(cleanQuery)) {
               results.push({
                 source: `journal/${file}`,
                 match: line.trim().substring(0, 120),
@@ -473,7 +483,6 @@ export function trace(args: string, ctx: CommandContext): CommandResult {
     }
   } catch {}
 
-  // Search FYI jsonl
   try {
     const fyiFile = join(MEMORY_DIR, "fyi.jsonl");
     if (existsSync(fyiFile)) {
@@ -481,7 +490,7 @@ export function trace(args: string, ctx: CommandContext): CommandResult {
       for (const line of lines) {
         try {
           const record = JSON.parse(line);
-          if (record.text && record.text.toLowerCase().includes(query)) {
+          if (record.text && record.text.toLowerCase().includes(cleanQuery)) {
             results.push({
               source: "memory/fyi",
               match: record.text.substring(0, 120),
@@ -493,13 +502,12 @@ export function trace(args: string, ctx: CommandContext): CommandResult {
     }
   } catch {}
 
-  // Search handoffs
   try {
     if (existsSync(HANDOFF_DIR)) {
       const files = readdirSync(HANDOFF_DIR).filter((f) => f !== "latest.json");
       for (const file of files) {
         const content = readFileSync(join(HANDOFF_DIR, file), "utf-8");
-        if (content.toLowerCase().includes(query)) {
+        if (content.toLowerCase().includes(cleanQuery)) {
           results.push({
             source: `handoff/${file}`,
             match: "Handoff matches query",
@@ -509,25 +517,131 @@ export function trace(args: string, ctx: CommandContext): CommandResult {
     }
   } catch {}
 
-  if (results.length === 0) {
+  // Search ψ/ files
+  try {
+    const psiMemory = join(process.cwd(), "ψ", "memory");
+    if (existsSync(psiMemory)) {
+      const dirs = readdirSync(psiMemory, { withFileTypes: true });
+      for (const dir of dirs) {
+        if (!dir.isDirectory()) continue;
+        const dirPath = join(psiMemory, dir.name);
+        try {
+          const files = readdirSync(dirPath);
+          for (const file of files) {
+            if (file.endsWith(".jsonl") || file.endsWith(".md")) {
+              const content = readFileSync(join(dirPath, file), "utf-8");
+              if (content.toLowerCase().includes(cleanQuery)) {
+                results.push({
+                  source: `ψ/memory/${dir.name}/${file}`,
+                  match: content.split("\n").find(l => l.toLowerCase().includes(cleanQuery))?.trim().substring(0, 120) || "match found",
+                });
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+
+  // 2. Deep trace: code search + git history + dependency analysis
+  const deepResults: { source: string; match: string; date?: string }[] = [];
+
+  if (isDeep && !isOracle) {
+    // Search source code (grep)
+    try {
+      const grepOutput = execSync(
+        `grep -rn "${cleanQuery}" --include="*.ts" --include="*.js" --include="*.json" --include="*.md" . 2>/dev/null | grep -v node_modules | grep -v .git | head -20`,
+        { encoding: "utf-8", timeout: 10000 }
+      ).trim();
+      if (grepOutput) {
+        for (const line of grepOutput.split("\n")) {
+          deepResults.push({ source: "code/grep", match: line.substring(0, 150) });
+        }
+      }
+    } catch {}
+
+    // Search git history
+    try {
+      const gitOutput = execSync(
+        `git log --all --oneline --grep="${cleanQuery}" -10 2>/dev/null`,
+        { encoding: "utf-8", timeout: 5000 }
+      ).trim();
+      if (gitOutput) {
+        for (const line of gitOutput.split("\n")) {
+          deepResults.push({ source: "git/log", match: line });
+        }
+      }
+    } catch {}
+
+    // Search git diff
+    try {
+      const gitDiff = execSync(
+        `git log --all -p --grep="${cleanQuery}" --since="30 days ago" 2>/dev/null | grep -i "${cleanQuery}" | head -10`,
+        { encoding: "utf-8", timeout: 5000 }
+      ).trim();
+      if (gitDiff) {
+        for (const line of gitDiff.split("\n")) {
+          if (line.trim()) deepResults.push({ source: "git/diff", match: line.trim().substring(0, 150) });
+        }
+      }
+    } catch {}
+
+    // Dependency analysis
+    try {
+      const pkgJson = join(process.cwd(), "package.json");
+      if (existsSync(pkgJson)) {
+        const pkg = JSON.parse(readFileSync(pkgJson, "utf-8"));
+        const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+        for (const [dep, ver] of Object.entries(allDeps)) {
+          if (dep.toLowerCase().includes(cleanQuery)) {
+            deepResults.push({ source: "deps/npm", match: `${dep}: ${ver}` });
+          }
+        }
+      }
+    } catch {}
+
+    // Save trace log
+    try {
+      const traceDir = join(PSI_MEMORY, "traces", today());
+      mkdirSync(traceDir, { recursive: true });
+      const time = new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }).replace(":", "");
+      const traceFile = join(traceDir, `${time}_${cleanQuery.replace(/\s+/g, "-").substring(0, 30)}.md`);
+      const traceLog = [
+        `# Trace: ${cleanQuery}`,
+        `Date: ${now()}`,
+        `Mode: deep`,
+        `Results: ${results.length + deepResults.length}`,
+        "",
+        "## Memory Results",
+        ...results.map(r => `- [${r.source}] ${r.match}`),
+        "",
+        "## Deep Results",
+        ...deepResults.map(r => `- [${r.source}] ${r.match}`),
+      ].join("\n");
+      writeFileSync(traceFile, traceLog);
+    } catch {}
+  }
+
+  const allResults = [...results, ...deepResults];
+
+  if (allResults.length === 0) {
     return {
       status: "ok",
-      message: `🔍 ไม่พบผลลัพธ์สำหรับ: "${args}"`,
+      message: `🔍 ไม่พบผลลัพธ์สำหรับ: "${cleanQuery}"${isDeep ? " (deep mode)" : ""}`,
     };
   }
 
-  const output = results
-    .slice(0, 20)
-    .map(
-      (r, i) =>
-        `${i + 1}. [${r.source}]${r.date ? ` (${r.date})` : ""}\n   ${r.match}`
-    )
+  const output = allResults
+    .slice(0, 30)
+    .map((r, i) => `${i + 1}. [${r.source}]${r.date ? ` (${r.date})` : ""}\n   ${r.match}`)
     .join("\n\n");
+
+  const modeLabel = isDeep ? "deep" : isOracle ? "oracle" : "smart";
 
   return {
     status: "ok",
-    message: `🔍 พบ ${results.length} ผลลัพธ์สำหรับ "${args}":\n\n${output}`,
-    data: { query: args, count: results.length, results: results.slice(0, 20) },
+    message: `🔍 [${modeLabel}] พบ ${allResults.length} ผลลัพธ์สำหรับ "${cleanQuery}":\n\n${output}`,
+    data: { query: cleanQuery, mode: modeLabel, count: allResults.length, results: allResults.slice(0, 30) },
   };
 }
 
@@ -918,6 +1032,8 @@ const COMMANDS: Record<string, CommandHandler> = {
   philosophy,
   skills,
   resonance,
+  fleet,
+  pulse,
 };
 
 export function listCommands(): { name: string; description: string }[] {
@@ -935,7 +1051,200 @@ export function listCommands(): { name: string; description: string }[] {
     { name: "philosophy", description: "📜 Oracle 5 Principles + Rule 6" },
     { name: "skills", description: "📋 List/search all skills (30+)" },
     { name: "resonance", description: "🎵 Capture what resonates" },
+    { name: "fleet", description: "🚢 Fleet census — all oracles across nodes" },
+    { name: "pulse", description: "📊 Project board — tasks, issues, status" },
   ];
+}
+
+// ─── /fleet — Fleet Census (from maw-js patterns) ──────────────────────────
+
+export function fleet(args: string, ctx: CommandContext): CommandResult {
+  const isDeep = args?.includes("--deep");
+  const isQuick = args?.includes("--quick");
+
+  // Gather fleet info
+  let agents: any[] = [];
+  let nodeCount = 0;
+  let totalSkills = 0;
+
+  try {
+    // Count agents from identity file and agent dirs
+    if (existsSync(IDENTITY_FILE)) {
+      const id = JSON.parse(readFileSync(IDENTITY_FILE, "utf-8"));
+      agents.push({
+        name: id.name || "Oracle",
+        role: id.role || "general",
+        element: id.element || "—",
+        status: "active",
+        awakenCount: id.awakenCount || 1,
+      });
+    }
+
+    // Count agent directories
+    const agentsDir = join(homedir(), ".oracle", "agents");
+    if (existsSync(agentsDir)) {
+      const dirs = readdirSync(agentsDir);
+      for (const d of dirs) {
+        if (d === (agents[0]?.name || "")) continue;
+        try {
+          const hbFile = join(agentsDir, d, "heartbeat.json");
+          const status = existsSync(hbFile)
+            ? JSON.parse(readFileSync(hbFile, "utf-8")).status || "unknown"
+            : "idle";
+          agents.push({ name: d, role: "spawned", status });
+        } catch {
+          agents.push({ name: d, role: "unknown", status: "unknown" });
+        }
+      }
+    }
+
+    nodeCount = 1; // Current node
+    totalSkills = getSkillCount();
+  } catch {}
+
+  // Deep mode: include version, uptime, disk usage
+  let extraInfo = "";
+  if (isDeep) {
+    try {
+      const uptime = process.uptime();
+      const uptimeStr = `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`;
+      let diskUsage = "—";
+      try {
+        diskUsage = execSync("du -sh ~/.oracle 2>/dev/null | cut -f1", { encoding: "utf-8", timeout: 3000 }).trim();
+      } catch {}
+
+      extraInfo = [
+        "",
+        "## Deep Census",
+        `- Uptime: ${uptimeStr}`,
+        `- Disk: ${diskUsage}`,
+        `- Node: ${hostname()}`,
+        `- Platform: ${platform()} ${arch()}`,
+        `- PID: ${process.pid}`,
+      ].join("\n");
+    } catch {}
+  }
+
+  const agentList = agents.map((a, i) =>
+    `${i + 1}. **${a.name}** (${a.role}) — ${a.status}${a.element ? ` [${a.element}]` : ""}`
+  ).join("\n") || "No agents found";
+
+  return {
+    status: "ok",
+    message: [
+      "🚢 **Fleet Census**",
+      "",
+      `Nodes: ${nodeCount} | Agents: ${agents.length} | Skills: ${totalSkills}`,
+      "",
+      "## Agents",
+      agentList,
+      extraInfo,
+      "",
+      `Flags: ${isDeep ? "--deep" : isQuick ? "--quick" : "standard"}`,
+    ].filter(Boolean).join("\n"),
+    data: { nodes: nodeCount, agents, skills: totalSkills },
+  };
+}
+
+// ─── /pulse — Project Board CLI ─────────────────────────────────────────────
+
+export function pulse(args: string, ctx: CommandContext): CommandResult {
+  ensureDirs();
+
+  const action = args?.trim().split(/\s+/)[0] || "list";
+  const restArgs = args?.trim().split(/\s+/).slice(1).join(" ") || "";
+
+  const pulseDir = join(PSI_MEMORY, "pulse");
+  mkdirSync(pulseDir, { recursive: true });
+  const tasksFile = join(pulseDir, "tasks.jsonl");
+
+  switch (action) {
+    case "add": {
+      if (!restArgs) {
+        return { status: "ok", message: "📊 ใช้: /pulse add <task description>" };
+      }
+      const task = {
+        id: `task-${Date.now().toString(36)}`,
+        title: restArgs,
+        status: "todo",
+        priority: "medium",
+        created: now(),
+        updated: now(),
+      };
+      appendFileSync(tasksFile, JSON.stringify(task) + "\n");
+      return {
+        status: "ok",
+        message: `✅ Task added: "${restArgs}"\nID: ${task.id}`,
+        data: task,
+      };
+    }
+
+    case "done": {
+      if (!restArgs) {
+        return { status: "ok", message: "📊 ใช้: /pulse done <task-id>" };
+      }
+      if (!existsSync(tasksFile)) {
+        return { status: "ok", message: "❌ No tasks found" };
+      }
+      const lines = readFileSync(tasksFile, "utf-8").split("\n").filter(Boolean);
+      let found = false;
+      const updated = lines.map(l => {
+        try {
+          const t = JSON.parse(l);
+          if (t.id === restArgs || t.title.toLowerCase().includes(restArgs.toLowerCase())) {
+            t.status = "done";
+            t.updated = now();
+            found = true;
+          }
+          return JSON.stringify(t);
+        } catch { return l; }
+      });
+      if (found) {
+        writeFileSync(tasksFile, updated.join("\n") + "\n");
+        return { status: "ok", message: `✅ Task marked done: ${restArgs}` };
+      }
+      return { status: "ok", message: `❌ Task not found: ${restArgs}` };
+    }
+
+    case "list":
+    default: {
+      if (!existsSync(tasksFile)) {
+        return {
+          status: "ok",
+          message: [
+            "📊 **Project Pulse**",
+            "",
+            "No tasks yet. Use:",
+            "- `/pulse add <task>` — add task",
+            "- `/pulse done <id>` — mark done",
+            "- `/pulse list` — show all",
+          ].join("\n"),
+        };
+      }
+
+      const tasks = readFileSync(tasksFile, "utf-8")
+        .split("\n")
+        .filter(Boolean)
+        .map(l => { try { return JSON.parse(l); } catch { return null; } })
+        .filter(Boolean);
+
+      const todo = tasks.filter(t => t.status === "todo");
+      const done = tasks.filter(t => t.status === "done");
+
+      return {
+        status: "ok",
+        message: [
+          "📊 **Project Pulse**",
+          "",
+          `Total: ${tasks.length} | Todo: ${todo.length} | Done: ${done.length}`,
+          "",
+          todo.length > 0 ? "### 📋 Todo\n" + todo.map(t => `- [ ] ${t.id}: ${t.title}`).join("\n") : "",
+          done.length > 0 ? "\n### ✅ Done\n" + done.map(t => `- [x] ${t.id}: ${t.title}`).join("\n") : "",
+        ].filter(Boolean).join("\n"),
+        data: { total: tasks.length, todo: todo.length, done: done.length, tasks },
+      };
+    }
+  }
 }
 
 export function executeCommand(input: string, ctx: CommandContext = {}): CommandResult {

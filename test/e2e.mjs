@@ -97,6 +97,26 @@ await test('POST /api/commands/execute /skills', async () => {
   assert(data.message.includes('awaken'), 'missing skill awaken');
 });
 
+await test('POST /api/commands/execute /trace --deep', async () => {
+  const { data } = await api('POST', '/api/commands/execute', { input: '/trace deploy --deep' });
+  assert(data.ok, 'trace --deep not ok');
+  assert(data.data.mode === 'deep', 'mode not deep');
+});
+
+await test('POST /api/commands/execute /fleet', async () => {
+  const { data } = await api('POST', '/api/commands/execute', { input: '/fleet' });
+  assert(data.ok, 'fleet not ok');
+  assert(data.message.includes('Fleet Census'), 'missing fleet header');
+});
+
+await test('POST /api/commands/execute /pulse add + list', async () => {
+  const { data: addData } = await api('POST', '/api/commands/execute', { input: '/pulse add E2E test task' });
+  assert(addData.ok, 'pulse add not ok');
+  const { data: listData } = await api('POST', '/api/commands/execute', { input: '/pulse list' });
+  assert(listData.ok, 'pulse list not ok');
+  assert(listData.message.includes('E2E test task'), 'task not in list');
+});
+
 // ─── Skills API ─────────────────────────────────────────────────────────────
 console.log('\n⚡ Skills API');
 

@@ -22,7 +22,7 @@ costsApi.get("/api/costs", (c) => {
   const projectsDir = join(homedir(), ".claude", "projects");
   let dirs: string[];
   try { dirs = readdirSync(projectsDir).filter((d) => { try { return statSync(join(projectsDir, d)).isDirectory(); } catch { return false; } }); }
-  catch { return c.json({ error: "Cannot read ~/.claude/projects/" }, 500); }
+  catch { return c.json({ agents: [], total: { tokens: 0, cost: 0, sessions: 0, agents: 0 } }); }
 
   const agents: Record<string, any> = {};
   for (const dir of dirs) {

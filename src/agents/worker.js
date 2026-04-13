@@ -24,12 +24,14 @@ console.log(`🤖 Agent "${config.name}" (${config.role}) starting...`);
 // Report to hub that we're alive
 agent._callback('status', { status: 'active' });
 
-// Load initial memories
+// Load initial memories — load ALL memories for this agent
 const loadInitialMemories = async () => {
   try {
-    const memories = await agent._hubGet(`/api/memory/all?limit=20`);
+    // Load all memories (conversation + general)
+    const memories = await agent._hubGet(`/api/memory/all?limit=500`);
     if (Array.isArray(memories)) {
       agent.memoryCache = memories.map(m => ({ content: m.content, category: m.category }));
+      console.log(`📂 Loaded ${memories.length} memories from store`);
     }
   } catch (err) {
     console.warn(`⚠️ Could not load memories: ${err.message}`);
@@ -72,13 +74,17 @@ let messagePollInterval = setInterval(async () => {
   } catch {}
 }, 15000);
 
-// Phase 5: Periodic state save every 30s
+// Phase 5: Periodic state save every 30s — save FULL history (not sliced)
 let stateSaveInterval = setInterval(() => {
-  process.send({
-    type: 'state_update',
-    conversationHistory: agent.conversationHistory.slice(-20),
-    memoryCache: agent.memoryCache.slice(-20),
-  });
+  try {
+    if (process.connected) {
+      process.send({
+        type: 'state_update',
+        conversationHistory: agent.conversationHistory,       // บันทึกทั้งหมด
+        memoryCache: agent.memoryCache,                       // บันทึกทั้งหมด
+      });
+    }
+  } catch {}
 }, 30000);
 
 // Handle messages from parent (Hub)
@@ -89,6 +95,16 @@ process.on('message', async (msg) => {
     case 'chat': {
       agent.isProcessing = true;
       agent._callback('status', { status: 'thinking' });
+
+      // Auto-save user message to permanent memory
+      try {
+        agent._callback('memory', {
+          content: `[User] ${msg.content}`,
+          category: 'conversation',
+          importance: 2,
+          tags: 'chat,user',
+        });
+      } catch {}
 
       try {
         const response = await agent.processMessage(msg.content);
@@ -102,6 +118,16 @@ process.on('message', async (msg) => {
 
         agent._callback('response', { content: response });
         agent._callback('status', { status: 'active' });
+
+        // Auto-save assistant response to permanent memory
+        try {
+          agent._callback('memory', {
+            content: `[${agent.config?.name || 'Agent'}] ${response}`,
+            category: 'conversation',
+            importance: 2,
+            tags: 'chat,agent,response',
+          });
+        } catch {}
       } catch (err) {
         process.send({
           type: 'response',

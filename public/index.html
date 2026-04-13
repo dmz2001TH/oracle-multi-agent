@@ -368,14 +368,8 @@ async function sendChat() {
     return;
   }
 
-  try {
-    await fetch(`${API}/api/send`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target: 'main', text }),
-    });
-    document.getElementById('chat-status').textContent = 'ส่งแล้ว';
-    setTimeout(() => { document.getElementById('chat-status').textContent = 'พร้อมใช้งาน'; }, 2000);
-  } catch (e) { addMessage('oracle', '❌ ' + e.message); }
+  // No agent selected and not a command — tell user what to do
+  addMessage('oracle', '💡 เลือกเอเจนต์จากแถบซ้ายเพื่อแชท หรือพิมพ์ /command (เช่น /help, /ls) เพื่อใช้คำสั่ง');
 }
 
 function addMessage(role, text, isCmd) {

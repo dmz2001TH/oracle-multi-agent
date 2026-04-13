@@ -218,9 +218,17 @@ export class MiMoAgent extends EventEmitter {
     while (turnCount < MAX_TURNS) {
       turnCount++;
 
+      // Filter out messages with null/undefined content (MiMo API requires content to be set)
+      const cleanHistory = this.conversationHistory.map(m => {
+        if (m.content === null || m.content === undefined) {
+          return { ...m, content: '' };
+        }
+        return m;
+      });
+
       const messages = [
         { role: 'system', content: this.systemPrompt },
-        ...this.conversationHistory,
+        ...cleanHistory,
       ];
 
       const data = await this._callLLM(messages, TOOL_DEFINITIONS);
@@ -242,7 +250,7 @@ export class MiMoAgent extends EventEmitter {
       // Execute tool calls
       this.conversationHistory.push({
         role: 'assistant',
-        content: msg.content || null,
+        content: msg.content || '',  // MiMo requires content to be set (not null)
         tool_calls: toolCalls,
       });
 

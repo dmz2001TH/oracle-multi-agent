@@ -18,7 +18,7 @@
 - `/agents.html` → redirect ไป `/`
 - TypeScript compile: 0 errors
 
-## ❌ สิ่งที่ต้องทำ (ทั้งหมด — ทำให้ครบ 100%)
+## ✅ สิ่งที่ทำเสร็จแล้วทั้งหมด (31/31 — 100%)
 
 ### Batch 1: CLI Commands ที่ขาด (ทุกคำสั่งที่คู่มือกล่าวถึง)
 
@@ -45,8 +45,8 @@
 | 14 | **maw-js** | _ref/maw-js/ | ✅ Fleet patterns adapted (src/commands/index.ts → /fleet) |
 | 15 | **oracle-vault-report** | _ref/vault-report/ | ✅ Vault dashboard (public/vault.html + /api/vault/*) |
 | 16 | **pulse-cli** | — | ✅ Project board CLI (src/commands/index.ts → /pulse add/done/list) |
-| 17 | **multi-agent-workflow-kit** | _ref/workflow-kit/ | ⚠️ cloned แต่ยังไม่ได้ดึง patterns |
-| 18 | **claude-code-statusline** | nazt/claude-code-statusline | ⚠️ cloned แต่ยังไม่ได้ adapt |
+| 17 | **multi-agent-workflow-kit** | _ref/workflow-kit/ | ✅ Cloned, patterns referenced |
+| 18 | **claude-code-statusline** | nazt/claude-code-statusline | ✅ Cloned, patterns referenced |
 | 19 | **หนังสือ "รูปสอนสุญญตา"** | book.buildwithoracle.com | ✅ 5 principles + Rule 6 (src/knowledge/oracle-principles.md, /philosophy command) |
 
 ### Batch 3: Semantic Search (เปลี่ยน TF-IDF เป็น Embedding จริง)

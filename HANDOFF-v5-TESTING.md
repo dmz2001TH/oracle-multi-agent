@@ -1,8 +1,30 @@
 # HANDOFF — oracle-multi-agent v5.0 Testing & Hardening
 
-## สถานะปัจจุบัน (2026-04-13 20:40 GMT+8)
+## สถานะปัจจุบัน (2026-04-14 02:39 GMT+8)
 
-**Commits this session: 3** (`2fc1b1c` → `b01602c`)
+**31/31 tasks ✅ เสร็จหมดแล้ว** — E2E tests 23/23 passed
+
+### เพิ่มเติมจาก session ล่าสุด:
+- 15 CLI Commands (`/awaken`, `/recap`, `/fyi`, `/rrr`, `/standup`, `/feel`, `/forward`, `/trace` smart+deep, `/learn`, `/who-are-you`, `/philosophy`, `/skills`, `/resonance`, `/fleet`, `/pulse`)
+- 55 Skills Registry
+- 5 Principles from รูปสอนสุญญตา
+- ψ/ Knowledge Root structure
+- Vault API + Dashboard
+- Real embeddings (@xenova/transformers)
+- Deploy guide (systemd, Docker, Nginx)
+- E2E test suite (23/23 passed)
+
+### How to Run
+```bash
+git pull origin main && npm install && npx tsx src/index.ts
+# http://localhost:3456
+```
+
+### How to Test
+```bash
+npx tsx src/index.ts &
+npx tsx test/e2e.mjs
+```
 
 ---
 

@@ -1,7 +1,7 @@
 # 📋 Book Pattern TODO — oracle-multi-agent v5.0
 
 > สถานะ: ทำจากหนังสือ [Multi-Agent Orchestration](https://soul-brews-studio.github.io/multi-agent-orchestration-book/docs/intro)
-> Commit ล่าสุด: `ea6fa98` — schemas, SDK, tasks API, CLI commands แล้ว
+> Commit ล่าสุด: `d15fbfe` — Batch 1-8 complete: spawn, cron, agents, worktree, heartbeat, merge
 
 ## ✅ เสร็จแล้ว
 
@@ -13,87 +13,40 @@
 | `src/api/inbox-api.ts` | Ch 3 | Persistent inbox API (file-backed, survives session death) |
 | `src/commands/tasks.ts` | Ch 4 | CLI: `oracle tasks ls/create/update/claim/done/rm` |
 | `src/cli/route-tasks.ts` | Ch 4 | Route wiring for tasks CLI |
-| `src/api/index.ts` | — | Wired tasks + inbox APIs |
-| `src/cli.ts` | — | Wired tasks route |
+| `src/api/index.ts` | — | Wired all APIs |
+| `src/cli.ts` | — | Wired all routes |
+| `src/commands/spawn.ts` | Ch 3, 8 | Spawn skeleton via tmux + claude -p with reporting contract |
+| `src/cli/route-spawn.ts` | Ch 8 | CLI: `oracle spawn name "task"` |
+| `src/api/cron.ts` | Ch 9 | File-backed cron job CRUD (config.json + backlog.md) |
+| `src/commands/cron.ts` | Ch 9 | CLI: `oracle cron add/ls/get/rm/run` |
+| `src/cli/route-cron.ts` | Ch 9 | Route wiring for cron CLI |
+| `src/commands/agents-status.ts` | Ch 13, 14 | tmux scan + heartbeat + stuck detection |
+| `src/cli/route-agents-status.ts` | Ch 13 | CLI: `oracle agents status/kill` |
+| `src/commands/worktree-ops.ts` | Ch 7 | create/ls/prune with agent ownership |
+| `src/cli/route-worktree-ops.ts` | Ch 7 | CLI: `oracle worktree create/ls/prune` |
+| `src/agents/heartbeat.ts` | Ch 14 | write/read/staleness check protocol |
+| `src/commands/merge-team.ts` | Ch 4, 7 | Topological merge by blockedBy deps |
+| `src/cli/route-merge-team.ts` | Ch 4, 7 | CLI: `oracle merge <team>` |
+| `src/api/agents.ts` | Ch 8, 15 | GET /api/agents/status endpoint |
 
 ## 🔲 ยังต้องทำ
 
-### Batch 1: Spawn Skeleton + Reporting Contract (Ch 3, 8)
+### Batch 3: Plugin Registry (Ch 10) — ข้ามได้
+`src/cli/command-registry.ts` มีอยู่แล้ว — scanCommands(), matchCommand(), longest-prefix match, WASM support. แค่ต้อง wire `oracle plugin ls` command เท่านั้น
 
-**ไฟล์ใหม่:** `src/commands/spawn.ts`
-```typescript
-// spawn_agent(name, task, opts)
-// 1. tmux new-session -d -s <name> -c <cwd>
-// 2. maw hey <name> "claude -p '<task>\n---\nWHEN DONE:\n maw hey <orchestrator> \"[<name>] DONE: <summary>\"\n maw inbox write \"[<name>] <branch>\"'"
-// 3. Heartbeat: prompt ต้องมี PROGRESS ทุก 5 นาที + STUCK: ถ้าติด
-```
+### Batch 9: ScheduleWakeup (Ch 9)
+- สร้าง `src/commands/wakeup.ts` — self-paced re-invocation
+- API: POST /api/wake/schedule — { delaySeconds, prompt, reason }
+- Integration: agent calls wakeup() when waiting for background process
 
-**Reporting contract template** (ใส่ใน prompt ทุกครั้งที่ spawn):
-```
-STEP 5: Report progress AT LEAST every 5 minutes with:
-  maw hey <parent> "[<name>] PROGRESS: <what you just did>"
-STEP 6: When done OR stuck, send:
-  maw hey <parent> "[<name>] DONE: <branch>" | "[<name>] STUCK: <reason>"
-Do not exit until that command has run successfully.
-```
+### Batch 10: maw overview command (Ch 13)
+- CLI: `oracle overview [agent1] [agent2] ...`
+- แสดง live status ของหลาย agents พร้อมกัน
+- ใช้ tmux capture-pane + agents-status API
 
-### Batch 2: Cron Loop (Ch 9)
-
-**ไฟล์ใหม่:** `src/commands/cron.ts` + `src/api/cron.ts`
-- `CronCreate({ schedule, prompt, name })` — register recurring job
-- `CronDelete({ id })` — remove job
-- `CronList` — list all jobs
-- State on disk: `~/.oracle/cron/<name>/backlog.md`
-- Sentinel termination: write "ALL CLEAR" when done
-- ScheduleWakeup: `delaySeconds` + prompt re-injection
-
-### Batch 3: Plugin Registry (Ch 10)
-
-**ไฟล์ใหม่:** `src/cli/plugin-registry.ts`
-- Scan `~/.oracle/commands/*.ts` → dynamic import()
-- Validate `export const command = { name, description }`
-- Longest-prefix match dispatch
-- Support `.wasm` files via WASM bridge
-
-### Batch 4: maw agents status (Ch 13, 14)
-
-**ไฟล์ใหม่:** `src/commands/agents-status.ts`
-- Scan tmux sessions → list running agents
-- Last heartbeat time
-- Current branch / task
-- Flag idle > threshold as "stuck"
-- CLI: `oracle agents [status]`
-
-### Batch 5: Worktree Management (Ch 7)
-
-**ไฟล์ใหม่:** `src/commands/worktree-ops.ts`
-- `oracle worktree create <branch>` — create isolated worktree
-- `oracle worktree ls` — list with agent ownership
-- `oracle worktree prune` — remove merged/abandoned
-- Auto-cleanup as part of team shutdown
-
-### Batch 6: Heartbeat Protocol (Ch 14)
-
-**ไฟล์ใหม่:** `src/agents/heartbeat.ts`
-- Agent writes heartbeat to `~/.oracle/agents/<name>/heartbeat.json` every N min
-- Schema: `{ name, ts, status, task, branch }`
-- Monitor checks staleness → flags STUCK
-- Integration with spawn skeleton
-
-### Batch 7: Lead-Compiles Pattern Helper (Ch 4, 7)
-
-**ไฟล์ใหม่:** `src/commands/merge-team.ts`
-- `oracle merge <team>` — read TaskList, merge completed branches in order
-- Respect dependency order (safety first → tester → verifier)
-- Run tests after merge
-- Clean up worktrees after merge
-
-### Batch 8: Federation Agent Status (Ch 8, 15)
-
-**อัปเดต:** `src/api/federation.ts`
-- `/api/agents/status` — list all running agents across fleet
-- Heartbeat-based staleness detection
-- Integration with `maw overview` command
+### Batch 11: Feed + Audit integration
+- Wire spawn/merge/cron events into feed API
+- Audit log for all agent lifecycle events
 
 ---
 

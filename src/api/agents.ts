@@ -157,8 +157,21 @@ agentsApi.get("/api/agents/status/:name", (c) => {
     } catch {}
   }
 
-  if (!hb && !processAlive) {
-    return c.json({ error: "agent not found" }, 404);
+  if (!processAlive) {
+    // Process is dead — agent is gone. Heartbeat file may linger as orphaned data.
+    if (!hb) {
+      return c.json({ error: "agent not found" }, 404);
+    }
+    // Return 404 with stale heartbeat info for debugging
+    const age = Date.now() - new Date(hb.ts).getTime();
+    return c.json({
+      error: "agent not found",
+      name,
+      processAlive: false,
+      stale: true,
+      ageSeconds: Math.round(age / 1000),
+      heartbeat: hb,
+    }, 404);
   }
 
   const age = hb ? Date.now() - new Date(hb.ts).getTime() : null;

@@ -13,7 +13,7 @@
  */
 
 import { execSync, spawn as nodeSpawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { hasTmux, shellQuote, devNull, isWindows } from "../platform.js";
@@ -115,7 +115,6 @@ function spawnWithChildProcess(name: string, claudeCmd: string, cwd: string): vo
   });
 
   // Write PID for heartbeat tracking
-  const { writeFileSync } = require("node:fs");
   writeFileSync(join(agentDir, "pid"), String(child.pid));
 
   child.unref(); // Allow parent to exit

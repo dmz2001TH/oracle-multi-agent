@@ -45,5 +45,5 @@ console.log(`   pid: ${process.pid}`);
 
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`   listening on http://0.0.0.0:${info.port}`);
-  console.log(`   dashboard: http://localhost:${info.port}/dashboard`);
+  console.log(`   dashboard: cd src/dashboard && npx vite (port 5173)`);
 });

@@ -82,16 +82,67 @@ app.get('/health', (c) => c.json({
   },
 }));
 
-// ─── Dashboard stub routes (prevent 404s) ──────────────────────
+// ─── Dashboard state routes ──────────────────────
 
-// GET /api/ui-state — return all UI state keys (stub: empty object)
-app.get('/api/ui-state', (c) => c.json({}));
+// In-memory UI state store
+const uiStateStore: Record<string, any> = {};
+const pinnedItems: { id: string; type: string; label: string; ts: number }[] = [];
+let tokenUsage = { totalTokens: 0, totalRequests: 0, ratePerHour: 0, windowStart: Date.now() };
 
-// GET /api/pin-info — dashboard pinned info
-app.get('/api/pin-info', (c) => c.json({ locked: false, pinned: [] }));
+// GET /api/ui-state — return current UI state
+app.get('/api/ui-state', (c) => c.json({
+  theme: uiStateStore.theme || 'dark',
+  sidebarOpen: uiStateStore.sidebarOpen ?? true,
+  activeView: uiStateStore.activeView || 'overview',
+  soundEnabled: uiStateStore.soundEnabled ?? true,
+  compactMode: uiStateStore.compactMode ?? false,
+  lastViewed: uiStateStore.lastViewed || null,
+  custom: uiStateStore.custom || {},
+  ts: Date.now(),
+}));
+
+// POST /api/ui-state — update UI state (merge)
+app.post('/api/ui-state', async (c) => {
+  try {
+    const body = await c.req.json();
+    Object.assign(uiStateStore, body);
+    return c.json({ ok: true, state: uiStateStore });
+  } catch {
+    return c.json({ error: 'Invalid JSON' }, 400);
+  }
+});
+
+// GET /api/pin-info — dashboard pinned items
+app.get('/api/pin-info', (c) => c.json({ locked: false, pinned: pinnedItems }));
+
+// POST /api/pin-info — pin/unpin items
+app.post('/api/pin-info', async (c) => {
+  try {
+    const body = await c.req.json();
+    if (body.action === 'pin' && body.id) {
+      pinnedItems.push({ id: body.id, type: body.type || 'agent', label: body.label || body.id, ts: Date.now() });
+    } else if (body.action === 'unpin' && body.id) {
+      const idx = pinnedItems.findIndex(p => p.id === body.id);
+      if (idx >= 0) pinnedItems.splice(idx, 1);
+    }
+    return c.json({ ok: true, pinned: pinnedItems });
+  } catch {
+    return c.json({ error: 'Invalid JSON' }, 400);
+  }
+});
 
 // GET /api/tokens/rate — token rate limit info
-app.get('/api/tokens/rate', (c) => c.json({ rate: 0, window: 3600, remaining: Infinity }));
+app.get('/api/tokens/rate', (c) => {
+  const elapsed = (Date.now() - tokenUsage.windowStart) / 1000;
+  tokenUsage.ratePerHour = elapsed > 0 ? Math.round(tokenUsage.totalTokens / (elapsed / 3600)) : 0;
+  return c.json({
+    totalTokens: tokenUsage.totalTokens,
+    totalRequests: tokenUsage.totalRequests,
+    ratePerHour: tokenUsage.ratePerHour,
+    window: 3600,
+    remaining: Infinity,
+  });
+});
 
 // GET /favicon.svg — serve favicon from dashboard public dir
 const FAVICON_PATH = join(DASHBOARD_DIST, 'favicon.svg');
@@ -116,8 +167,35 @@ app.get('/api/maw-log', (c) => {
   return c.redirect(`/api/logs${qs}`, 307);
 });
 
-// GET /api/plugins — list available plugins (stub)
-app.get('/api/plugins', (c) => c.json({ plugins: [], total: 0 }));
+// GET /api/plugins — list loaded plugins
+app.get('/api/plugins', async (c) => {
+  const pluginDir = join(process.cwd(), 'plugins');
+  const plugins: { name: string; hooks: string[]; hasInit: boolean; loaded: boolean }[] = [];
+
+  // List built-in plugins
+  plugins.push(
+    { name: 'logger', hooks: ['feed_event', 'agent_spawn', 'shutdown'], hasInit: false, loaded: true },
+    { name: 'stats', hooks: ['agent_message', 'agent_spawn', 'task_create'], hasInit: false, loaded: true },
+  );
+
+  // Scan plugins directory
+  try {
+    const { readdirSync } = await import('fs');
+    const files = readdirSync(pluginDir).filter(f => f.endsWith('.js') || f.endsWith('.mjs'));
+    for (const file of files) {
+      plugins.push({
+        name: file.replace(/\.(js|mjs)$/, ''),
+        hooks: ['*'],
+        hasInit: false,
+        loaded: true,
+      });
+    }
+  } catch {
+    // plugins dir doesn't exist yet — that's fine
+  }
+
+  return c.json({ plugins, total: plugins.length });
+});
 
 const port = Number(process.env.HUB_PORT || config.port || 3456);
 

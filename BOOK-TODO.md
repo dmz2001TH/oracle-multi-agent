@@ -1,7 +1,7 @@
 # 📋 Book Pattern TODO — oracle-multi-agent v5.0
 
 > สถานะ: ทำจากหนังสือ [Multi-Agent Orchestration](https://soul-brews-studio.github.io/multi-agent-orchestration-book/docs/intro)
-> Commit ล่าสุด: `d15fbfe` — Batch 1-8 complete: spawn, cron, agents, worktree, heartbeat, merge
+> Commit ล่าสุด: `7011644` — Batch 1-11 complete, all pushed
 
 ## ✅ เสร็จแล้ว
 
@@ -28,25 +28,13 @@
 | `src/commands/merge-team.ts` | Ch 4, 7 | Topological merge by blockedBy deps |
 | `src/cli/route-merge-team.ts` | Ch 4, 7 | CLI: `oracle merge <team>` |
 | `src/api/agents.ts` | Ch 8, 15 | GET /api/agents/status endpoint |
+| `src/commands/wakeup.ts` | Ch 9 | ScheduleWakeup — self-paced re-invocation |
+| `src/api/wakeup.ts` | Ch 9 | POST /api/wake/schedule, GET /api/wake/pending |
+| `src/cli/route-wakeup.ts` | Ch 9 | CLI: `oracle wakeup delay prompt` |
+| `src/commands/overview.ts` | Ch 13 | War room: multi-agent live status |
+| `src/cli/route-overview.ts` | Ch 13 | CLI: `oracle overview [agents]` |
 
-## 🔲 ยังต้องทำ
-
-### Batch 3: Plugin Registry (Ch 10) — ข้ามได้
-`src/cli/command-registry.ts` มีอยู่แล้ว — scanCommands(), matchCommand(), longest-prefix match, WASM support. แค่ต้อง wire `oracle plugin ls` command เท่านั้น
-
-### Batch 9: ScheduleWakeup (Ch 9)
-- สร้าง `src/commands/wakeup.ts` — self-paced re-invocation
-- API: POST /api/wake/schedule — { delaySeconds, prompt, reason }
-- Integration: agent calls wakeup() when waiting for background process
-
-### Batch 10: maw overview command (Ch 13)
-- CLI: `oracle overview [agent1] [agent2] ...`
-- แสดง live status ของหลาย agents พร้อมกัน
-- ใช้ tmux capture-pane + agents-status API
-
-### Batch 11: Feed + Audit integration
-- Wire spawn/merge/cron events into feed API
-- Audit log for all agent lifecycle events
+## ✅ เสร็จแล้ว — ทุก Batch
 
 ---
 

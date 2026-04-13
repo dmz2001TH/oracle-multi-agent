@@ -50,12 +50,12 @@ if (!fs.existsSync(ORACLE_DATA_DIR)) {
   fs.mkdirSync(ORACLE_DATA_DIR, { recursive: true });
 }
 
-const defaultSqlite = new Database(DB_PATH);
-const defaultDb = drizzle(defaultSqlite, { schema });
+const defaultSqlite: Database.Database = new Database(DB_PATH);
+const defaultDb: BetterSQLite3Database<typeof schema> = drizzle(defaultSqlite, { schema });
 initializeDatabase(defaultSqlite, defaultDb);
 
-export const sqlite = defaultSqlite;
-export const db = defaultDb;
+export const sqlite: Database.Database = defaultSqlite;
+export const db: BetterSQLite3Database<typeof schema> = defaultDb;
 export * from './schema.ts';
 
 export function closeDb() {

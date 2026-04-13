@@ -17,5 +17,5 @@
     "sourceMap": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "_ref", "src/dashboard", "src/memory/tools", "src/memory/db", "src/memory/config.ts", "src/memory/const.ts"]
+  "exclude": ["node_modules", "dist", "_ref", "src/dashboard"]
 }

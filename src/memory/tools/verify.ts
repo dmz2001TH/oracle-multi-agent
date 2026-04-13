@@ -33,7 +33,7 @@ export async function handleVerify(ctx: ToolContext, input: OracleVerifyInput): 
 
   const result = verifyKnowledgeBase({
     check,
-    type,
+    type: type ?? undefined,
     repoRoot: ctx.repoRoot,
   });
 

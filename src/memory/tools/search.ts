@@ -133,7 +133,8 @@ export async function vectorSearch(
 }>> {
   try {
     const whereFilter = type !== 'all' ? { type } : undefined;
-    const store = model ? await ensureVectorStoreConnected(model) : ctx.vectorStore;
+    const store = model ? await ensureVectorStoreConnected() : ctx.vectorStore;
+    if (!store) return [];
     console.error(`[VectorSearch] Query: "${query.substring(0, 50)}..." limit=${limit} model=${model || 'default'}`);
 
     const results = await store.query(query, limit, whereFilter);

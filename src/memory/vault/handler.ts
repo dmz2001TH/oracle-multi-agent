@@ -1,5 +1,5 @@
 /**
- * Vault Handler — stub for oracle tools
+ * Vault Handler — for oracle tools
  * Provides getVaultPsiRoot and related functions
  */
 
@@ -7,12 +7,14 @@ import path from 'path';
 import fs from 'fs';
 import { ORACLE_DATA_DIR } from '../config.ts';
 
-export function getVaultPsiRoot(): string {
+export type VaultResult = { path: string } | { needsInit: true; hint: string };
+
+export function getVaultPsiRoot(): VaultResult {
   const psiPath = path.join(ORACLE_DATA_DIR, 'psi');
   if (!fs.existsSync(psiPath)) {
-    fs.mkdirSync(psiPath, { recursive: true });
+    return { needsInit: true, hint: `Vault not initialized. Create ${psiPath} first.` };
   }
-  return psiPath;
+  return { path: psiPath };
 }
 
 export function walkFiles(dir: string, exts?: string[]): string[] {

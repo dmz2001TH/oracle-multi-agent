@@ -9,10 +9,9 @@ import {
   createTrace,
   getTrace,
   listTraces,
-  getTraceChain,
+  getTraceLinkedChain,
   linkTraces,
   unlinkTraces,
-  getTraceLinkedChain,
 } from '../trace/handler.ts';
 
 import type {
@@ -189,7 +188,7 @@ export async function handleTraceGet(input: GetTraceInput): Promise<ToolResponse
 
   let chain = undefined;
   if (input.includeChain) {
-    chain = getTraceChain(input.traceId);
+    chain = getTraceLinkedChain(input.traceId);
   }
 
   return {

@@ -160,6 +160,9 @@ if (faviconFile) {
   });
 }
 
+// GET /favicon.ico — redirect browsers to svg favicon (stops 404 spam)
+app.get('/favicon.ico', (c) => c.redirect('/favicon.svg', 301));
+
 // GET /api/maw-log — alias for /api/logs (dashboard expects maw-log)
 app.get('/api/maw-log', (c) => {
   const qs = new URL(c.req.url).search;

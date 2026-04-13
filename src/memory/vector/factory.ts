@@ -2,24 +2,27 @@
  * Vector Store Factory — SQLite-based TF-IDF vector store
  *
  * Falls back to a lightweight SQLite implementation when no external
- * vector DB (ChromaDB, Qdrant, LanceDB) is configured. Uses TF-IDF
- * scoring with cosine similarity for semantic-ish search.
+ * vector DB (ChromaDB, Qdrant, LanceDB) is configured.
+ *
+ * Supports real embeddings via @xenova/transformers when EMBEDDING_PROVIDER=xenova.
+ * Falls back to TF-IDF when no embedding provider is available.
  *
  * For production semantic search, set VECTOR_DB=chroma and install
  * a ChromaDB instance.
  */
 
-import type { VectorStoreAdapter, VectorDocument, VectorQueryResult } from './types.ts';
+import type { VectorStoreAdapter, VectorDocument, VectorQueryResult, EmbeddingProvider } from './types.ts';
 import Database from 'better-sqlite3';
 import { existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 
 let _instance: VectorStoreAdapter | null = null;
 let _connected = false;
+let _embeddingProvider: EmbeddingProvider | null = null;
 
 /**
- * SQLite-backed TF-IDF vector store adapter.
- * Works without any external services — good enough for keyword-semantic hybrid search.
+ * SQLite-backed vector store adapter.
+ * Supports both TF-IDF (fallback) and real embeddings (via EmbeddingProvider).
  */
 class SqliteVectorStore implements VectorStoreAdapter {
   readonly name = 'sqlite-vector';
@@ -44,6 +47,7 @@ class SqliteVectorStore implements VectorStoreAdapter {
         metadata TEXT NOT NULL DEFAULT '{}',
         tokens TEXT NOT NULL DEFAULT '[]',
         tfidf TEXT NOT NULL DEFAULT '{}',
+        embedding BLOB,
         created_at INTEGER NOT NULL DEFAULT (unixepoch())
       );
       CREATE INDEX IF NOT EXISTS idx_vec_created ON vector_documents(created_at);
@@ -70,20 +74,31 @@ class SqliteVectorStore implements VectorStoreAdapter {
   }
 
   async addDocuments(docs: VectorDocument[]): Promise<void> {
+    // Generate embeddings if provider is available
+    let embeddings: number[][] | null = null;
+    if (_embeddingProvider) {
+      try {
+        embeddings = await _embeddingProvider.embed(docs.map(d => d.document));
+      } catch (err) {
+        console.warn(`⚠️ Embedding generation failed, falling back to TF-IDF: ${(err as Error).message}`);
+      }
+    }
+
     const insert = this.db.prepare(`
-      INSERT OR REPLACE INTO vector_documents (id, document, metadata, tokens, tfidf, created_at)
-      VALUES (?, ?, ?, ?, ?, unixepoch())
+      INSERT OR REPLACE INTO vector_documents (id, document, metadata, tokens, tfidf, embedding, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, unixepoch())
     `);
 
     const totalDocs = (this.db.prepare('SELECT COUNT(*) as cnt FROM vector_documents').get() as any).cnt + docs.length;
 
     const txn = this.db.transaction((documents: VectorDocument[]) => {
-      for (const doc of documents) {
+      for (let i = 0; i < documents.length; i++) {
+        const doc = documents[i];
         const tokens = this._tokenize(doc.document);
         const tfidf = this._computeTfIdf(tokens, totalDocs);
-        insert.run(doc.id, doc.document, JSON.stringify(doc.metadata), JSON.stringify(tokens), JSON.stringify(tfidf));
+        const embeddingBlob = embeddings ? Buffer.from(new Float32Array(embeddings[i]).buffer) : null;
+        insert.run(doc.id, doc.document, JSON.stringify(doc.metadata), JSON.stringify(tokens), JSON.stringify(tfidf), embeddingBlob);
       }
-      // Update doc count
       this.db.prepare(`INSERT OR REPLACE INTO vector_stats (key, value) VALUES ('total_docs', ?)`).run(String(totalDocs));
     });
 
@@ -91,31 +106,71 @@ class SqliteVectorStore implements VectorStoreAdapter {
   }
 
   async query(text: string, limit: number = 5, where?: Record<string, any>): Promise<VectorQueryResult> {
+    const allDocs = this.db.prepare('SELECT id, document, metadata, tfidf, embedding FROM vector_documents').all() as any[];
+
+    // Filter by metadata
+    const filtered = allDocs.filter((doc) => {
+      if (!where) return true;
+      let metadata: Record<string, any>;
+      try { metadata = JSON.parse(doc.metadata); } catch { metadata = {}; }
+      for (const [key, val] of Object.entries(where)) {
+        if (metadata[key] !== val) return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      return { ids: [], documents: [], distances: [], metadatas: [] };
+    }
+
+    // Use real embeddings if available
+    if (_embeddingProvider) {
+      try {
+        const [queryEmbedding] = await _embeddingProvider.embed([text]);
+        const scores: { doc: any; similarity: number }[] = [];
+
+        for (const doc of filtered) {
+          if (doc.embedding) {
+            const docEmbedding = new Float32Array(doc.embedding.buffer, doc.embedding.byteOffset, doc.embedding.byteLength / 4);
+            const similarity = cosineSimilarity(queryEmbedding, Array.from(docEmbedding));
+            scores.push({ doc, similarity });
+          } else {
+            // No embedding — use TF-IDF fallback for this doc
+            let tfidf: Record<string, number>;
+            try { tfidf = JSON.parse(doc.tfidf); } catch { tfidf = {}; }
+            const queryTokens = this._tokenize(text);
+            let score = 0;
+            for (const token of queryTokens) score += tfidf[token] || 0;
+            scores.push({ doc, similarity: score * 0.5 }); // Downweight TF-IDF results
+          }
+        }
+
+        scores.sort((a, b) => b.similarity - a.similarity);
+        const top = scores.slice(0, limit);
+
+        return {
+          ids: top.map(s => s.doc.id),
+          documents: top.map(s => s.doc.document),
+          distances: top.map(s => 1 - s.similarity),
+          metadatas: top.map(s => { try { return JSON.parse(s.doc.metadata); } catch { return {}; } }),
+        };
+      } catch (err) {
+        console.warn(`⚠️ Embedding query failed, falling back to TF-IDF: ${(err as Error).message}`);
+      }
+    }
+
+    // TF-IDF fallback
     const queryTokens = this._tokenize(text);
     if (queryTokens.length === 0) {
       return { ids: [], documents: [], distances: [], metadatas: [] };
     }
 
-    const allDocs = this.db.prepare('SELECT id, document, metadata, tfidf FROM vector_documents').all() as any[];
     const scores: { id: string; document: string; metadata: string; score: number }[] = [];
 
-    for (const doc of allDocs) {
+    for (const doc of filtered) {
       let tfidf: Record<string, number>;
       try { tfidf = JSON.parse(doc.tfidf); } catch { tfidf = {}; }
 
-      let metadata: Record<string, any>;
-      try { metadata = JSON.parse(doc.metadata); } catch { metadata = {}; }
-
-      // Apply where filter
-      if (where) {
-        let match = true;
-        for (const [key, val] of Object.entries(where)) {
-          if (metadata[key] !== val) { match = false; break; }
-        }
-        if (!match) continue;
-      }
-
-      // Cosine-like similarity using TF-IDF vectors
       let score = 0;
       for (const token of queryTokens) {
         score += tfidf[token] || 0;
@@ -132,10 +187,8 @@ class SqliteVectorStore implements VectorStoreAdapter {
     return {
       ids: top.map(s => s.id),
       documents: top.map(s => s.document),
-      distances: top.map(s => 1 - Math.min(s.score, 1)), // Convert similarity → distance
-      metadatas: top.map(s => {
-        try { return JSON.parse(s.metadata); } catch { return {}; }
-      }),
+      distances: top.map(s => 1 - Math.min(s.score, 1)),
+      metadatas: top.map(s => { try { return JSON.parse(s.metadata); } catch { return {}; } }),
     };
   }
 
@@ -191,6 +244,19 @@ class SqliteVectorStore implements VectorStoreAdapter {
   }
 }
 
+/** Cosine similarity between two vectors */
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) return 0;
+  let dot = 0, normA = 0, normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dot / denom;
+}
+
 /** Common stop words (English + basic) to filter out */
 const _stopWords = new Set([
   'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
@@ -232,7 +298,26 @@ export async function ensureVectorStoreConnected(): Promise<VectorStoreAdapter |
     const dbPath = process.env.DB_PATH || './data/oracle.db';
     _instance = new SqliteVectorStore(dbPath);
     await _instance.connect();
-    console.log(`✅ Vector store connected: ${_instance.name}`);
+
+    // Load embedding provider if configured
+    const provider = process.env.EMBEDDING_PROVIDER || 'xenova';
+    if (provider === 'xenova') {
+      try {
+        const { createXenovaEmbeddingProvider, createHashEmbeddingProvider } = await import('./xenova-embedding.js');
+        const model = process.env.EMBEDDING_MODEL || 'Xenova/all-MiniLM-L6-v2';
+        _embeddingProvider = createXenovaEmbeddingProvider(model);
+        console.log(`🧠 Embedding provider: xenova (${model})`);
+      } catch (err) {
+        console.warn(`⚠️ Xenova embeddings failed, using hash fallback: ${(err as Error).message}`);
+        const { createHashEmbeddingProvider } = await import('./xenova-embedding.js');
+        _embeddingProvider = createHashEmbeddingProvider();
+      }
+    } else if (provider === 'hash') {
+      const { createHashEmbeddingProvider } = await import('./xenova-embedding.js');
+      _embeddingProvider = createHashEmbeddingProvider();
+    }
+
+    console.log(`✅ Vector store connected: ${_instance.name}${_embeddingProvider ? ` + ${_embeddingProvider.name}` : ''}`);
     return _instance;
   } catch (err) {
     console.warn(`⚠️ Vector store init failed: ${(err as Error).message}`);

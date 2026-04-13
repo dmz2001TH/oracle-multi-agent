@@ -17,3 +17,6 @@ Desktop.ini
 *.pdb
 .env.local
 src/dashboard/dist
+_ref/claude-code-statusline/
+_ref/oracle-v3/
+_ref/skills-cli/

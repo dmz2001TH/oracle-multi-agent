@@ -26,8 +26,20 @@ const MOOD_LOG = join(MEMORY_DIR, "mood-log.jsonl");
 const HANDOFF_DIR = join(MEMORY_DIR, "handoffs");
 const IDENTITY_FILE = join(ORACLE_DIR, "identity.json");
 
+// ψ/ knowledge root (project-relative)
+const PSI_ROOT = join(process.cwd(), "ψ");
+const PSI_MEMORY = join(PSI_ROOT, "memory");
+const PSI_JOURNAL = join(PSI_MEMORY, "journal");
+const PSI_RESONANCE = join(PSI_MEMORY, "resonance");
+const PSI_RETROSPECTIVES = join(PSI_MEMORY, "retrospectives");
+const PSI_DECISIONS = join(PSI_MEMORY, "decisions");
+const PSI_HANDOFFS = join(PSI_MEMORY, "handoffs");
+const PSI_MOOD = join(PSI_MEMORY, "mood");
+
 function ensureDirs() {
-  for (const d of [MEMORY_DIR, JOURNAL_DIR, HANDOFF_DIR]) {
+  for (const d of [MEMORY_DIR, JOURNAL_DIR, HANDOFF_DIR,
+    PSI_MEMORY, PSI_JOURNAL, PSI_RESONANCE, PSI_RETROSPECTIVES,
+    PSI_DECISIONS, PSI_HANDOFFS, PSI_MOOD]) {
     mkdirSync(d, { recursive: true });
   }
 }
@@ -151,16 +163,27 @@ export function fyi(args: string, ctx: CommandContext): CommandResult {
 
   const entry = `\n## [${timestamp}] FYI\n${args}\n`;
 
-  // Append to daily journal
+  // Append to daily journal (~/.oracle)
   if (!existsSync(journalFile)) {
     writeFileSync(journalFile, `# Journal — ${dateStr}\n`);
   }
   appendFileSync(journalFile, entry);
 
+  // Also write to ψ/memory/journal/
+  const psiJournalFile = join(PSI_JOURNAL, `${dateStr}.md`);
+  if (!existsSync(psiJournalFile)) {
+    writeFileSync(psiJournalFile, `# Journal — ${dateStr}\n`);
+  }
+  appendFileSync(psiJournalFile, entry);
+
   // Also save to JSONL for search indexing
   const memoryFile = join(MEMORY_DIR, "fyi.jsonl");
   const record = JSON.stringify({ ts: now(), text: args, type: "fyi" });
   appendFileSync(memoryFile, record + "\n");
+
+  // And to ψ/
+  const psiFyiFile = join(PSI_MEMORY, "fyi.jsonl");
+  appendFileSync(psiFyiFile, record + "\n");
 
   return {
     status: "ok",
@@ -195,6 +218,9 @@ export function rrr(args: string, ctx: CommandContext): CommandResult {
     ].join("\n");
 
     writeFileSync(rrrFile, content);
+    // Also write to ψ/memory/retrospectives/
+    const psiRrrFile = join(PSI_RETROSPECTIVES, `${dateStr}.md`);
+    writeFileSync(psiRrrFile, content);
 
     return {
       status: "ok",
@@ -302,6 +328,9 @@ export function feel(args: string, ctx: CommandContext): CommandResult {
   };
 
   appendFileSync(MOOD_LOG, JSON.stringify(record) + "\n");
+  // Also write to ψ/memory/mood/
+  const psiMoodFile = join(PSI_MOOD, `${today()}.jsonl`);
+  appendFileSync(psiMoodFile, JSON.stringify(record) + "\n");
 
   // Get today's mood count
   let todayCount = 0;
@@ -343,6 +372,9 @@ export function forward(args: string, ctx: CommandContext): CommandResult {
   };
 
   writeFileSync(handoffFile, JSON.stringify(state, null, 2));
+  // Also write to ψ/memory/handoffs/
+  const psiHandoffFile = join(PSI_HANDOFFS, `${handoffId}.json`);
+  writeFileSync(psiHandoffFile, JSON.stringify(state, null, 2));
 
   // Create a latest symlink/reference
   writeFileSync(join(HANDOFF_DIR, "latest.json"), JSON.stringify({ id: handoffId, file: handoffFile }));
@@ -841,6 +873,10 @@ export function resonance(args: string, ctx: CommandContext): CommandResult {
 
   const resonanceFile = join(MEMORY_DIR, "resonance.jsonl");
   appendFileSync(resonanceFile, JSON.stringify(record) + "\n");
+
+  // Also write to ψ/memory/resonance/
+  const psiResonanceFile = join(PSI_RESONANCE, `${today()}.jsonl`);
+  appendFileSync(psiResonanceFile, JSON.stringify(record) + "\n");
 
   return {
     status: "ok",

@@ -94,9 +94,10 @@ export class AgentManager extends EventEmitter {
       role,
       systemPrompt,
       geminiApiKey: this.config.geminiApiKey,
+      mimoApiKey: this.config.mimoApiKey,
       model: this.config.agentModel || 'gemini-2.0-flash',
       hubUrl: `http://localhost:${this.config.port}`,
-      provider: this.config.provider || 'gemini', // 'gemini' or 'promptdee'
+      provider: this.config.provider || 'gemini', // 'gemini', 'promptdee', or 'mimo'
       savedState: savedState ? {
         conversationHistory: savedState.conversationHistory,
         memoryCache: savedState.memoryCache,

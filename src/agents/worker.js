@@ -3,7 +3,11 @@ const config = JSON.parse(process.env.AGENT_CONFIG);
 
 // Select LLM provider
 let Agent;
-if (config.provider === 'promptdee') {
+if (config.provider === 'mimo') {
+  const mod = await import('./mimo-client.js');
+  Agent = mod.MiMoAgent;
+  console.log(`🤖 Agent "${config.name}" using MiMo API (${config.model})`);
+} else if (config.provider === 'promptdee') {
   const mod = await import('./promptdee-client.js');
   Agent = mod.PromptDeeAgent;
   console.log(`🤖 Agent "${config.name}" using PromptDee API (gpt-4o-mini)`);

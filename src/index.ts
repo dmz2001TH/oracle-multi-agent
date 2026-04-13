@@ -239,30 +239,91 @@ function wsBroadcast(data: any) {
 // Make broadcast available to other modules (agent-bridge, etc.)
 (globalThis as any).__wsBroadcast = wsBroadcast;
 
-wss.on('connection', (ws, req: IncomingMessage) => {
+// ─── Dashboard session polling ──────────────────────────────────
+// Dashboard expects periodic "sessions" messages via WebSocket
+// containing running tmux/pty sessions + agent list.
+
+function listTmuxSessions(): { name: string; attached: boolean }[] {
+  try {
+    const { execSync } = require('child_process');
+    const raw = execSync(
+      `tmux list-sessions -F '#{session_name}:#{session_attached}' 2>/dev/null`,
+      { encoding: 'utf-8', timeout: 5000 }
+    ).trim();
+    if (!raw) return [];
+    return raw.split('\n').filter(Boolean).map((line: string) => {
+      const [name, attached] = line.split(':');
+      return { name, attached: attached === '1' };
+    });
+  } catch {
+    return [];
+  }
+}
+
+function broadcastDashboardState() {
+  try {
+    const sessions = listTmuxSessions();
+
+    // Scan for agents in tmux sessions (Claude/Oracle processes)
+    const agents: { target: string; name: string; session: string }[] = [];
+    for (const sess of sessions) {
+      try {
+        const { execSync } = require('child_process');
+        const cmd = execSync(
+          `tmux list-panes -t '${sess.name}' -F '#{pane_current_command}' 2>/dev/null`,
+          { encoding: 'utf-8', timeout: 3000 }
+        ).trim();
+        if (/claude|oracle|codex/i.test(cmd)) {
+          agents.push({ target: sess.name, name: sess.name, session: sess.name });
+        }
+      } catch {}
+    }
+
+    wsBroadcast({ type: 'sessions', sessions, agents, ts: Date.now() });
+  } catch {}
+}
+
+// Broadcast every 10 seconds
+setInterval(broadcastDashboardState, 10000);
+// Also broadcast immediately on new WS connection
+const origOnConnection = wss.listeners('connection')[0];
+wss.removeAllListeners('connection');
+wss.on('connection', (ws: any, req: any) => {
   const ip = req.socket.remoteAddress;
   console.log(`🔌 WebSocket connected: ${ip}`);
 
-  // Send initial heartbeat
-  ws.send(JSON.stringify({ type: 'connected', ts: Date.now() }));
+  // Send current state immediately
+  try {
+    const sessions = listTmuxSessions();
+    const agents: { target: string; name: string; session: string }[] = [];
+    for (const sess of sessions) {
+      try {
+        const { execSync } = require('child_process');
+        const cmd = execSync(
+          `tmux list-panes -t '${sess.name}' -F '#{pane_current_command}' 2>/dev/null`,
+          { encoding: 'utf-8', timeout: 3000 }
+        ).trim();
+        if (/claude|oracle|codex/i.test(cmd)) {
+          agents.push({ target: sess.name, name: sess.name, session: sess.name });
+        }
+      } catch {}
+    }
+    ws.send(JSON.stringify({ type: 'sessions', sessions, agents, ts: Date.now() }));
+  } catch {
+    ws.send(JSON.stringify({ type: 'sessions', sessions: [], agents: [], ts: Date.now() }));
+  }
 
-  ws.on('message', (raw) => {
+  ws.on('message', (raw: any) => {
     try {
       const msg = JSON.parse(raw.toString());
-      // Handle subscribe/ping from dashboard
       if (msg.type === 'ping') {
         ws.send(JSON.stringify({ type: 'pong', ts: Date.now() }));
       }
     } catch {}
   });
 
-  ws.on('close', () => {
-    console.log(`🔌 WebSocket disconnected: ${ip}`);
-  });
-
-  ws.on('error', (err) => {
-    console.error(`🔌 WebSocket error:`, err.message);
-  });
+  ws.on('close', () => { console.log(`🔌 WebSocket disconnected: ${ip}`); });
+  ws.on('error', (err: any) => { console.error(`🔌 WebSocket error:`, err.message); });
 });
 
 console.log(`   🔌 WebSocket ready on /ws`);

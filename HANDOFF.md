@@ -2,31 +2,32 @@
 
 > สำหรับ AI agent ตัวใหม่ที่จะสานต่อโปรเจ็คนี้
 
-## สถานะปัจจุบัน (2026-04-14 03:49 GMT+8)
+## สถานะปัจจุบัน (2026-04-14 05:05 GMT+8)
 
 **Repo**: https://github.com/dmz2001TH/oracle-multi-agent
 **Branch**: main
-**Commands**: 44 | **API Endpoints**: 40+ | **_ref repos**: 25
+**Commands**: 44 | **API Endpoints**: 40+ | **Plugins**: 11 | **Dashboard Pages**: 8 | **_ref repos**: 25
 
 ## ✅ สิ่งที่เสร็จแล้วทั้งหมด
 
-### Dashboard Pages (7 หน้าใหม่ — inspired by Soul-Brews-Studio/maw-ui)
+### Dashboard Pages (8 หน้า — inspired by Soul-Brews-Studio/maw-ui)
 | # | Route | Description |
 |---|-------|-------------|
-| 1 | `/terminal` | Agent terminal — sidebar เลือก agent/session, terminal output + command input, WebSocket real-time |
-| 2 | `/mission` | Mission Control — Pulse stats, task progress bars, task list CRUD, workflow templates |
-| 3 | `/inbox` | Inbox dashboard — messages/handoffs/FYI/resonance แบบ filterable, stats, quick actions |
-| 4 | `/agents` | Agent detail — card grid, spawn form, restart/sleep/stop actions, per-agent chat, detail panel |
-| 5 | `/fleet` | Fleet overview — big-number stats, agent grid, sessions, health checks, system pulse |
-| 6 | `/workspace` | Workspace — workspace configs, agent overview, skills overview, broadcast |
-| 7 | `/config` | Config viewer — system info, agent config, plugins, commands list, fleet config JSON, env vars |
+| 1 | `/` | Main dashboard — agent list, chat, system stats, command list (ภาษาไทย) |
+| 2 | `/terminal` | Agent terminal — sidebar เลือก agent/session, terminal output + command input |
+| 3 | `/mission` | Mission Control — Pulse stats, task progress bars, workflow templates |
+| 4 | `/inbox` | Inbox dashboard — messages/handoffs/FYI/resonance filterable |
+| 5 | `/agents` | Agent detail — card grid, spawn, restart/sleep/stop, per-agent chat |
+| 6 | `/fleet` | Fleet overview — big-number stats, agent grid, health checks |
+| 7 | `/workspace` | Workspace — configs, skills overview, broadcast |
+| 8 | `/config` | Config viewer — system info, plugins, commands, fleet config JSON |
+| 9 | `/vault` | Vault dashboard (ψ/ stats, search, skills, principles) |
 
 ### Dashboard Navigation
-- ทุกหน้ามี nav bar เชื่อมถึงกัน: Home → Terminal → Mission → Inbox → Agents → Fleet → Workspace → Config → Vault
-- `index.html` (Home) เพิ่ม nav links ไปทุกหน้า
-- `vault.html` เพิ่ม nav links ไปทุกหน้า
-- Routing: `src/index.ts` เพิ่ม 7 routes ใหม่ (app.get('/terminal'), etc.)
-- TypeScript: 0 errors
+- ทุกหน้ามี nav bar เชื่อมถึงกัน
+- `index.html` + `vault.html` + ทุกหน้าใหม่ — เพิ่ม nav links ไปทุกหน้า
+- Routing: `src/index.ts` เพิ่ม 8 routes ใหม่ (terminal, mission, inbox, agents, fleet, workspace, config)
+- Dashboard แสดงภาษาไทย — command descriptions 44 คำสั่ง, labels, placeholders
 
 ### Batch 1: Core CLI Commands (16)
 | # | Command | Description |
@@ -76,74 +77,101 @@
 ### Batch 4: Plugin Architecture + maw-js Parity (11)
 | # | Command | Description |
 |---|---------|-------------|
-| 34 | /plugin | Plugin management (list/install/remove) — weight-based loading |
-| 35 | /task | Task system — log/show/comment/done (GitHub Issue pattern) |
-| 36 | /project | Project trees — create/add/show with progress |
-| 37 | /loop | Loop management — add/remove/trigger/enable/disable/history |
+| 34 | /plugin | Plugin management (list/install/remove) |
+| 35 | /task | Task system (log --commit/--blocker, show, comment, done) |
+| 36 | /project | Project trees (create, add, show with progress) |
+| 37 | /loop | Loop management (add/remove/trigger/enable/disable/history) |
 | 38 | /tokens | Token monitoring (--rebuild, --json) |
 | 39 | /think | Think cycle — agents propose ideas |
 | 40 | /meeting | Meeting orchestration — collect input from agents |
-| 41 | /tab | Tab management — list/send to tmux sessions |
+| 41 | /tab | Tab management (list/send to tmux sessions) |
 | 42 | /view | Clean full-screen view for agent |
 | 43 | /chat | Chat history per agent |
 | 44 | /review | Review think cycle proposals |
 
-### Plugin System (src/plugins/)
-- `types.ts` — Plugin interfaces (manifest, handler, surfaces)
-- `sdk.ts` — definePlugin() helper + cliPlugin/apiPlugin utilities
-- `loader.ts` — Plugin loader with weight-based loading, CLI/API/hook registries
-- Plugins directory: `plugins/` — each subdirectory = one plugin
+### Plugin System (src/plugins/ + plugins/)
+- `src/plugins/types.ts` — Plugin interfaces (manifest, handler, surfaces: cli/api/hook/peer/cron)
+- `src/plugins/sdk.ts` — definePlugin() helper + cliPlugin/apiPlugin utilities
+- `src/plugins/loader.ts` — Weight-based plugin loader with registries
 - Plugin format: `plugin.json` (manifest) + `index.ts` (handler)
 - Weight order: 00 (core) → 10 (infra) → 20 (tools) → 50 (features) → 90 (custom)
+
+### Real Plugins (11 — tested, all load successfully)
+| Weight | Plugin | Description |
+|--------|--------|-------------|
+| 00 | wake | Spawn/wake agent (cli + api) |
+| 00 | sleep | Gracefully stop agent (cli + api) |
+| 00 | hey | Send message to agent (alias: talk-to) |
+| 00 | ls | List all agents (alias: oracle) |
+| 20 | ping | Ping server health |
+| 20 | health | System health check (API, WS, plugins, agents) |
+| 20 | status | Quick status overview (alias: st) |
+| 50 | bud | Create oracle from parent or root |
+| 50 | about | Detailed agent/system info |
+| 50 | contacts | Oracle contacts list |
+| 50 | research-swarm | Research swarm — spawn N agents in parallel |
+
+### MiMo LLM Integration
+- `src/agents/mimo-client.js` — MiMo API client (OpenAI-compatible)
+- Env vars: `LLM_PROVIDER=mimo`, `MIMO_API_KEY=<key>`, `AGENT_MODEL=mimo-v2-pro`, `MIMO_API_BASE=https://api.xiaomimimo.com/v1`
+- Worker (`src/agents/worker.js`) auto-selects client based on LLM_PROVIDER
 
 ### Infrastructure
 - Hono server on port 3456
 - WebSocket /ws for real-time dashboard
-- Agent system: 9 roles (general, researcher, coder, writer, manager, data-analyst, devops, qa-tester, translator)
-- Agent system prompts include CLI command awareness
+- Agent system: 9 roles with CLI command awareness
 - Oracle-v2 bridge API (/api/oracle-v2/*)
-- ψ/ full oracle-framework structure (active/inbox/writing/lab/incubate/learn/archive + memory)
+- ψ/ full oracle-framework structure
 - 55 skills registry
 - 5 workflow patterns (sequential/parallel/fan-out/review/pipeline)
 - Semantic search (@xenova/transformers)
-- E2E tests (25/25 passed)
-
-### _ref/ Repositories (25)
-Soul-Brews-Studio: maw-js, maw-ui, maw-plugins, maw-core-plugins, maw-incarnation-plugin, maw-cell-plugin, arra-oracle-v3, oracle-framework, oracle-v2, opensource-nat-brain-oracle, shrimp-oracle, skills-cli, vault-report
-
-the-oracle-keeps-the-human-human: agents-that-remember, the-agent-bus, oracle-maw-guide, graph-oracle-v2, oracle-step-by-step, oracle-federation-guide, oracle-office-guide, oracle-auto-rrr-hooks, oracle-hooks-auto-cc, oracle-custom-skills
-
-Other: nat-brain, safety-hooks, workflow-kit
-
-### Bug Fixes
-- /learn รองรับ GitHub org URL (แสดง repos list)
-- Agent system prompts เพิ่ม CLI command awareness
+- TypeScript: 0 errors
 
 ## Architecture
 
 ```
 src/
-├── index.ts                 ← Hono server (port 3456) + WebSocket + routing
-├── commands/index.ts        ← 33 CLI commands
+├── index.ts                  ← Hono server (port 3456) + WebSocket + routing
+├── commands/index.ts         ← 44 CLI commands + 44 Thai descriptions
 ├── api/
-│   ├── index.ts             ← API router (registers all sub-routers)
-│   ├── agent-bridge.ts      ← Agent API (spawn, chat, stop)
-│   ├── oracle-v2-bridge.ts  ← Oracle-v2 proxy (port 47778)
-│   └── *.ts                 ← 35+ more routers
+│   ├── index.ts              ← API router (registers all sub-routers)
+│   ├── agent-bridge.ts       ← Agent API (spawn, chat, stop)
+│   ├── oracle-v2-bridge.ts   ← Oracle-v2 proxy (port 47778)
+│   └── *.ts                  ← 35+ more routers
 ├── agents/
-│   ├── manager.js           ← AgentManager + AGENT_ROLES (9 roles)
-│   ├── worker.js            ← Agent child process
-│   └── *-client.js          ← LLM clients
-├── skills/registry.ts       ← 55 skills
-├── workflows/index.ts       ← 5 workflow patterns
+│   ├── manager.js            ← AgentManager + AGENT_ROLES (9 roles)
+│   ├── worker.js             ← Agent child process (auto-selects LLM client)
+│   ├── gemini-client.js      ← Gemini API client
+│   ├── mimo-client.js        ← MiMo API client
+│   └── promptdee-client.js   ← PromptDee API client
+├── plugins/
+│   ├── types.ts              ← Plugin interfaces
+│   ├── sdk.ts                ← definePlugin() helper
+│   └── loader.ts             ← Plugin loader (weight-based)
+├── skills/registry.ts        ← 55 skills
+├── workflows/index.ts        ← 5 workflow patterns
 ├── knowledge/oracle-principles.md
-├── memory/                  ← SQLite + vector store
+├── memory/                   ← SQLite + vector store
 └── ...
+plugins/                      ← 11 real plugins (00-core, 20-tools, 50-features)
+├── 00-wake/, 00-sleep/, 00-hey/, 00-ls/
+├── 20-ping/, 20-health/, 20-status/
+└── 50-bud/, 50-about/, 50-contacts/, 50-research-swarm/
 public/
-├── index.html               ← Main dashboard
-└── vault.html               ← Vault dashboard
-_ref/                        ← 25 reference repos
-ψ/                           ← Knowledge root
+├── index.html                ← Main dashboard (ภาษาไทย)
+├── terminal.html             ← Terminal page
+├── mission.html              ← Mission control
+├── inbox.html                ← Inbox dashboard
+├── agents.html               ← Agent detail
+├── fleet.html                ← Fleet overview
+├── workspace.html            ← Workspace
+├── config.html               ← Config viewer
+├── vault.html                ← Vault dashboard
+└── favicon.svg               ← Favicon (cat with headphones)
+_ref/                         ← 25 reference repos
+ψ/                            ← Knowledge root
+test/e2e.mjs                  ← E2E tests
+docs/DEPLOY.md                ← VPS deploy guide
 ```
 
 ## How to Run
@@ -151,24 +179,83 @@ _ref/                        ← 25 reference repos
 ```bash
 git pull origin main
 npm install
-npx tsx src/index.ts
+
+# With MiMo
+LLM_PROVIDER=mimo MIMO_API_KEY=<key> AGENT_MODEL=mimo-v2-pro npx tsx src/index.ts
+
+# With Gemini (default)
+GEMINI_API_KEY=<key> npx tsx src/index.ts
 ```
+
+เปิด http://localhost:3456
 
 ## How to Push
 
 ```bash
-git add -A && git commit -m "message"
+git add -A && git commit -m "descriptive message"
 git remote set-url origin https://dmz2001TH:TOKEN@github.com/dmz2001TH/oracle-multi-agent.git
 git push origin main
 git remote set-url origin https://github.com/dmz2001TH/oracle-multi-agent.git
 ```
 
+TOKEN = เจ้าของจะส่งทาง chat ทุกครั้งตอน push
+อย่า commit token ลง repo เด็ดขาด
+
+## Workflow การทำงาน (ทำตามนี้ทุกครั้ง)
+
+ขั้นตอนมาตรฐานเมื่อเจ้าของสั่งงาน:
+
+```
+ขั้นตอนที่ 1: เข้าใจงาน
+- อ่านคำสั่งเจ้าของ
+- ตอบสั้นๆ ว่าจะทำอะไร (1-2 บรรทัด)
+
+ขั้นตอนที่ 2: ทำเลย
+- แก้โค้ด / สร้างไฟล์
+- อย่าถามยืนยัน ถ้าเข้าใจแล้วทำเลย
+
+ขั้นตอนที่ 3: ตรวจคุณภาพ
+- npx tsc --noEmit (ต้องไม่มี error)
+- ถ้า error → แก้ก่อนไปขั้นตอนถัดไป
+
+ขั้นตอนที่ 4: Commit + Push
+- git add -A
+- git commit -m "descriptive message"
+- ขอ TOKEN จากเจ้าของ
+- Push ขึ้น GitHub
+
+ขั้นตอนที่ 5: อัพเดทไฟล์ (สำคัญมาก!)
+- HANDOFF.md — เปลี่ยนสถานะ task ที่ทำเสร็จ
+- README.md — ถ้ามี feature/command/endpoint ใหม่
+- AGENT-PROMPT.md — ถ้ามีการเปลี่ยนแปลงโครงสร้าง
+
+อย่าลืมอัพเดท! เจ้าของไม่ชอบให้ลืม!
+
+ขั้นตอนที่ 6: บอกเจ้าของ
+- ส่งสรุปสั้นๆ สิ่งที่ทำ
+- ส่งคำสั่ง git pull + restart ให้เจ้าของทำตาม
+```
+
 ## กฎเหล็ก
 
 1. "Nothing is Deleted" — ไม่ลบโค้ดเก่า ปรับปรุงแทน
-2. Dashboard = public/index.html (static HTML)
+2. Dashboard = public/index.html (static HTML) — แก้ไขที่นี่โดยตรง
 3. WebSocket path = /ws — อย่าเผลอลบ
 4. TypeScript compile ต้องผ่าน: npx tsc --noEmit
 5. อย่า commit token ลง repo
 6. อัพเดท HANDOFF.md, README.md, AGENT-PROMPT.md ทุกครั้งที่ทำอะไรเสร็จ
 7. ส่งคำสั่ง git pull + restart ให้เจ้าของทุกครั้งหลัง push
+8. ถ้าไม่แน่ใจ → ถามเจ้าของ อย่าเดา
+9. เทสก่อน push ทุกครั้ง
+10. Dashboard แสดงภาษาไทย — command descriptions, labels, placeholders
+
+## สิ่งที่ยังขาด (เปรียบเทียบกับ maw-js)
+
+| สิ่งที่ขาด | สถานะ | หมายเหตุ |
+|-----------|-------|---------|
+| WASM plugin support | ❌ ยังไม่ทำ | maw-js ก็ยังไม่สมบูรณ์ — low priority |
+| Task เชื่อม GitHub Issues | ❌ มี task system แต่ไม่เชื่อม GitHub | ทำได้แต่ต้อง GitHub token |
+| Project tree auto-organize | ❌ มี manual แต่ไม่มี auto | ต่อได้ |
+| Loop persistent + cron trigger | ⚠️ มี CLI แต่ยังไม่ trigger จริง | ต้องเชื่อมกับ cron system |
+| War room overview (split panes) | ❌ มี /overview แต่เป็น stats | ต้องทำ tmux split |
+| React/Three.js UI | ❌ Static HTML 8 pages | ใหญ่ — ทำตอนหลัง |

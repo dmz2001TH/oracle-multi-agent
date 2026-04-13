@@ -24,9 +24,10 @@ Repo: https://github.com/dmz2001TH/oracle-multi-agent
 สถานะปัจจุบัน
 ════════════════════════════════════════════
 
-33 commands | 40+ API endpoints | 25 _ref repos
+44 commands | 40+ API endpoints | 11 plugins | 8 dashboard pages | 25 _ref repos
 TypeScript: 0 errors
 ทุกไฟล์อัพเดทบน GitHub แล้ว
+Dashboard แสดงภาษาไทย
 
 อ่าน HANDOFF.md เพื่อดูรายละเอียดสถานะแต่ละ task
 
@@ -48,7 +49,7 @@ TypeScript: 0 errors
 อย่าข้ามขั้นตอนนี้ — ต้องเข้าใจระบบก่อนทำงานทุกครั้ง
 
 ════════════════════════════════════════════
-CLI Commands (33 ตัว)
+CLI Commands (44 ตัว)
 ════════════════════════════════════════════
 
 ทุกคำสั่งอยู่ใน src/commands/index.ts
@@ -105,6 +106,36 @@ CLI Commands (33 ตัว)
 |---------|---------|--------|
 | /oracle-v2 | /oracle-v2 [status] | Oracle-v2 MCP server bridge (port 47778) |
 
+### maw-js Parity (Batch 4)
+| Command | วิธีใช้ | ทำอะไร |
+|---------|---------|--------|
+| /plugin | /plugin [list/install/remove] | จัดการ plugins |
+| /task | /task [log/show/comment/done] | ระบบ task (log --commit/--blocker) |
+| /project | /project [create/add/show/ls] | Project trees with progress |
+| /loop | /loop [add/remove/trigger/enable/disable] | จัดการ loop (JSON config) |
+| /tokens | /tokens [--rebuild|--json] | ดู token usage |
+| /think | /think [--oracles dev,qa] | Think cycle — agents เสนอ ideas |
+| /meeting | /meeting "topic" [--dry-run] | ประชุม — รวบรวม input จาก agents |
+| /tab | /tab [list/send] | จัดการ tmux sessions |
+| /view | /view <agent> [--clean] | ดู agent เต็มหน้าจอ |
+| /chat | /chat [agent] | ดู chat history ต่อ agent |
+| /review | /review | ดูผล think cycle proposals |
+
+### Plugins (11 ตัว — load ได้จริง)
+| Weight | Plugin | ทำอะไร |
+|--------|--------|--------|
+| 00 | wake | สร้าง/ปลุก agent |
+| 00 | sleep | หยุด agent |
+| 00 | hey | ส่งข้อความ (alias: talk-to) |
+| 00 | ls | แสดง agents (alias: oracle) |
+| 20 | ping | Ping server health |
+| 20 | health | ตรวจสุขภาพระบบ |
+| 20 | status | สถานะด่วน (alias: st) |
+| 50 | bud | สร้าง oracle จาก parent |
+| 50 | about | ข้อมูลละเอียด |
+| 50 | contacts | รายชื่อ contacts |
+| 50 | research-swarm | 🐝 วิจัยแบบทีม
+
 ════════════════════════════════════════════
 API Endpoints (40+)
 ════════════════════════════════════════════
@@ -153,14 +184,28 @@ Legacy (20+ more routers):
   /api/tokens, /api/loops, /api/workflows
 
 ════════════════════════════════════════════
-Dashboard
+Dashboard (8 หน้า — ภาษาไทย)
 ════════════════════════════════════════════
 
 - http://localhost:3456 — Main dashboard (public/index.html)
   - Sidebar ซ้าย: Agent list + Spawn button (เลือก name/role)
   - ตรงกลาง: Chat area (คุยกับ agent หรือพิมพ์ /command)
-  - ขวา: System stats + Command list + Event log
+  - ขวา: System stats + Command list (44 คำสั่ง + คำอธิบายไทย) + Event log
   - WebSocket: ws://host/ws (อย่าเผลอลบ)
+- http://localhost:3456/terminal — Terminal page (public/terminal.html)
+  - เลือก agent/session → terminal output + command input
+- http://localhost:3456/mission — Mission Control (public/mission.html)
+  - Pulse stats, task progress bars, workflow templates
+- http://localhost:3456/inbox — Inbox (public/inbox.html)
+  - Messages/handoffs/FYI/resonance แบบ filterable
+- http://localhost:3456/agents — Agent Detail (public/agents.html)
+  - Card grid, spawn, restart/sleep/stop, per-agent chat detail
+- http://localhost:3456/fleet — Fleet Overview (public/fleet.html)
+  - Big-number stats, agent grid, sessions, health check
+- http://localhost:3456/workspace — Workspace (public/workspace.html)
+  - Workspace configs, skills overview, broadcast
+- http://localhost:3456/config — Config (public/config.html)
+  - System info, plugins, commands, fleet config JSON
 - http://localhost:3456/vault — Vault dashboard (public/vault.html)
   - ψ/ stats, search, skills overview, 5 principles
 
@@ -297,7 +342,12 @@ test/e2e.mjs — 25/25 passed
 ```bash
 git pull origin main
 npm install
-npx tsx src/index.ts
+
+# ด้วย MiMo
+LLM_PROVIDER=mimo MIMO_API_KEY=<key> AGENT_MODEL=mimo-v2-pro npx tsx src/index.ts
+
+# ด้วย Gemini (default)
+GEMINI_API_KEY=<key> npx tsx src/index.ts
 ```
 
 เปิด http://localhost:3456
@@ -388,7 +438,7 @@ Architecture Overview
 ```
 src/
 ├── index.ts                  ← Hono server (port 3456) + WebSocket + routing
-├── commands/index.ts         ← 33 CLI commands
+├── commands/index.ts         ← 44 CLI commands + Thai descriptions
 ├── api/
 │   ├── index.ts              ← API router (registers all sub-routers)
 │   ├── agent-bridge.ts       ← Agent API (spawn, chat, stop)
@@ -396,8 +446,14 @@ src/
 │   └── *.ts                  ← 35+ more routers
 ├── agents/
 │   ├── manager.js            ← AgentManager + AGENT_ROLES (9 roles)
-│   ├── worker.js             ← Agent child process
-│   └── *-client.js           ← LLM clients
+│   ├── worker.js             ← Agent child process (auto-selects LLM client)
+│   ├── gemini-client.js      ← Gemini API client
+│   ├── mimo-client.js        ← MiMo API client
+│   └── promptdee-client.js   ← PromptDee API client
+├── plugins/
+│   ├── types.ts              ← Plugin interfaces (manifest, handler, surfaces)
+│   ├── sdk.ts                ← definePlugin() helper
+│   └── loader.ts             ← Plugin loader (weight-based, registries)
 ├── skills/registry.ts        ← 55 skills
 ├── workflows/index.ts        ← 5 workflow patterns
 ├── knowledge/oracle-principles.md
@@ -406,15 +462,26 @@ src/
 │   ├── tools/                ← 16 memory tools
 │   └── store.js
 ├── transports/               ← 5 transports
-├── plugins/                  ← Plugin system
+├── plugins/                  ← Plugin system (builtin)
 └── ...
+plugins/                      ← 11 real plugins (user plugins)
+├── 00-wake/, 00-sleep/, 00-hey/, 00-ls/
+├── 20-ping/, 20-health/, 20-status/
+└── 50-bud/, 50-about/, 50-contacts/, 50-research-swarm/
 public/
-├── index.html                ← Main dashboard (static HTML + WebSocket)
-└── vault.html                ← Vault dashboard
+├── index.html                ← Main dashboard (ภาษาไทย)
+├── terminal.html             ← Terminal page
+├── mission.html              ← Mission control
+├── inbox.html                ← Inbox
+├── agents.html               ← Agent detail
+├── fleet.html                ← Fleet overview
+├── workspace.html            ← Workspace
+├── config.html               ← Config viewer
+├── vault.html                ← Vault dashboard
+└── favicon.svg               ← Cat with headphones
 _ref/                         ← 25 reference repos
 ψ/                            ← Knowledge root
-scripts/statusline.sh         ← Terminal status bar
-test/e2e.mjs                  ← E2E tests (25/25)
+test/e2e.mjs                  ← E2E tests
 docs/DEPLOY.md                ← VPS deploy guide
 ```
 

@@ -1,49 +1,42 @@
 {
   "name": "oracle-multi-agent",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "description": "🧠 ARRA Office — Oracle Multi-Agent System with memory, federation, transport, plugins, and team orchestration",
+  "type": "module",
+  "main": "dist/index.js",
   "bin": {
     "oracle": "./bin/oracle"
   },
-  "main": "src/hub/index.js",
-  "type": "module",
   "scripts": {
-    "start": "node src/hub/index.js",
-    "setup": "node scripts/setup.js",
-    "dev": "node --watch src/hub/index.js",
-    "chat": "node bin/oracle chat",
-    "status": "node bin/oracle status",
-    "team": "node bin/oracle team",
-    "recap": "node bin/oracle recap",
-    "rrr": "node bin/oracle rrr",
-    "standup": "node bin/oracle standup",
-    "overview": "node bin/oracle overview",
-    "feed": "node bin/oracle feed",
-    "vault": "node bin/oracle vault",
-    "fleet": "node bin/oracle fleet",
-    "costs": "node bin/oracle costs",
-    "help": "node bin/oracle help",
-    "daemon": "pm2 start ecosystem.config.cjs",
-    "daemon:stop": "pm2 stop oracle-hub",
-    "daemon:logs": "pm2 logs oracle-hub",
-    "dashboard:build": "cd src/dashboard && npm run build",
-    "dashboard:dev": "cd src/dashboard && npm run dev"
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "dashboard:dev": "cd src/dashboard && npx vite",
+    "dashboard:build": "cd src/dashboard && npx vite build"
   },
   "keywords": [
-    "ai", "multi-agent", "gemini", "llm", "agents", "memory",
-    "sqlite", "oracle", "federation", "transport", "plugins",
-    "maw", "arra", "office", "team", "orchestration"
+    "ai", "multi-agent", "oracle", "federation", "transport", "plugins",
+    "maw", "arra", "office", "team", "orchestration", "typescript"
   ],
   "dependencies": {
+    "hono": "^4.12.5",
+    "@hono/node-server": "^1.13.0",
+    "mqtt": "^5.15.1",
+    "arg": "^5.0.2",
+    "execa": "^9.0.0",
+    "node-pty": "^1.0.0",
     "better-sqlite3": "^11.0.0",
-    "express": "^4.21.0",
     "ws": "^8.18.0",
     "uuid": "^10.0.0",
     "dotenv": "^16.4.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0"
+  },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "license": "MIT"
 }

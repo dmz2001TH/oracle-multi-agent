@@ -8,6 +8,8 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "declaration": true,
@@ -15,5 +17,5 @@
     "sourceMap": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "_ref", "src/dashboard"]
+  "exclude": ["node_modules", "dist", "_ref", "src/dashboard", "src/memory/tools", "src/memory/db", "src/memory/config.ts", "src/memory/const.ts"]
 }

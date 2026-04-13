@@ -242,6 +242,9 @@ function wsBroadcast(data: any) {
 // ─── Dashboard session polling ──────────────────────────────────
 // Dashboard expects periodic "sessions" messages via WebSocket
 // containing running tmux/pty sessions + agent list.
+// Also includes agents from AgentManager (API-spawned child processes).
+
+import { manager as agentManager } from './api/agent-bridge.js';
 
 function listTmuxSessions(): { name: string; attached: boolean }[] {
   try {
@@ -260,55 +263,66 @@ function listTmuxSessions(): { name: string; attached: boolean }[] {
   }
 }
 
+function getDashboardState() {
+  // 1. Tmux sessions
+  const sessions = listTmuxSessions();
+
+  // 2. Agents from tmux (Claude/Oracle processes in tmux panes)
+  const tmuxAgents: { target: string; name: string; session: string }[] = [];
+  for (const sess of sessions) {
+    try {
+      const { execSync } = require('child_process');
+      const cmd = execSync(
+        `tmux list-panes -t '${sess.name}' -F '#{pane_current_command}' 2>/dev/null`,
+        { encoding: 'utf-8', timeout: 3000 }
+      ).trim();
+      if (/claude|oracle|codex/i.test(cmd)) {
+        tmuxAgents.push({ target: sess.name, name: sess.name, session: sess.name });
+      }
+    } catch {}
+  }
+
+  // 3. Agents from AgentManager (API-spawned child processes)
+  let managerAgents: { target: string; name: string; session: string }[] = [];
+  try {
+    const running = agentManager.getRunningAgents();
+    managerAgents = running.map((a: any) => ({
+      target: `agent-${a.id.slice(0, 8)}`,
+      name: a.name,
+      session: `agent-${a.role}`,
+    }));
+  } catch {}
+
+  // Merge: tmux agents + manager agents (dedupe by name)
+  const seen = new Set<string>();
+  const agents = [...tmuxAgents, ...managerAgents].filter(a => {
+    if (seen.has(a.name)) return false;
+    seen.add(a.name);
+    return true;
+  });
+
+  return { sessions, agents };
+}
+
 function broadcastDashboardState() {
   try {
-    const sessions = listTmuxSessions();
-
-    // Scan for agents in tmux sessions (Claude/Oracle processes)
-    const agents: { target: string; name: string; session: string }[] = [];
-    for (const sess of sessions) {
-      try {
-        const { execSync } = require('child_process');
-        const cmd = execSync(
-          `tmux list-panes -t '${sess.name}' -F '#{pane_current_command}' 2>/dev/null`,
-          { encoding: 'utf-8', timeout: 3000 }
-        ).trim();
-        if (/claude|oracle|codex/i.test(cmd)) {
-          agents.push({ target: sess.name, name: sess.name, session: sess.name });
-        }
-      } catch {}
-    }
-
-    wsBroadcast({ type: 'sessions', sessions, agents, ts: Date.now() });
+    const state = getDashboardState();
+    wsBroadcast({ type: 'sessions', ...state, ts: Date.now() });
   } catch {}
 }
 
 // Broadcast every 10 seconds
 setInterval(broadcastDashboardState, 10000);
-// Also broadcast immediately on new WS connection
-const origOnConnection = wss.listeners('connection')[0];
-wss.removeAllListeners('connection');
+
+// WebSocket connection handler
 wss.on('connection', (ws: any, req: any) => {
   const ip = req.socket.remoteAddress;
   console.log(`🔌 WebSocket connected: ${ip}`);
 
   // Send current state immediately
   try {
-    const sessions = listTmuxSessions();
-    const agents: { target: string; name: string; session: string }[] = [];
-    for (const sess of sessions) {
-      try {
-        const { execSync } = require('child_process');
-        const cmd = execSync(
-          `tmux list-panes -t '${sess.name}' -F '#{pane_current_command}' 2>/dev/null`,
-          { encoding: 'utf-8', timeout: 3000 }
-        ).trim();
-        if (/claude|oracle|codex/i.test(cmd)) {
-          agents.push({ target: sess.name, name: sess.name, session: sess.name });
-        }
-      } catch {}
-    }
-    ws.send(JSON.stringify({ type: 'sessions', sessions, agents, ts: Date.now() }));
+    const state = getDashboardState();
+    ws.send(JSON.stringify({ type: 'sessions', ...state, ts: Date.now() }));
   } catch {
     ws.send(JSON.stringify({ type: 'sessions', sessions: [], agents: [], ts: Date.now() }));
   }

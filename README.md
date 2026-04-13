@@ -1,94 +1,71 @@
-# 🧠 ARRA Office — Oracle Multi-Agent System v4.0
+# 🧠 ARRA Office — Oracle Multi-Agent System v5.0
 
-AI agents that remember, communicate, and collaborate — with a real-time web dashboard inspired by [Soul-Brews-Studio/maw-ui](https://github.com/Soul-Brews-Studio/maw-ui).
+AI agents that remember, communicate, and collaborate — with a real-time web dashboard powered by React 19 + Tailwind CSS v4.
 
 ![dashboard](https://img.shields.io/badge/dashboard-ARRA%20Office-dark-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
-![version](https://img.shields.io/badge/version-4.0.0-purple)
+![version](https://img.shields.io/badge/version-5.0.0-purple)
+![node](https://img.shields.io/badge/node-%3E%3D20-green)
 
-## What's New in v4.0
+## What's New in v5.0
 
-- 🏢 **ARRA Office Dashboard** — Full React SPA with 12 views (Office, Chat, Dashboard, Tasks, Memory, Traces, Feed, Vault, Fleet, Inbox, Terminal, Config)
-- 💬 **Chat Interface** — Chat-style conversation with any agent, real-time responses
-- 🤖 **Multi-Agent System** — Spawn specialized agents (Researcher, Coder, Writer, Manager, General)
-- 💾 **Persistent Memory** — SQLite FTS5 full-text search across all memories
-- 🔌 **Agent Communication** — Agents can talk to each other and collaborate on tasks
-- 📋 **Task Queue** — Kanban board: Pending → Active → Done
-- 📊 **Real-time Dashboard** — Metrics, activity timeline, WebSocket live updates
-- 🔍 **Trace System** — Track query chains and reasoning
-- 🔀 **Session Handoffs** — Save and restore session context
-- 🔐 **Oracle Vault (ψ/)** — File-based knowledge management (inbox, memory, writing, lab, traces, threads)
-- 🌐 **Federation Mesh** — Multi-machine communication with HMAC-SHA256 authentication
-- 🔌 **Transport Layer** — Pluggable transports (local, WebSocket, HTTP federation)
-- 🧩 **Plugin System** — Hook-based extensibility (agent_spawn, agent_message, feed_event, etc.)
-- 📡 **Event Feed** — Real-time event stream with filtering
-- 💰 **Cost Tracking** — API usage monitoring per agent
-- 📢 **Broadcast** — Send messages to all agents at once
-- 🪟 **Windows Native** — Double-click setup and start, no WSL required
+- 🧠 **Memory Tools (16 tools)** — search, reflect, learn, list, stats, concepts, supersede, verify, trace, schedule, handoff, inbox, forum, read — all backed by Drizzle ORM + SQLite FTS5
+- 💬 **Forum System** — Threaded discussions with Oracle auto-reply, linked to knowledge base
+- 🔍 **Trace System** — Discovery tracing with dig points (files, commits, issues), linked chains
+- 🛡️ **Safety Hooks** — Configurable safety shell scripts per agent
+- 🐚 **Shell Completions** — Bash/Zsh completions for CLI
+- 🤖 **15 Agent Definitions** — Specialized agent configs (Researcher, Coder, Writer, Manager, etc.)
+- 🏢 **React 19 Dashboard** — 17 HTML entries, 57 components, Vite + Tailwind CSS v4
+- 🔀 **5 Transports** — tmux, HTTP, hub federation, nanoclaw, LoRa
+- 🧩 **Plugin System** — Hook-based extensibility with builtin plugins
+- 📡 **Hono API** — 19 REST endpoints, WebSocket support
+- ⌨️ **Full CLI** — Command registry with route modules
 
-## Quick Start (Windows)
+## Quick Start
 
+### Windows
 1. Download this repo (Code → Download ZIP)
 2. Extract to any folder
 3. Double-click `setup.bat`
-4. Edit `.env` → add your API key (see below)
+4. Edit `.env` → add your API key
 5. Double-click `start.bat`
-6. Open [http://localhost:3456/dashboard](http://localhost:3456/dashboard)
-7. Click "+ Spawn Agent" and start chatting!
+6. Open [http://localhost:3456/health](http://localhost:3456/health)
+
+### Linux / macOS
+```bash
+git clone https://github.com/dmz2001TH/oracle-multi-agent.git
+cd oracle-multi-agent
+bash setup.sh
+# Edit .env → add your API key
+npm start
+```
+
+### VPS (PM2)
+```bash
+npm install -g pm2
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup
+```
 
 ## LLM Providers
 
-### Option A: PromptDee (Free, default)
-- No API key needed! Works out of the box.
-- Free tier: 5 credits/day
+### PromptDee (default, free)
+No API key needed. 5 credits/day free tier.
 
-### Option B: Google Gemini
-- Go to [Google AI Studio](https://aistudio.google.com/apikey)
-- Create an API key
-- In `.env`, set:
-```
+### Google Gemini
+```env
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=AIza...
 ```
-- Free tier: 60 requests/minute
+Free tier: 60 requests/minute.
 
-### Option C: OpenAI-compatible
-- Set `OPENAI_API_KEY` and `OPENAI_BASE_URL` in `.env`
-
-## Dashboard Views
-
-| View | Icon | Description |
-|------|------|-------------|
-| Office | 🏢 | Agent grid with avatars, status, quick actions |
-| Chat | 💬 | Talk to agents — select agent, type message, get response |
-| Dashboard | 📊 | System metrics, activity timeline |
-| Tasks | 📋 | Kanban board (pending → active → done) |
-| Memory | 🧠 | FTS5 full-text memory search |
-| Traces | 🔍 | Query traces and chains |
-| Feed | 📡 | Real-time event stream with filters |
-| Vault | 🔐 | ψ/ file system (inbox, memory, writing, lab, traces) |
-| Fleet | 🌐 | Federation peer management |
-| Inbox | 📥 | Action items with resolve |
-| Terminal | ⌨️ | Built-in CLI |
-| Config | ⚙️ | System config, plugins, API endpoints |
-
-## Agent Roles
-
-| Role | Icon | Best For |
-|------|------|----------|
-| General | 🤖 | All-purpose assistant |
-| Manager | 👔 | Coordinating agents |
-| Coder | 💻 | Writing/debugging code |
-| Researcher | 🔬 | Analysis, finding patterns |
-| Writer | ✍️ | Documentation, content |
-
-Each agent can:
-- **Remember** — Store information in long-term memory
-- **Search memory** — Find relevant past information
-- **Talk to other agents** — Send messages and collaborate
-- **Create tasks** — Track work items
-- **Check messages** — Read from shared channels
+### OpenAI-compatible
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.openai.com/v1
+```
 
 ## CLI Commands
 
@@ -104,7 +81,6 @@ oracle team spawn      # Spawn a team
 oracle team status     # Team status
 oracle broadcast <msg> # Broadcast to all agents
 oracle feed            # Recent activity feed
-oracle vault status    # Vault status
 oracle fleet ls        # List federation peers
 oracle costs           # API cost tracking
 oracle handoff         # Create session handoff
@@ -112,11 +88,77 @@ oracle health [agent]  # Agent health check
 oracle help            # Show all commands
 ```
 
+## Memory Tools
+
+The Oracle knowledge base uses 16 tools backed by Drizzle ORM + SQLite FTS5:
+
+| Tool | Description |
+|------|-------------|
+| `search` | Hybrid search (FTS5 keywords + vector semantic) |
+| `learn` | Add patterns/learnings to knowledge base |
+| `read` | Read full document content |
+| `list` | List documents with pagination |
+| `stats` | Knowledge base statistics |
+| `concepts` | Concept frequency analysis |
+| `reflect` | Reflection analysis |
+| `supersede` | Mark documents as outdated (Nothing is Deleted) |
+| `verify` | Verify KB integrity (disk vs DB) |
+| `trace` | Log discovery traces with dig points |
+| `schedule` | Calendar events and reminders |
+| `handoff` | Session context handoff |
+| `inbox` | Read handoff inbox |
+| `forum` | Threaded discussions with Oracle |
+
+## Project Structure
+
+```
+oracle-multi-agent/
+├── src/
+│   ├── index.ts              # Entry point (Hono server)
+│   ├── config.ts             # Configuration loader
+│   ├── server.ts             # Server setup + WebSocket
+│   ├── cli.ts                # CLI entry point
+│   ├── engine/               # MawEngine orchestrator
+│   ├── api/                  # 19 Hono REST endpoints
+│   ├── commands/             # 49 command modules
+│   ├── cli/                  # CLI route modules + registry
+│   ├── transports/           # 5 transport implementations
+│   ├── bridges/              # Nanoclaw bridge
+│   ├── plugins/              # Plugin system + builtin plugins
+│   ├── views/                # HTML views (demo, federation, timemachine)
+│   ├── memory/               # Oracle memory system
+│   │   ├── tools/            # 16 tool handlers
+│   │   ├── db/               # Drizzle ORM schema + client
+│   │   ├── forum/            # Forum handler
+│   │   ├── trace/            # Trace handler + types
+│   │   ├── vault/            # Vault handler
+│   │   ├── vector/           # Vector store adapter
+│   │   └── verify/           # KB verification
+│   ├── dashboard/            # React 19 SPA (Vite + Tailwind v4)
+│   ├── process/              # Process abstraction (tmux + node-pty)
+│   ├── lib/                  # Shared utilities
+│   └── agents/               # Agent definitions
+├── bin/
+│   └── oracle                # CLI binary
+├── _ref/                     # Reference repos (9 repos)
+├── ψ/                        # Oracle Vault
+│   ├── inbox/                # Handoffs
+│   ├── memory/               # Learnings, principles
+│   └── traces/               # Discovery traces
+├── .env.example              # Environment template
+├── setup.bat                 # Windows setup
+├── setup.sh                  # Linux/macOS setup
+├── start.bat                 # Windows start
+├── ecosystem.config.cjs      # PM2 config
+└── tsconfig.json             # TypeScript config
+```
+
 ## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/health` | GET | Health check |
+| `/health` | GET | Health check |
+| `/api/health` | GET | API health |
 | `/api/stats` | GET | System statistics |
 | `/api/agents` | GET/POST | List/spawn agents |
 | `/api/agents/:id` | DELETE | Stop agent |
@@ -127,98 +169,18 @@ oracle help            # Show all commands
 | `/api/memory/search?q=` | GET | Search memories |
 | `/api/memory/all` | GET | List all memories |
 | `/api/traces` | GET/POST | Traces |
-| `/api/vault/status` | GET | Vault status |
 | `/api/vault/:section` | GET/POST | Vault sections |
 | `/api/federation/peers` | GET/POST | Federation peers |
 | `/api/federation/ping` | POST | Ping peers |
-| `/api/peer/exec` | POST | Remote command exec |
 | `/api/broadcast` | POST | Broadcast to all agents |
 | `/api/costs` | GET | API costs |
 | `/api/plugins` | GET | Plugins list |
-| `/api/handoff` | GET/POST | Session handoffs |
-| `/api/slash` | POST | Slash commands |
-| `/dashboard` | GET | Web dashboard |
-
-## Project Structure
-
-```
-oracle-multi-agent/
-├── src/
-│   ├── hub/
-│   │   ├── index.js          # Entry point
-│   │   ├── server.js         # Express + WebSocket server
-│   │   └── team.js           # Team orchestrator
-│   ├── agents/
-│   │   ├── manager.js        # Agent lifecycle management
-│   │   ├── worker.js         # Agent process entry point
-│   │   ├── gemini-client.js  # Gemini API + tool calling
-│   │   └── promptdee-client.js # PromptDee API
-│   ├── memory/
-│   │   ├── store.js          # SQLite FTS5 memory store
-│   │   └── vault.js          # Oracle Vault (ψ/ file system)
-│   ├── transport/
-│   │   └── index.js          # Transport abstraction layer
-│   ├── engine/
-│   │   └── index.js          # Oracle Engine (orchestration)
-│   ├── federation/
-│   │   └── index.js          # Federation mesh (HMAC-SHA256)
-│   ├── plugins/
-│   │   └── index.js          # Plugin system
-│   ├── commands/
-│   │   └── index.js          # Command registry (30+ commands)
-│   ├── dashboard/
-│   │   └── public/
-│   │       └── index.html    # React SPA dashboard (12 views)
-│   └── cli/
-│       └── index.js          # CLI entry point
-├── scripts/
-│   └── setup.js              # Setup script
-├── bin/
-│   └── oracle                # CLI binary
-├── plugins/                  # User plugins (auto-loaded)
-├── data/                     # SQLite database
-├── ψ/                        # Oracle Vault
-│   ├── inbox/
-│   ├── memory/
-│   ├── writing/
-│   ├── lab/
-│   ├── outbox/
-│   ├── sessions/
-│   ├── traces/
-│   └── threads/
-├── start.bat                 # Windows start script
-├── setup.bat                 # Windows setup script
-├── .env.example              # Environment template
-├── ecosystem.config.cjs      # PM2 config
-└── package.json
-```
-
-## Windows Support
-
-- ✅ Native support — Works directly on Windows with `start.bat`
-- ✅ No WSL needed — Pure Node.js, runs natively
-- ✅ Node.js 18+ required — Download from [nodejs.org](https://nodejs.org/)
-
-## VPS Deployment
-
-```bash
-# Using PM2
-npm install -g pm2
-pm2 start ecosystem.config.cjs
-pm2 save
-pm2 startup
-
-# Or directly
-node src/hub/index.js
-```
 
 ## Credits
 
-- UI inspired by [Soul-Brews-Studio/maw-ui](https://github.com/Soul-Brews-Studio/maw-ui) (ARRA Office)
-- Chibi avatar system based on [Soul-Brews-Studio](https://github.com/Soul-Brews-Studio) design
-- Oracle framework patterns from [arra-oracle-v3](https://github.com/Soul-Brews-Studio/arra-oracle-v3)
-- Transport and federation concepts from [maw-js](https://github.com/Soul-Brews-Studio/maw-js)
-- Plugin system inspired by [maw-js](https://github.com/Soul-Brews-Studio/maw-js)
+- UI inspired by [Soul-Brews-Studio/maw-ui](https://github.com/Soul-Brews-Studio/maw-ui)
+- Oracle framework from [arra-oracle-v3](https://github.com/Soul-Brews-Studio/arra-oracle-v3)
+- Transport and federation from [maw-js](https://github.com/Soul-Brews-Studio/maw-js)
 
 ## License
 

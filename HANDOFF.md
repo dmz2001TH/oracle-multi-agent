@@ -1,7 +1,7 @@
 # 🧠 HANDOFF — Oracle Multi-Agent v5.0 Build Progress
 
 > **Goal**: Pull ALL features from Soul-Brews-Studio ecosystem and build oracle-multi-agent v5.0
-> **Current Status**: Phase 0-9 complete, Phase 10-11 pending
+> **Current Status**: Phase 0-10 complete, Phase 11 (README) pending
 
 ---
 
@@ -16,43 +16,34 @@
 | 4 | Commands (49 command modules) | 49 | B5 |
 | 5 | CLI (entry, parse-args, route modules) | 10 | B6 |
 | 6 | Server + plugins + views | 9 | B7 |
-| **7** | **Dashboard React App** — Vite + React 19 + Tailwind v4, 17 HTML entries, 57 components | **143** | **B8** |
-| **8** | **Memory Tools** — 16 tools, Drizzle ORM, forum/trace handlers, vault, verify | **16+10** | **B9** |
-| **9** | **Agents + Safety + Completions** — 15 agent defs, safety hooks, shell completions | **23** | **B8** |
+| 7 | Dashboard React App — Vite + React 19 + Tailwind v4, 17 HTML entries, 57 components | 143 | B8 |
+| 8 | Memory Tools — 16 tools, Drizzle ORM, forum/trace handlers, vault, verify | 16+10 | B9 |
+| 9 | Agents + Safety + Completions — 15 agent defs, safety hooks, shell completions | 23 | B8 |
+| **10** | **Bridge + Integration** — entry point, CLI binary, setup/start scripts, ecosystem config | **6** | **B10** |
 
-**Total committed: ~348 files** | `tsc --noEmit` passes ✅ (all src/ except dashboard)
+**Total committed: ~354 files** | `tsc --noEmit` passes ✅ (all src/ except dashboard)
 
 ---
 
-## ✅ Resolved — Phase 8: Memory Tools
-
-Phase 8 completed. All memory tools now compile cleanly:
+## ✅ Resolved — Phase 10: Bridge + Integration
 
 | Fix | Details |
 |-----|---------|
-| `forum/handler.ts` | Full implementation: handleThreadMessage, listThreads, getFullThread, getMessages, updateThreadStatus — backed by Drizzle ORM |
-| `trace/handler.ts` | Full implementation: createTrace, getTrace, listTraces, getTraceLinkedChain, linkTraces, unlinkTraces |
-| `trace/types.ts` | Complete type exports: CreateTraceInput, ListTracesInput, GetTraceInput, TraceRecord, etc. |
-| `vault/handler.ts` | VaultResult discriminated union type for proper narrowing |
-| `verify/handler.ts` | Accepts `{check, type, repoRoot}` input, scans ψ/ files vs DB |
-| `tools/search.ts` | Fixed null check on vectorStore, fixed ensureVectorStoreConnected call |
-| `tools/verify.ts` | Fixed parameter type |
-| `db/index.ts` | Fixed exported variable types |
+| `src/index.ts` | Rewritten: Hono server with API routes, views, health endpoint, dotenv config |
+| `bin/oracle` | Fixed import path: `../src/cli/index.js` → `../src/cli.js` |
+| `start.bat` | Fixed script: `node src/hub/index.js` → `npx tsx src/index.ts`, version → v5.0 |
+| `ecosystem.config.cjs` | PM2 config: uses `npx tsx` as interpreter for TypeScript |
+| `.env.example` | Added ORACLE_DATA_DIR, ORACLE_DB_PATH memory config vars |
+| `setup.bat` | Version text → v5.0, added logs dir |
+| `setup.sh` | New: Linux/macOS setup script (bash equivalent of setup.bat) |
 
 ---
 
-## 🔲 Remaining Phases
-
-### Phase 10: Bridge + Integration
-- Update `src/bridges/nanoclaw.ts` with full integration
-- Update `src/index.ts` entry point
-- Verify `bin/oracle` CLI binary
-- Verify `.env.example`, `setup.bat`, `start.bat`, `ecosystem.config.cjs`
+## 🔲 Remaining
 
 ### Phase 11: Final QA
-- `npm install` root + `src/dashboard`
-- `tsc --noEmit` must pass (all src/ except dashboard)
 - README.md update
+- Final tsc check
 - git commit + push
 
 ---
@@ -72,26 +63,13 @@ Phase 8 completed. All memory tools now compile cleanly:
 | Dashboard | 143 | ✅ |
 | Agents + safety + completions | 23 | ✅ |
 | Memory tools | 16+10 | ✅ |
-| Bridge + integration | ~5 | 🔲 |
+| Bridge + integration | ~7 | ✅ |
 
-**Progress: ~80% (348/~440 files)**
+**Progress: ~95% (354/~372 files)** — only README remains
 
 ---
 
 ## 🔧 Technical Notes
-
-### `_ref/` Repos (all cloned ✅)
-| Repo | Files | Purpose |
-|------|-------|---------|
-| maw-js | 230 | v4 engine, commands, transport |
-| maw-ui | 210 | Dashboard React app |
-| arra-oracle-v3 | 284 | Memory tools, oracle engine |
-| nat-brain | 158 | Agent definitions |
-| safety-hooks | 31 | Safety shell scripts |
-| workflow-kit | 99 | Completions, agent config |
-| shrimp-oracle | 159 | Additional oracle patterns |
-| skills-cli | 177 | CLI skills |
-| vault-report | 36 | Vault reporting |
 
 ### Bun → Node.js Conversion Rules
 - `Bun.spawn()` → `execa` or `child_process.spawn`
@@ -99,17 +77,19 @@ Phase 8 completed. All memory tools now compile cleanly:
 - `import.meta.dir` → `path.dirname(fileURLToPath(import.meta.url))`
 - `Bun.file()` → `fs/promises.readFile`
 
-### Dependencies added
+### Dependencies
 - `drizzle-orm` — ORM for memory tools
 - `@types/better-sqlite3` — type defs
 - `@types/uuid` — type defs
+- `dotenv` — env config
+- `tsx` — TypeScript execution
 
 ### tsconfig exclusions
-Only dashboard excluded from tsc (memory tools now included):
+Only dashboard excluded from tsc:
 ```json
 "exclude": ["node_modules", "dist", "_ref", "src/dashboard"]
 ```
 
 ---
 
-*Last updated: 2026-04-13 15:15 GMT+8*
+*Last updated: 2026-04-13 15:42 GMT+8*

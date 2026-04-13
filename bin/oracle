@@ -2,7 +2,7 @@
 
 /**
  * Oracle CLI entry point
- * 
+ *
  * Usage:
  *   oracle status          — hub health + stats
  *   oracle recap           — session recap
@@ -13,4 +13,4 @@
  *   oracle team <action>   — team management
  */
 
-import '../src/cli/index.js';
+import '../src/cli.js';

@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul 2>&1
-title ARRA Office — Oracle Multi-Agent v4.0
+title ARRA Office — Oracle Multi-Agent v5.0
 
 echo.
 echo  ╔══════════════════════════════════════════════╗
-echo  ║  🧠 ARRA Office — Oracle Multi-Agent v4.0    ║
+echo  ║  🧠 ARRA Office — Oracle Multi-Agent v5.0    ║
 echo  ║  Starting...                                 ║
 echo  ╚══════════════════════════════════════════════╝
 echo.
@@ -30,13 +30,13 @@ if not exist "ψ" mkdir "ψ"
 echo  🚀 Launching Oracle Hub...
 echo.
 echo  📊 Dashboard: http://localhost:3456/dashboard
-echo  🌐 React App: http://localhost:3456/app
+echo  🌐 App:       http://localhost:3456/app
 echo  🔌 API:       http://localhost:3456/api/health
 echo.
 echo  Press Ctrl+C to stop
 echo.
 
-node src/hub/index.js
+npx tsx src/index.ts
 
 if %errorlevel% neq 0 (
     echo.

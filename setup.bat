@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul 2>&1
-title ARRA Office — Oracle Multi-Agent Setup
+title ARRA Office — Oracle Multi-Agent v5.0 Setup
 
 echo.
 echo  ╔══════════════════════════════════════════════╗
-echo  ║  🧠 ARRA Office — Oracle Multi-Agent v4.0    ║
+echo  ║  🧠 ARRA Office — Oracle Multi-Agent v5.0    ║
 echo  ║  Setup for Windows                           ║
 echo  ╚══════════════════════════════════════════════╝
 echo.
@@ -56,6 +56,7 @@ if not exist "ψ\outbox" mkdir "ψ\outbox"
 if not exist "ψ\sessions" mkdir "ψ\sessions"
 if not exist "ψ\traces" mkdir "ψ\traces"
 if not exist "ψ\threads" mkdir "ψ\threads"
+if not exist "logs" mkdir logs
 echo  ✅ Directory structure created
 
 :: Create .env if not exists

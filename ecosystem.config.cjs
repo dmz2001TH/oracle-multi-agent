@@ -3,7 +3,8 @@
 module.exports = {
   apps: [{
     name: 'oracle-hub',
-    script: 'src/hub/index.js',
+    script: 'npx',
+    args: ['tsx', 'src/index.ts'],
     instances: 1,
     autorestart: true,
     watch: false,

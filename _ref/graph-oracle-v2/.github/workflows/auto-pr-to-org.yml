@@ -1,0 +1,43 @@
+name: Auto PR to Org
+
+# เมื่อ push branch feat/* ไปที่ wisd0m1969/graph-oracle
+# จะ auto สร้าง PR ไปที่ the-oracle-keeps-the-human-human/graph-oracle
+on:
+  push:
+    branches:
+      - 'feat/**'
+
+jobs:
+  create-pr-to-org:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push branch to org repo
+        run: |
+          git remote add org https://x-access-token:${{ secrets.ORG_PUSH_TOKEN }}@github.com/the-oracle-keeps-the-human-human/graph-oracle.git
+          git push org HEAD:${{ github.ref_name }} --force
+        continue-on-error: true
+
+      - name: Create PR to org repo
+        env:
+          GH_TOKEN: ${{ secrets.ORG_PUSH_TOKEN }}
+        run: |
+          # Check if PR already exists
+          EXISTING=$(gh pr list --repo the-oracle-keeps-the-human-human/graph-oracle --head "${{ github.ref_name }}" --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -n "$EXISTING" ]; then
+            echo "PR #$EXISTING already exists — updated via push"
+          else
+            gh pr create \
+              --repo the-oracle-keeps-the-human-human/graph-oracle \
+              --head "${{ github.ref_name }}" \
+              --title "$(git log -1 --pretty=%s)" \
+              --body "$(git log -1 --pretty=%b)
+
+---
+Auto-created from wisd0m1969/graph-oracle@${{ github.sha }}"
+          fi
+        continue-on-error: true

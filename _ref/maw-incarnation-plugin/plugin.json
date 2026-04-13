@@ -1,0 +1,27 @@
+{
+  "name": "my-plugin",
+  "version": "0.1.0",
+  "weight": 50,
+  "entry": "./index.ts",
+  "sdk": "^1.0.0",
+  "description": "My first maw-js plugin — change this!",
+  "author": "",
+
+  "cli": {
+    "command": "my-plugin",
+    "aliases": ["mp"],
+    "help": "maw my-plugin [args]",
+    "flags": {
+      "--json": "boolean",
+      "--verbose": "boolean"
+    }
+  },
+
+  "api": {
+    "path": "/api/my-plugin",
+    "methods": ["GET", "POST"]
+  },
+
+  "hooks": {},
+  "transport": { "peer": true }
+}

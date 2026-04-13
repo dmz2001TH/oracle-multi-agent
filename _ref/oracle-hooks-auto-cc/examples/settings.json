@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/you/.oracle/hooks/cc-boss-on-stop.sh",
+            "statusMessage": "Notifying Boss..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/you/.oracle/hooks/remind-cc-after-maw.sh",
+            "statusMessage": "Checking cc Boss..."
+          }
+        ]
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/you/.oracle/hooks/context-warning.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

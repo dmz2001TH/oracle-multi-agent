@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/settings-schema.json",
+
+  "_comment_statusline": "StatusLine hook — แสดง context % แบบ real-time",
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/hooks/statusline.sh"
+  },
+
+  "_comment_hooks": "Claude Code Hooks — auto rrr + forward",
+  "hooks": {
+
+    "_comment_PostToolUse": "ทำงานหลังจาก Claude ใช้ tool ทุกตัว — เช็ค context %",
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/force-rrr-at-80.sh"
+          }
+        ]
+      }
+    ],
+
+    "_comment_Stop": "ทำงานเมื่อ session จบ — เตือนให้ /forward",
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/auto-forward-on-stop.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

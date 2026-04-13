@@ -1,0 +1,23 @@
+{
+  "name": "graph-oracle",
+  "version": "0.1.0",
+  "description": "Cross-Oracle Knowledge Graph — Central brain connecting all Oracle knowledge",
+  "type": "module",
+  "scripts": {
+    "server": "bun src/server.ts",
+    "cli": "bun src/cli/index.ts",
+    "db:generate": "bunx drizzle-kit generate",
+    "db:push": "bunx drizzle-kit push"
+  },
+  "dependencies": {
+    "hono": "^4.11.3",
+    "drizzle-orm": "^0.45.1",
+    "better-sqlite3": "^12.6.0",
+    "commander": "^14.0.3"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.8",
+    "@types/better-sqlite3": "^7.6.13",
+    "typescript": "^5.9.3"
+  }
+}

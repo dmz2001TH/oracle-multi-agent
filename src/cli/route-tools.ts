@@ -1,0 +1,147 @@
+import { cmdView } from "../commands/view.js";
+import { cmdCompletions } from "../commands/completions.js";
+import { cmdTab } from "../commands/tab.js";
+import { cmdRename } from "../commands/rename.js";
+import { cmdWorkon } from "../commands/workon.js";
+import { cmdPark, cmdParkLs, cmdResume } from "../commands/park.js";
+import { cmdContactsLs, cmdContactsAdd, cmdContactsRm } from "../commands/contacts.js";
+import { cmdInboxLs, cmdInboxRead, cmdInboxWrite } from "../commands/inbox.js";
+import { cmdAssign } from "../commands/assign.js";
+import { cmdPr } from "../commands/pr.js";
+import { cmdCosts } from "../commands/costs.js";
+import { cmdTriggers } from "../commands/triggers.js";
+import { cmdHealth } from "../commands/health.js";
+import { cmdUi } from "../commands/ui.js";
+import { parseFlags } from "./parse-args.js";
+
+export async function routeTools(cmd: string, args: string[]): Promise<boolean> {
+  if (cmd === "ui") {
+    await cmdUi(args.slice(1));
+    return true;
+  }
+  if (cmd === "view" || cmd === "create-view" || cmd === "attach" || cmd === "a") {
+    if (!args[1]) { console.error("usage: maw view <agent> [window] [--clean]"); process.exit(1); }
+    const flags = parseFlags(args, { "--clean": Boolean }, 1);
+    await cmdView(flags._[0], flags._[1], flags["--clean"]);
+    return true;
+  }
+  if (cmd === "tab" || cmd === "tabs") {
+    await cmdTab(args.slice(1));
+    return true;
+  }
+  if (cmd === "park") {
+    if (args[1] === "ls" || args[1] === "list") {
+      await cmdParkLs();
+    } else {
+      await cmdPark(...args.slice(1));
+    }
+    return true;
+  }
+  if (cmd === "resume" || cmd === "unpause") {
+    await cmdResume(args[1]);
+    return true;
+  }
+  if (cmd === "inbox") {
+    const sub = args[1]?.toLowerCase();
+    if (sub === "read") await cmdInboxRead(args[2]);
+    else if (sub === "write" && args[2]) await cmdInboxWrite(args.slice(2).join(" "));
+    else await cmdInboxLs();
+    return true;
+  }
+  if (cmd === "rename") {
+    if (!args[1] || !args[2]) { console.error("usage: maw rename <tab# or name> <new-name>"); process.exit(1); }
+    await cmdRename(args[1], args[2]);
+    return true;
+  }
+  if (cmd === "contacts" || cmd === "contact") {
+    const sub = args[1]?.toLowerCase();
+    if (sub === "add" && args[2]) await cmdContactsAdd(args[2], args.slice(3));
+    else if ((sub === "rm" || sub === "remove") && args[2]) await cmdContactsRm(args[2]);
+    else await cmdContactsLs();
+    return true;
+  }
+  if (cmd === "workon" || cmd === "work") {
+    if (!args[1]) { console.error("usage: maw workon <repo> [task]"); process.exit(1); }
+    await cmdWorkon(args[1], args[2]);
+    return true;
+  }
+  if (cmd === "assign") {
+    if (!args[1]) { console.error("usage: maw assign <issue-url> [--oracle <name>]"); process.exit(1); }
+    const flags = parseFlags(args, { "--oracle": String }, 1);
+    await cmdAssign(flags._[0], { oracle: flags["--oracle"] });
+    return true;
+  }
+  if (cmd === "costs" || cmd === "cost") {
+    await cmdCosts();
+    return true;
+  }
+  if (cmd === "pr") {
+    await cmdPr(args[1]);
+    return true;
+  }
+  if (cmd === "triggers" || cmd === "trigger") {
+    await cmdTriggers();
+    return true;
+  }
+  if (cmd === "health" || cmd === "status") {
+    await cmdHealth();
+    return true;
+  }
+  if (cmd === "completions") {
+    await cmdCompletions(args[1]);
+    return true;
+  }
+  if (cmd === "ping") {
+    const { cmdPing } = await import("../commands/ping.js");
+    await cmdPing(args[1]);
+    return true;
+  }
+  if (cmd === "transport" || cmd === "tp") {
+    const sub = args[1]?.toLowerCase();
+    if (!sub || sub === "status") {
+      const { cmdTransportStatus } = await import("../commands/transport.js");
+      await cmdTransportStatus();
+    } else {
+      console.error("usage: maw transport status");
+      process.exit(1);
+    }
+    return true;
+  }
+  if (cmd === "avengers" || cmd === "avg") {
+    const sub = args[1]?.toLowerCase();
+    const { cmdAvengers } = await import("../commands/avengers.js");
+    await cmdAvengers(sub || "status");
+    return true;
+  }
+  if (cmd === "on") {
+    const oracle = args[1];
+    const event = args[2] as "agent-idle" | "agent-wake" | "agent-crash";
+    const isOnce = args.includes("--once");
+    const actionIdx = args.indexOf("--once") !== -1 ? args.indexOf("--once") + 1 : 3;
+    const action = args.slice(actionIdx).filter(a => a !== "--once").join(" ");
+    const timeoutIdx = args.indexOf("--timeout");
+    const timeout = timeoutIdx !== -1 ? parseInt(args[timeoutIdx + 1]) : 30;
+
+    if (!oracle || !event || !action) {
+      console.log(`\x1b[36mUsage:\x1b[0m maw on <oracle> <event> [--once] [--timeout N] "<action>"`);
+      console.log(`\n\x1b[33mEvents:\x1b[0m agent-idle, agent-wake, agent-crash`);
+      return true;
+    }
+
+    const { loadConfig, saveConfig } = await import("../config.js");
+    const config = loadConfig();
+    const trigger = { on: `agent-${event}` as any, repo: oracle, timeout, action, name: `on-${oracle}-${event}`, once: isOnce || undefined };
+    const triggers = [...(config.triggers || []), trigger];
+    saveConfig({ triggers });
+    const badge = isOnce ? " \x1b[33m[once]\x1b[0m" : "";
+    console.log(`\x1b[32m✓\x1b[0m trigger added: on ${oracle} ${event}${badge} → ${action}`);
+    return true;
+  }
+  if (cmd === "serve") {
+    const portArg = args.find(a => a !== "serve" && /^\d+$/.test(a));
+    const { startServer } = await import("../server.js");
+    startServer(portArg ? +portArg : 3456);
+    return true;
+  }
+  return false;
+}

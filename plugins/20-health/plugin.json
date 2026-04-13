@@ -1,0 +1,1 @@
+{ "name": "health", "version": "1.0.0", "weight": 20, "entry": "./index.ts", "sdk": "^1.0.0", "description": "System health check — API, memory, agents", "author": "oracle-multi-agent", "cli": { "command": "health", "help": "maw health" }, "api": { "path": "/api/health-check", "methods": ["GET"] } }

@@ -1,0 +1,1 @@
+{ "name": "wake", "version": "1.0.0", "weight": 0, "entry": "./index.ts", "sdk": "^1.0.0", "description": "Spawn/wake an agent in tmux or child process", "author": "oracle-multi-agent", "cli": { "command": "wake", "help": "maw wake <name> [role]" }, "api": { "path": "/api/wake", "methods": ["POST"] } }

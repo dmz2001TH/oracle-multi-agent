@@ -1,0 +1,1 @@
+{ "name": "about", "version": "1.0.0", "weight": 50, "entry": "./index.ts", "sdk": "^1.0.0", "description": "Show detailed info about an agent or system", "author": "oracle-multi-agent", "cli": { "command": "about", "help": "maw about [agent]" }, "api": { "path": "/api/about", "methods": ["GET"] } }

@@ -1,0 +1,1 @@
+{ "name": "ls", "version": "1.0.0", "weight": 0, "entry": "./index.ts", "sdk": "^1.0.0", "description": "List all agents (running + registered)", "author": "oracle-multi-agent", "cli": { "command": "ls", "aliases": ["oracle"], "help": "maw ls" }, "api": { "path": "/api/ls", "methods": ["GET"] } }

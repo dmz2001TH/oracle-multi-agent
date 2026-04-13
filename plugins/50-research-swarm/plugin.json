@@ -1,0 +1,1 @@
+{ "name": "research-swarm", "version": "1.0.0", "weight": 50, "entry": "./index.ts", "sdk": "^1.0.0", "description": "Research swarm — spawn multiple agents to research a topic in parallel", "author": "oracle-multi-agent", "cli": { "command": "swarm", "help": "maw swarm <topic> [--agents N]" }, "api": { "path": "/api/swarm", "methods": ["POST"] } }

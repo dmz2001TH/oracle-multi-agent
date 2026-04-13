@@ -1,0 +1,1 @@
+{ "name": "sleep", "version": "1.0.0", "weight": 0, "entry": "./index.ts", "sdk": "^1.0.0", "description": "Gracefully stop an agent", "author": "oracle-multi-agent", "cli": { "command": "sleep", "help": "maw sleep <agent>" }, "api": { "path": "/api/sleep", "methods": ["POST"] } }

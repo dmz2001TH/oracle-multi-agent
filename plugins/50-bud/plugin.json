@@ -1,0 +1,1 @@
+{ "name": "bud", "version": "1.0.0", "weight": 50, "entry": "./index.ts", "sdk": "^1.0.0", "description": "Create new oracle from parent or root", "author": "oracle-multi-agent", "cli": { "command": "bud", "help": "maw bud <name> --from <parent> | --root" }, "api": { "path": "/api/bud", "methods": ["POST"] } }

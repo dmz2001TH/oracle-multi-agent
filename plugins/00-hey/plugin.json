@@ -1,0 +1,1 @@
+{ "name": "hey", "version": "1.0.0", "weight": 0, "entry": "./index.ts", "sdk": "^1.0.0", "description": "Send a message to an agent", "author": "oracle-multi-agent", "cli": { "command": "hey", "aliases": ["talk-to"], "help": "maw hey <agent> <message>" }, "api": { "path": "/api/hey", "methods": ["POST"] } }

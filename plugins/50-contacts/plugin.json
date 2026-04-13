@@ -1,0 +1,1 @@
+{ "name": "contacts", "version": "1.0.0", "weight": 50, "entry": "./index.ts", "sdk": "^1.0.0", "description": "List and manage oracle contacts", "author": "oracle-multi-agent", "cli": { "command": "contacts", "help": "maw contacts" }, "api": { "path": "/api/contacts", "methods": ["GET"] } }

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="th">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ARRA Office — Oracle Multi-Agent</title>
+<title>🧠 ARRA Office — Oracle Multi-Agent</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
   :root {
@@ -12,29 +12,26 @@
     --green: #22c55e; --red: #ef4444; --yellow: #eab308; --blue: #3b82f6;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+  body { font-family: -apple-system, system-ui, 'Noto Sans Thai', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
 
-  /* Header */
   .header {
     display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1.2rem;
     border-bottom: 1px solid var(--border); background: var(--surface);
   }
   .header h1 { font-size: 1rem; font-weight: 500; }
   .header .badge { background: var(--accent); color: white; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; }
-  .header .nav { display: flex; gap: 0.3rem; margin-left: auto; }
-  .header .nav a { color: var(--dim); text-decoration: none; font-size: 0.8rem; padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid transparent; }
+  .header .nav { display: flex; gap: 0.3rem; margin-left: auto; flex-wrap: wrap; }
+  .header .nav a { color: var(--dim); text-decoration: none; font-size: 0.8rem; padding: 0.3rem 0.6rem; border-radius: 4px; border: 1px solid transparent; white-space: nowrap; }
   .header .nav a:hover { border-color: var(--border); color: var(--text); }
 
-  /* Main layout */
   .main { display: flex; flex: 1; overflow: hidden; }
 
-  /* Sidebar */
   .sidebar {
     width: 260px; border-right: 1px solid var(--border); display: flex; flex-direction: column;
     background: var(--surface);
   }
   .sidebar-section { padding: 0.8rem; border-bottom: 1px solid var(--border); }
-  .sidebar-section h3 { font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
+  .sidebar-section h3 { font-size: 0.75rem; color: var(--dim); letter-spacing: 0.03em; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
   .sidebar-section h3 .count { background: var(--accent); color: white; padding: 0.1rem 0.4rem; border-radius: 8px; font-size: 0.65rem; }
 
   .agent-item {
@@ -63,14 +60,13 @@
   }
   .input-row input:focus { border-color: var(--accent); }
 
-  /* Chat area */
   .chat-area { flex: 1; display: flex; flex-direction: column; }
   .chat-header {
     padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); background: var(--surface);
     font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center;
   }
   .chat-messages { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
-  .msg { max-width: 75%; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; line-height: 1.5; }
+  .msg { max-width: 75%; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.85rem; line-height: 1.6; }
   .msg.oracle { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2); align-self: flex-start; }
   .msg.user { background: var(--surface2); border: 1px solid var(--border); align-self: flex-end; }
   .msg .role { font-size: 0.7rem; color: var(--dim); margin-bottom: 0.2rem; }
@@ -92,13 +88,12 @@
   }
   .chat-input-area button:hover { background: var(--accent2); }
 
-  /* Right panel */
   .right-panel {
-    width: 280px; border-left: 1px solid var(--border); display: flex; flex-direction: column;
+    width: 300px; border-left: 1px solid var(--border); display: flex; flex-direction: column;
     background: var(--surface); overflow-y: auto;
   }
   .panel-section { padding: 0.8rem; border-bottom: 1px solid var(--border); }
-  .panel-section h3 { font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+  .panel-section h3 { font-size: 0.75rem; color: var(--dim); letter-spacing: 0.03em; margin-bottom: 0.5rem; }
   .stat { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 0.2rem 0; }
   .stat .val { font-weight: 600; }
   .stat .val.green { color: var(--green); }
@@ -106,9 +101,12 @@
   .stat .val.accent { color: var(--accent); }
 
   .cmd-list { list-style: none; }
-  .cmd-list li { font-size: 0.8rem; padding: 0.2rem 0; color: var(--dim); cursor: pointer; }
+  .cmd-list li { font-size: 0.78rem; padding: 0.3rem 0; color: var(--dim); cursor: pointer; line-height: 1.4; border-bottom: 1px solid rgba(34,34,34,0.5); }
+  .cmd-list li:last-child { border-bottom: none; }
   .cmd-list li:hover { color: var(--text); }
-  .cmd-list li code { color: var(--accent); font-family: monospace; }
+  .cmd-list li:hover code { color: var(--accent2); }
+  .cmd-list li code { color: var(--accent); font-family: monospace; font-size: 0.75rem; }
+  .cmd-list li .th { color: var(--dim); font-size: 0.7rem; display: block; margin-top: 0.1rem; }
 
   .log-area { flex: 1; padding: 0.8rem; overflow-y: auto; font-size: 0.75rem; color: var(--dim); font-family: monospace; line-height: 1.6; }
 </style>
@@ -118,17 +116,17 @@
 <div class="header">
   <h1>🧠 ARRA Office</h1>
   <span class="badge">v5.0</span>
-  <span class="badge" id="ws-status" style="background:var(--red)">disconnected</span>
+  <span class="badge" id="ws-status" style="background:var(--red)">เชื่อมต่อ...</span>
   <div class="nav">
-    <a href="/terminal">🖥️ Terminal</a>
-    <a href="/mission">📋 Mission</a>
-    <a href="/inbox">📬 Inbox</a>
-    <a href="/agents">🤖 Agents</a>
-    <a href="/fleet">🚢 Fleet</a>
-    <a href="/workspace">🏗️ Workspace</a>
-    <a href="/config">⚙️ Config</a>
-    <a href="/vault">🔐 Vault</a>
-    <a href="#" onclick="loadAgents()">🔄 Refresh</a>
+    <a href="/terminal">🖥️ เทอร์มินัล</a>
+    <a href="/mission">📋 มิชชั่น</a>
+    <a href="/inbox">📬 อินบ็อกซ์</a>
+    <a href="/agents">🤖 เอเจนต์</a>
+    <a href="/fleet">🚢 ฟลีต</a>
+    <a href="/workspace">🏗️ เวิร์คสเปซ</a>
+    <a href="/config">⚙️ ตั้งค่า</a>
+    <a href="/vault">🔐 ห้องนิรภัย</a>
+    <a href="#" onclick="loadAgents()">🔄 รีเฟรช</a>
   </div>
 </div>
 
@@ -136,26 +134,26 @@
   <!-- Sidebar: Agents -->
   <div class="sidebar">
     <div class="sidebar-section">
-      <h3>🤖 Agents <span class="count" id="agent-count">0</span></h3>
+      <h3>🤖 เอเจนต์ <span class="count" id="agent-count">0</span></h3>
       <div id="agent-list"></div>
       <div class="input-row">
-        <input id="spawn-name" placeholder="Agent name..." value="">
+        <input id="spawn-name" placeholder="ชื่อเอเจนต์..." value="">
       </div>
       <select id="spawn-role" style="width:100%;margin-top:0.3rem;padding:0.35rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.8rem">
-        <option value="general">General</option>
-        <option value="researcher">Researcher</option>
-        <option value="coder">Coder</option>
-        <option value="writer">Writer</option>
-        <option value="manager">Manager</option>
-        <option value="data-analyst">Data Analyst</option>
-        <option value="devops">DevOps</option>
-        <option value="qa-tester">QA Tester</option>
-        <option value="translator">Translator</option>
+        <option value="general">🔧 ทั่วไป (General)</option>
+        <option value="researcher">🔬 นักวิจัย (Researcher)</option>
+        <option value="coder">💻 โปรแกรมเมอร์ (Coder)</option>
+        <option value="writer">✍️ นักเขียน (Writer)</option>
+        <option value="manager">👔 ผู้จัดการ (Manager)</option>
+        <option value="data-analyst">📊 นักวิเคราะห์ (Data Analyst)</option>
+        <option value="devops">🚀 DevOps</option>
+        <option value="qa-tester">🧪 ผู้ทดสอบ (QA Tester)</option>
+        <option value="translator">🌐 นักแปล (Translator)</option>
       </select>
-      <button class="btn-spawn" onclick="spawnAgent()">⚡ Spawn Agent</button>
+      <button class="btn-spawn" onclick="spawnAgent()">⚡ สร้างเอเจนต์</button>
     </div>
     <div class="sidebar-section" style="flex:1;overflow-y:auto">
-      <h3>💬 Rooms <span class="count" id="room-count">0</span></h3>
+      <h3>💬 ห้องสนทนา <span class="count" id="room-count">0</span></h3>
       <div id="room-list"></div>
     </div>
   </div>
@@ -164,30 +162,30 @@
   <div class="chat-area">
     <div class="chat-header">
       <span id="chat-title">💬 Oracle Chat</span>
-      <span id="chat-status" style="font-size:0.75rem;color:var(--dim)">Ready</span>
+      <span id="chat-status" style="font-size:0.75rem;color:var(--dim)">พร้อมใช้งาน</span>
     </div>
     <div class="chat-messages" id="messages"></div>
     <div class="chat-input-area">
-      <input id="chat-input" placeholder="Type message or /command..." onkeydown="if(event.key==='Enter')sendChat()">
-      <button onclick="sendChat()">Send</button>
+      <input id="chat-input" placeholder="พิมพ์ข้อความ หรือ /คำสั่ง..." onkeydown="if(event.key==='Enter')sendChat()">
+      <button onclick="sendChat()">ส่ง</button>
     </div>
   </div>
 
   <!-- Right Panel -->
   <div class="right-panel">
     <div class="panel-section">
-      <h3>📊 System</h3>
-      <div class="stat"><span>Uptime</span><span class="val green" id="sys-uptime">—</span></div>
-      <div class="stat"><span>Memory KB</span><span class="val accent" id="sys-memory">—</span></div>
-      <div class="stat"><span>Agents</span><span class="val" id="sys-agents">0</span></div>
-      <div class="stat"><span>Skills</span><span class="val yellow" id="sys-skills">—</span></div>
-      <div class="stat"><span>ψ/ Files</span><span class="val" id="sys-psi">—</span></div>
+      <h3>📊 ระบบ</h3>
+      <div class="stat"><span>⏱️ อัพไทม์</span><span class="val green" id="sys-uptime">—</span></div>
+      <div class="stat"><span>💾 เมมโมรี่</span><span class="val accent" id="sys-memory">—</span></div>
+      <div class="stat"><span>🤖 เอเจนต์</span><span class="val" id="sys-agents">0</span></div>
+      <div class="stat"><span>⚡ สกิล</span><span class="val yellow" id="sys-skills">—</span></div>
+      <div class="stat"><span>📁 ψ/ ไฟล์</span><span class="val" id="sys-psi">—</span></div>
     </div>
     <div class="panel-section">
-      <h3>⚡ Commands</h3>
+      <h3>⚡ คำสั่งทั้งหมด</h3>
       <ul class="cmd-list" id="cmd-list"></ul>
     </div>
-    <div class="log-area" id="log-area">Waiting for events...</div>
+    <div class="log-area" id="log-area">กำลังรออีเวนต์...</div>
   </div>
 </div>
 
@@ -197,19 +195,69 @@ let ws = null;
 let agents = [];
 let selectedAgent = null;
 
+// ─── Thai command descriptions ─────────────────────────────────────────────
+const CMD_TH = {
+  'help': 'แสดงคำสั่งทั้งหมด',
+  'awaken': 'ตั้งค่า identity (ชื่อ/ธาตุ/บทบาท/สโลแกน)',
+  'recap': 'สรุป session ย้อนหลัง (1-30 วัน)',
+  'fyi': 'บันทึกข้อมูลลง memory',
+  'rrr': 'Retrospective รายวัน (ดี/ปรับ/ทำ)',
+  'standup': 'Daily standup (เมื่อวาน/วันนี้/ติดขัด)',
+  'feel': 'บันทึกอารมณ์ (😊 happy, 😤 frustrated, 🔥 motivated...)',
+  'forward': 'สร้าง session handoff (ส่งต่อ context)',
+  'trace': 'ค้นหา memory + code (--deep ค้นลึก, --oracle เฉพาะ memory)',
+  'learn': 'วิเคราะห์ repository (รองรับ GitHub org URL)',
+  'who-are-you': 'แสดง identity + stats',
+  'philosophy': '5 หลักการ Oracle + Rule 6',
+  'skills': 'แสดง/ค้น 55 skills',
+  'resonance': 'บันทึก moment ที่ resonate',
+  'fleet': 'ตรวจนับ agents + nodes (--deep ละเอียด)',
+  'pulse': 'Project board (add/done/list)',
+  'workflow': 'เทมเพลต workflow (sequential/parallel/fan-out/review/pipeline)',
+  'distill': 'ดึง patterns จาก journal entries',
+  'inbox': 'เช็คอินบ็อกซ์ (tasks, handoffs, focus)',
+  'overview': 'ภาพรวมระบบ (ψ/, stats, uptime)',
+  'find': 'ค้น memory เร็ว (= trace --oracle)',
+  'soul-sync': 'ซิงค์ข้อมูลระหว่าง ψ/ กับ ~/.oracle/',
+  'contacts': 'แสดงรายชื่อ oracle contacts',
+  'oracle-v2': 'Oracle-v2 MCP server bridge (port 47778)',
+  'peek': 'ดู output ล่าสุดของ agent',
+  'hey': 'ส่งข้อความให้ agent',
+  'wake': 'สร้าง/ปลุก agent',
+  'sleep': 'หยุด agent อย่างนุ่มนวล',
+  'stop': 'บังคับหยุด agent',
+  'done': 'save state + หยุด agent',
+  'broadcast': 'ส่งข้อความให้ทุก agents',
+  'bud': 'สร้าง oracle จาก parent (--from / --root)',
+  'ls': 'แสดง agents ทั้งหมด (running + registered)',
+  'restart': 'รีสตาร์ท agent',
+  // Batch 4
+  'plugin': 'จัดการ plugins (list/install/remove)',
+  'task': 'ระบบ task — log(--commit/--blocker), show, comment, done',
+  'project': 'Project trees — create, add, show (tree view + progress)',
+  'loop': 'จัดการ loop — add(JSON)/trigger/enable/disable/remove/history',
+  'tokens': 'ดู token usage (--rebuild, --json)',
+  'think': 'Think cycle — ให้ agents เสนอ ideas',
+  'meeting': 'ประชุม — รวบรวม input จาก agents (--dry-run)',
+  'tab': 'จัดการ tabs — list/send ไป tmux sessions',
+  'view': 'ดู agent เต็มหน้าจอ (--clean)',
+  'chat': 'ดู chat history ต่อ agent',
+  'review': 'ดูผล think cycle proposals',
+};
+
 // ─── WebSocket ──────────────────────────────────────────────────────────────
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
   ws.onopen = () => {
-    document.getElementById('ws-status').textContent = 'connected';
+    document.getElementById('ws-status').textContent = 'เชื่อมต่อแล้ว';
     document.getElementById('ws-status').style.background = 'var(--green)';
-    log('🔌 WebSocket connected');
+    log('🔌 WebSocket เชื่อมต่อแล้ว');
   };
   ws.onclose = () => {
-    document.getElementById('ws-status').textContent = 'disconnected';
+    document.getElementById('ws-status').textContent = 'หลุด';
     document.getElementById('ws-status').style.background = 'var(--red)';
-    log('🔌 WebSocket disconnected, reconnecting...');
+    log('🔌 WebSocket หลุด กำลังเชื่อมต่อใหม่...');
     setTimeout(connectWS, 3000);
   };
   ws.onmessage = (e) => {
@@ -218,7 +266,6 @@ function connectWS() {
       handleWS(msg);
     } catch {}
   };
-  // Keep alive
   setInterval(() => { if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'ping' })); }, 30000);
 }
 
@@ -228,11 +275,11 @@ function handleWS(msg) {
     renderRooms(msg.data || msg.sessions || []);
   }
   if (msg.type === 'agent_spawned') {
-    log(`🤖 Agent spawned: ${msg.name || msg.id}`);
+    log(`🤖 สร้างเอเจนต์: ${msg.name || msg.id}`);
     loadAgents();
   }
   if (msg.type === 'agent_died') {
-    log(`💀 Agent died: ${msg.name || msg.id}`);
+    log(`💀 เอเจนต์หยุดทำงาน: ${msg.name || msg.id}`);
     loadAgents();
   }
   if (msg.type === 'reply') {
@@ -258,8 +305,8 @@ async function loadAgents() {
         <span class="agent-name">${a.name}</span>
         <span class="agent-role">${a.role}</span>
       </div>
-    `).join('') || '<div style="font-size:0.8rem;color:var(--dim);padding:0.5rem">No agents yet</div>';
-  } catch (e) { log('❌ Load agents failed: ' + e.message); }
+    `).join('') || '<div style="font-size:0.8rem;color:var(--dim);padding:0.5rem">ยังไม่มีเอเจนต์ — กดปุ่ม "สร้างเอเจนต์" ด้านล่าง</div>';
+  } catch (e) { log('❌ โหลดเอเจนต์ล้มเหลว: ' + e.message); }
 }
 
 function selectAgent(id) {
@@ -278,10 +325,10 @@ async function spawnAgent() {
       body: JSON.stringify({ name, role }),
     });
     const data = await res.json();
-    log(`⚡ Spawned: ${data.name} (${data.role})`);
+    log(`⚡ สร้างแล้ว: ${data.name} (${data.role})`);
     document.getElementById('spawn-name').value = '';
     setTimeout(loadAgents, 1000);
-  } catch (e) { log('❌ Spawn failed: ' + e.message); }
+  } catch (e) { log('❌ สร้างล้มเหลว: ' + e.message); }
 }
 
 // ─── Chat ───────────────────────────────────────────────────────────────────
@@ -292,7 +339,6 @@ async function sendChat() {
   input.value = '';
   addMessage('user', text);
 
-  // Command handling
   if (text.startsWith('/')) {
     try {
       const res = await fetch(`${API}/api/commands/execute`, {
@@ -300,12 +346,11 @@ async function sendChat() {
         body: JSON.stringify({ input: text }),
       });
       const data = await res.json();
-      addMessage('oracle', data.message || 'No response', true);
+      addMessage('oracle', data.message || 'ไม่มีผลลัพธ์', true);
     } catch (e) { addMessage('oracle', '❌ ' + e.message); }
     return;
   }
 
-  // Agent chat
   if (selectedAgent) {
     try {
       const res = await fetch(`${API}/api/v2/agents/${selectedAgent}/chat`, {
@@ -313,19 +358,18 @@ async function sendChat() {
         body: JSON.stringify({ message: text }),
       });
       const data = await res.json();
-      addMessage(data.agent || 'agent', data.response || data.message || 'No response');
+      addMessage(data.agent || 'agent', data.response || data.message || 'ไม่มีผลลัพธ์');
     } catch (e) { addMessage('oracle', '❌ ' + e.message); }
     return;
   }
 
-  // Send via tmux
   try {
     await fetch(`${API}/api/send`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target: 'main', text }),
     });
-    document.getElementById('chat-status').textContent = 'Sent to tmux';
-    setTimeout(() => { document.getElementById('chat-status').textContent = 'Ready'; }, 2000);
+    document.getElementById('chat-status').textContent = 'ส่งแล้ว';
+    setTimeout(() => { document.getElementById('chat-status').textContent = 'พร้อมใช้งาน'; }, 2000);
   } catch (e) { addMessage('oracle', '❌ ' + e.message); }
 }
 
@@ -347,7 +391,7 @@ function renderRooms(sessions) {
   const el = document.getElementById('room-list');
   const count = document.getElementById('room-count');
   if (!sessions.length) {
-    el.innerHTML = '<div style="font-size:0.8rem;color:var(--dim);padding:0.5rem">No active rooms</div>';
+    el.innerHTML = '<div style="font-size:0.8rem;color:var(--dim);padding:0.5rem">ยังไม่มีห้องสนทนา</div>';
     count.textContent = '0';
     return;
   }
@@ -361,15 +405,19 @@ function renderRooms(sessions) {
   `).join('');
 }
 
-// ─── Commands list ──────────────────────────────────────────────────────────
+// ─── Commands list with Thai ────────────────────────────────────────────────
 async function loadCommands() {
   try {
     const res = await fetch(`${API}/api/commands`);
     const data = await res.json();
     const el = document.getElementById('cmd-list');
-    el.innerHTML = (data.commands || []).map(c =>
-      `<li onclick="document.getElementById('chat-input').value='/${c.name} ';document.getElementById('chat-input').focus()"><code>/${c.name}</code> — ${c.description}</li>`
-    ).join('');
+    el.innerHTML = (data.commands || []).map(c => {
+      const th = CMD_TH[c.name] || c.description;
+      return `<li onclick="document.getElementById('chat-input').value='/${c.name} ';document.getElementById('chat-input').focus()">
+        <code>/${c.name}</code> — ${th}
+        ${th !== c.description ? `<span class="th">${c.description}</span>` : ''}
+      </li>`;
+    }).join('');
   } catch {}
 }
 
@@ -384,7 +432,7 @@ async function loadStats() {
     ]);
     if (healthRes.uptime) {
       const u = healthRes.uptime;
-      document.getElementById('sys-uptime').textContent = `${Math.floor(u/3600)}h ${Math.floor((u%3600)/60)}m`;
+      document.getElementById('sys-uptime').textContent = `${Math.floor(u/3600)}ชม ${Math.floor((u%3600)/60)}น`;
     }
     if (memRes.total !== undefined) document.getElementById('sys-memory').textContent = memRes.total;
     if (skillsRes.count) document.getElementById('sys-skills').textContent = skillsRes.count;
@@ -408,8 +456,7 @@ loadStats();
 setInterval(loadAgents, 10000);
 setInterval(loadStats, 30000);
 
-// Welcome message
-addMessage('oracle', '🔮 Oracle Multi-Agent v5.0 ready!\n\nCommands: /help, /awaken, /skills, /philosophy\nSpawn an agent from the sidebar, or type a message.', true);
+addMessage('oracle', '🔮 Oracle Multi-Agent v5.0 พร้อมใช้งาน!\n\n📋 พิมพ์ /help เพื่อดูคำสั่งทั้งหมด\n⚡ สร้างเอเจนต์จากแถบซ้าย หรือพิมพ์ /wake\n💬 พิมพ์ข้อความเพื่อคุยกับเอเจนต์\n\nคำสั่งยอดนิยม:\n/awaken — ตั้งค่าตัวตน\n/fyi บันทึก — จำข้อมูล\n/recap — สรุป session\n/skills — ดูสกิลทั้งหมด', true);
 </script>
 </body>
 </html>

@@ -1200,6 +1200,16 @@ const COMMANDS: Record<string, CommandHandler> = {
   "soul-sync": soulSync,
   contacts,
   "oracle-v2": oracleV2,
+  peek,
+  hey,
+  wake,
+  sleep: sleepCmd,
+  stop: stopCmd,
+  done: doneCmd,
+  broadcast: broadcastCmd,
+  bud,
+  ls: lsCmd,
+  restart,
 };
 
 export function listCommands(): { name: string; description: string }[] {
@@ -1227,6 +1237,16 @@ export function listCommands(): { name: string; description: string }[] {
     { name: "soul-sync", description: "🔄 Sync memory between ψ/ and ~/.oracle/" },
     { name: "contacts", description: "👥 List oracle contacts" },
     { name: "oracle-v2", description: "🔮 Oracle-v2 MCP server status & bridge API" },
+    { name: "peek", description: "👁️ See agent's latest output" },
+    { name: "hey", description: "💬 Send message to agent" },
+    { name: "wake", description: "⚡ Spawn/wake an agent" },
+    { name: "sleep", description: "💤 Gracefully stop agent" },
+    { name: "stop", description: "🛑 Force stop agent" },
+    { name: "done", description: "✅ Save state + clean up agent" },
+    { name: "broadcast", description: "📢 Broadcast to all agents" },
+    { name: "bud", description: "🌱 Create new oracle from parent" },
+    { name: "ls", description: "📋 List all agents" },
+    { name: "restart", description: "🔄 Restart agent" },
   ];
 }
 
@@ -1919,6 +1939,316 @@ export function oracleV2(args: string, ctx: CommandContext): CommandResult {
         ].join("\n"),
       };
     }
+  }
+}
+
+// ─── maw-js adapted commands ───────────────────────────────────────────────
+
+// Import manager from agent-bridge for agent operations
+import { manager as _agentManager, store as _agentStore } from "../api/agent-bridge.js";
+
+// ─── /peek [agent] — See agent's latest output ─────────────────────────────
+
+export function peek(args: string, ctx: CommandContext): CommandResult {
+  try {
+    const running = _agentManager.getRunningAgents();
+    if (running.length === 0) {
+      return { status: "ok", message: "👁️ ไม่มี agent ที่กำลังรันอยู่\n\nใช้ /wake <name> <role> เพื่อ spawn agent" };
+    }
+
+    if (!args || args.trim().length === 0) {
+      // Peek all agents
+      const lines = running.map(a => {
+        const dot = a.process?.exitCode === null ? "🟢" : "🔴";
+        return `${dot} **${a.name}** (${a.role}) — id: ${a.id.slice(0, 8)}`;
+      });
+      return {
+        status: "ok",
+        message: [`👁️ **Peek All Agents** (${running.length} running)`, "", ...lines].join("\n"),
+        data: { agents: running.map(a => ({ id: a.id, name: a.name, role: a.role })) },
+      };
+    }
+
+    // Peek specific agent
+    const agent = running.find(a => a.name === args.trim() || a.id.startsWith(args.trim()));
+    if (!agent) {
+      return { status: "ok", message: `❌ ไม่พบ agent: ${args}\n\nAgents ที่รันอยู่: ${running.map(a => a.name).join(", ")}` };
+    }
+
+    const messages = _agentStore.getMessages(agent.id as any, 5);
+    const recentMsg = messages.length > 0 ? (messages[0] as any)?.content?.slice(0, 200) : "(no messages)";
+
+    return {
+      status: "ok",
+      message: [
+        `👁️ **Peek: ${agent.name}**`,
+        `Role: ${agent.role} | ID: ${agent.id.slice(0, 8)}`,
+        "",
+        `### Latest output`,
+        recentMsg,
+      ].join("\n"),
+      data: { agent: { id: agent.id, name: agent.name, role: agent.role }, messages },
+    };
+  } catch (e: any) {
+    return { status: "error", message: `❌ peek error: ${e.message}` };
+  }
+}
+
+// ─── /hey <agent> <message> — Send message to agent ────────────────────────
+
+export function hey(args: string, ctx: CommandContext): CommandResult {
+  const spaceIdx = args?.indexOf(" ");
+  if (!args || spaceIdx === -1) {
+    return { status: "ok", message: "💬 ใช้: /hey <agent-name> <message>\nตัวอย่าง: /hey dev \"deploy เวอร์ชันใหม่\"" };
+  }
+
+  const agentName = args.substring(0, spaceIdx).trim();
+  const message = args.substring(spaceIdx + 1).trim();
+
+  try {
+    const running = _agentManager.getRunningAgents();
+    const agent = running.find(a => a.name === agentName || a.id.startsWith(agentName));
+    if (!agent) {
+      return { status: "ok", message: `❌ ไม่พบ agent: ${agentName}\nAgents: ${running.map(a => a.name).join(", ")}` };
+    }
+
+    // Use chatWithAgent asynchronously
+    _agentManager.chatWithAgent(agent.id, message).then(result => {
+      console.log(`💬 ${agentName} responded: ${result.response?.slice(0, 100)}`);
+    }).catch(() => {});
+
+    return {
+      status: "ok",
+      message: `💬 ส่งข้อความไป ${agentName}: "${message}"\n⏳ กำลังรอคำตอบ...`,
+      data: { to: agentName, message },
+    };
+  } catch (e: any) {
+    return { status: "error", message: `❌ hey error: ${e.message}` };
+  }
+}
+
+// ─── /wake <name> <role> — Spawn agent (from maw-js) ───────────────────────
+
+export function wake(args: string, ctx: CommandContext): CommandResult {
+  if (!args || args.trim().length === 0) {
+    // List running agents
+    try {
+      const running = _agentManager.getRunningAgents();
+      if (running.length === 0) {
+        return { status: "ok", message: "💤 ไม่มี agent ที่กำลังรันอยู่\n\nใช้: /wake <name> <role>\nRoles: general, researcher, coder, writer, manager, data-analyst, devops, qa-tester, translator" };
+      }
+      return {
+        status: "ok",
+        message: [
+          `⚡ **Active Agents** (${running.length})`,
+          "",
+          ...running.map(a => `🟢 ${a.name} (${a.role}) — ${a.id.slice(0, 8)}`),
+        ].join("\n"),
+      };
+    } catch { return { status: "ok", message: "💤 ไม่มี agent" }; }
+  }
+
+  const parts = args.trim().split(/\s+/);
+  const name = parts[0];
+  const role = parts[1] || "general";
+
+  // Use async spawnAgent
+  _agentManager.spawnAgent(name, role).then(agent => {
+    console.log(`⚡ Woke up ${name} (${role})`);
+  }).catch(e => {
+    console.error(`❌ Wake failed: ${e.message}`);
+  });
+
+  return {
+    status: "ok",
+    message: `⚡ กำลังปลุก **${name}** (role: ${role})...\n⏳ รอสักครู่...`,
+    data: { name, role },
+  };
+}
+
+// ─── /sleep <agent> — Gracefully stop agent ────────────────────────────────
+
+export function sleepCmd(args: string, ctx: CommandContext): CommandResult {
+  if (!args || args.trim().length === 0) {
+    return { status: "ok", message: "💤 ใช้: /sleep <agent-name>" };
+  }
+
+  const agentName = args.trim();
+  try {
+    const running = _agentManager.getRunningAgents();
+    const agent = running.find(a => a.name === agentName || a.id.startsWith(agentName));
+    if (!agent) {
+      return { status: "ok", message: `❌ ไม่พบ agent: ${agentName}` };
+    }
+    _agentManager.stopAgent(agent.id);
+    return { status: "ok", message: `💤 ${agentName} กำลังพัก...` };
+  } catch (e: any) {
+    return { status: "error", message: `❌ sleep error: ${e.message}` };
+  }
+}
+
+// ─── /stop <agent> — Force stop agent ──────────────────────────────────────
+
+export function stopCmd(args: string, ctx: CommandContext): CommandResult {
+  if (!args || args.trim().length === 0) {
+    return { status: "ok", message: "🛑 ใช้: /stop <agent-name>" };
+  }
+
+  const agentName = args.trim();
+  try {
+    const running = _agentManager.getRunningAgents();
+    const agent = running.find(a => a.name === agentName || a.id.startsWith(agentName));
+    if (!agent) {
+      return { status: "ok", message: `❌ ไม่พบ agent: ${agentName}` };
+    }
+    _agentManager.stopAgent(agent.id);
+    return { status: "ok", message: `🛑 ${agentName} ถูกบังคับหยุด` };
+  } catch (e: any) {
+    return { status: "error", message: `❌ stop error: ${e.message}` };
+  }
+}
+
+// ─── /done <agent> — Save state + clean up agent ──────────────────────────
+
+export function doneCmd(args: string, ctx: CommandContext): CommandResult {
+  if (!args || args.trim().length === 0) {
+    return { status: "ok", message: "✅ ใช้: /done <agent-name>\nจะ save state แล้วหยุด agent" };
+  }
+
+  const agentName = args.trim();
+  try {
+    const running = _agentManager.getRunningAgents();
+    const agent = running.find(a => a.name === agentName || a.id.startsWith(agentName));
+    if (!agent) {
+      return { status: "ok", message: `❌ ไม่พบ agent: ${agentName}` };
+    }
+
+    // Save state before stopping
+    try {
+      _agentStore.saveAgentState(agent.id, agent.name, agent.role, "", [], [], []);
+    } catch {}
+
+    _agentManager.stopAgent(agent.id);
+    return { status: "ok", message: `✅ ${agentName} — state saved, agent stopped` };
+  } catch (e: any) {
+    return { status: "error", message: `❌ done error: ${e.message}` };
+  }
+}
+
+// ─── /broadcast <message> — Broadcast to all agents ───────────────────────
+
+export function broadcastCmd(args: string, ctx: CommandContext): CommandResult {
+  if (!args || args.trim().length === 0) {
+    return { status: "ok", message: "📢 ใช้: /broadcast <message>" };
+  }
+
+  try {
+    const running = _agentManager.getRunningAgents();
+    if (running.length === 0) {
+      return { status: "ok", message: "📢 ไม่มี agent ที่กำลังรันอยู่" };
+    }
+
+    for (const agent of running) {
+      _agentManager.chatWithAgent(agent.id, args).catch(() => {});
+    }
+
+    return {
+      status: "ok",
+      message: `📢 Broadcast ไปยัง ${running.length} agents: "${args}"`,
+      data: { recipients: running.length, message: args },
+    };
+  } catch (e: any) {
+    return { status: "error", message: `❌ broadcast error: ${e.message}` };
+  }
+}
+
+// ─── /bud <name> --from <parent> — Create new oracle from parent ──────────
+
+export function bud(args: string, ctx: CommandContext): CommandResult {
+  const parts = args?.trim().split(/\s+/) || [];
+  if (parts.length === 0) {
+    return { status: "ok", message: "🌱 ใช้: /bud <name> --from <parent-role>\nตัวอย่าง: /bud junior-dev --from coder\nหรือ: /bud new-agent --root (สร้างใหม่ไม่มี parent)" };
+  }
+
+  const name = parts[0];
+  const fromIdx = parts.indexOf("--from");
+  const rootIdx = parts.indexOf("--root");
+  const parentRole = fromIdx >= 0 ? parts[fromIdx + 1] : (rootIdx >= 0 ? null : "general");
+  const role = parentRole || "general";
+
+  // Spawn agent with inherited knowledge
+  _agentManager.spawnAgent(name, role).then(agent => {
+    console.log(`🌱 Budded ${name} from ${parentRole || "root"}`);
+  }).catch(e => {
+    console.error(`❌ Bud failed: ${e.message}`);
+  });
+
+  return {
+    status: "ok",
+    message: `🌱 กำลังสร้าง **${name}** (role: ${role}${parentRole ? `, from: ${parentRole}` : ", root"})...\n⏳ รอสักครู่...`,
+    data: { name, role, parent: parentRole },
+  };
+}
+
+// ─── /ls — List all agents + sessions (from maw-js) ───────────────────────
+
+export function lsCmd(args: string, ctx: CommandContext): CommandResult {
+  try {
+    const running = _agentManager.getRunningAgents();
+    const registered = _agentStore.listAgents();
+
+    const agentLines = running.length > 0
+      ? running.map(a => `🟢 ${a.name.padEnd(20)} ${a.role.padEnd(15)} ${a.id.slice(0, 8)}`)
+      : ["  (no agents running)"];
+
+    const registeredLines = (registered as any[])
+      .filter((a: any) => !running.some(r => r.id === a.id))
+      .map((a: any) => `🔴 ${a.name?.padEnd(20) || a.id.slice(0, 8)} ${(a.role || "?").padEnd(15)} idle`);
+
+    return {
+      status: "ok",
+      message: [
+        `📋 **Agents** (running: ${running.length}, total: ${registered.length})`,
+        "",
+        "### Running",
+        ...agentLines,
+        registeredLines.length > 0 ? "\n### Registered (idle)" : "",
+        ...registeredLines,
+      ].filter(Boolean).join("\n"),
+      data: { running: running.length, total: registered.length },
+    };
+  } catch {
+    return { status: "ok", message: "📋 No agents" };
+  }
+}
+
+// ─── /restart <agent> — Restart agent ─────────────────────────────────────
+
+export function restart(args: string, ctx: CommandContext): CommandResult {
+  if (!args || args.trim().length === 0) {
+    return { status: "ok", message: "🔄 ใช้: /restart <agent-name>" };
+  }
+
+  const agentName = args.trim();
+  try {
+    const running = _agentManager.getRunningAgents();
+    const agent = running.find(a => a.name === agentName || a.id.startsWith(agentName));
+    if (!agent) {
+      return { status: "ok", message: `❌ ไม่พบ agent: ${agentName}` };
+    }
+
+    const role = agent.role;
+    _agentManager.stopAgent(agent.id);
+
+    setTimeout(() => {
+      _agentManager.spawnAgent(agentName, role).catch(e => {
+        console.error(`❌ Restart failed: ${e.message}`);
+      });
+    }, 2000);
+
+    return { status: "ok", message: `🔄 ${agentName} กำลัง restart... (role: ${role})` };
+  } catch (e: any) {
+    return { status: "error", message: `❌ restart error: ${e.message}` };
   }
 }
 

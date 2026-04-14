@@ -108,6 +108,12 @@ if (hasDist) {
     return c.text('Not found', 404);
   });
 
+  app.get('/chat', (c) => {
+    const f = join(PUBLIC_DIR, 'chat.html');
+    if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
+    return c.text('Not found', 404);
+  });
+
   app.get('/workspace', (c) => {
     const f = join(PUBLIC_DIR, 'workspace.html');
     if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));

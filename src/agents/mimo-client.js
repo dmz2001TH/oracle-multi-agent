@@ -88,6 +88,22 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'spawn_agent',
+      description: 'Spawn a new teammate agent. Use when you need help from a specialist (coder, researcher, qa-tester, writer, devops, data-analyst) or when workload is too heavy for one agent.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Name for the new agent (e.g., "junior-coder", "researcher-2")' },
+          role: { type: 'string', enum: ['general', 'coder', 'researcher', 'writer', 'manager', 'data-analyst', 'devops', 'qa-tester', 'translator'], description: 'What role/expertise this agent should have' },
+          task: { type: 'string', description: 'First task to assign to the new agent', default: '' },
+        },
+        required: ['name', 'role'],
+      },
+    },
+  },
 ];
 
 export class MiMoAgent extends EventEmitter {
@@ -198,6 +214,34 @@ export class MiMoAgent extends EventEmitter {
           owner: args.assigned_to || this.name,  // API uses 'owner', tool uses 'assigned_to'
         });
         return { success: true, task: args.title };
+      }
+
+      case 'spawn_agent': {
+        try {
+          const res = await this._hubPost('/api/agents', {
+            name: args.name,
+            role: args.role || 'general',
+          });
+          // If there's a first task, send it to the new agent
+          if (args.task && res?.id) {
+            // Small delay to let agent initialize
+            await new Promise(r => setTimeout(r, 3000));
+            await this._hubPost(`/api/agents/${this.id}/tell/${res.id}`, {
+              message: `สวัสดี! ฉัน ${this.name} ส่งงานแรกให้: ${args.task}`,
+            });
+          }
+          // Also register in lineage
+          try {
+            await this._hubPost('/api/lineage/register', {
+              name: args.name,
+              role: args.role || 'general',
+              tags: ['spawned-by:' + this.name],
+            });
+          } catch {}
+          return { success: true, agent: { name: res.name, role: res.role, id: res.id }, first_task: args.task || null };
+        } catch (err) {
+          return { error: `Failed to spawn agent: ${err.message}` };
+        }
       }
 
       default:

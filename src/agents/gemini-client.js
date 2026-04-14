@@ -74,6 +74,19 @@ const TOOL_DEFINITIONS = [
       required: ['title'],
     },
   },
+  {
+    name: 'spawn_agent',
+    description: 'Spawn a new teammate agent. Use when you need help from a specialist or when workload is too heavy.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Name for the new agent' },
+        role: { type: 'string', enum: ['general', 'coder', 'researcher', 'writer', 'manager', 'data-analyst', 'devops', 'qa-tester', 'translator'], description: 'Role/expertise' },
+        task: { type: 'string', description: 'First task to assign', default: '' },
+      },
+      required: ['name', 'role'],
+    },
+  },
 ];
 
 export class GeminiAgent extends EventEmitter {
@@ -199,6 +212,20 @@ export class GeminiAgent extends EventEmitter {
           priority: args.priority || 1,
         });
         return { success: true, task: args.title };
+      }
+
+      case 'spawn_agent': {
+        try {
+          const res = await this._hubPost('/api/agents', { name: args.name, role: args.role || 'general' });
+          if (args.task && res?.id) {
+            await new Promise(r => setTimeout(r, 3000));
+            await this._hubPost(`/api/agents/${this.id}/tell/${res.id}`, {
+              message: `สวัสดี! ฉัน ${this.name} ส่งงานแรกให้: ${args.task}`,
+            });
+          }
+          try { await this._hubPost('/api/lineage/register', { name: args.name, role: args.role, tags: ['spawned-by:' + this.name] }); } catch {}
+          return { success: true, agent: { name: res.name, role: res.role, id: res.id }, first_task: args.task || null };
+        } catch (err) { return { error: `Failed: ${err.message}` }; }
       }
 
       default:

@@ -208,7 +208,14 @@ export class AutonomousOrchestrator extends EventEmitter {
       for (const task of ready) {
         if (task.status === "pending") {
           // Assign to best agent
-          const agent = this.findBestAgent(task.assignedTo || "general");
+          let agent = this.findBestAgent(task.assignedTo || "general");
+          if (!agent) {
+            // No agent available — emit spawn request for autonomous team building
+            const neededRole = task.assignedTo || "general";
+            this.emit("spawn_request", { role: neededRole, reason: `No agent for task: ${task.title}`, task });
+            // Try one more time after emit (listener may have spawned)
+            agent = this.findBestAgent(neededRole);
+          }
           if (agent) {
             assignTask(task.id, agent);
             tasksAdvanced++;
@@ -397,6 +404,12 @@ export class AutonomousOrchestrator extends EventEmitter {
   }
 
   // ─── State ───
+
+  // ─── Agent Sync ───
+
+  updateAvailableAgents(agents: { name: string; role: string; status: string }[]): void {
+    this.config.availableAgents = agents;
+  }
 
   getState(): OrchestratorState {
     return {

@@ -7,6 +7,7 @@ import { listGoals, getGoal, getGoalProgress, formatGoalStatus, getReadyTasks, g
 import { getExperienceStats, getAdvice, learnPatterns } from "../experience/index.js";
 import { getHealingStats, learnHealingPatterns } from "../healing/index.js";
 import { sendMessage } from "../mailbox/index.js";
+import { manager, store } from "./agent-bridge.js";
 
 export const orchestratorApi = new Hono();
 
@@ -19,6 +20,35 @@ const orchestrator = new AutonomousOrchestrator({
   autoAssign: true,
   learnFromOutcomes: true,
 });
+
+// ─── Auto-Spawn: Listen for spawn requests from orchestrator ───
+orchestrator.on("spawn_request", async ({ role, reason, task }) => {
+  const timestamp = Date.now().toString(36);
+  const agentName = `auto-${role}-${timestamp}`;
+  console.log(`🤖 Orchestrator auto-spawning: ${agentName} (${role}) — ${reason}`);
+  try {
+    const agent = await manager.spawnAgent(agentName, role);
+    console.log(`✅ Auto-spawned ${agentName} (${role})`);
+  } catch (err: any) {
+    console.warn(`⚠️ Auto-spawn failed for ${agentName}: ${err.message}`);
+  }
+});
+
+// ─── Sync available agents before each goal/tick ───
+function syncAvailableAgents() {
+  try {
+    const registered = store.listAgents();
+    const running = manager.getRunningAgents();
+    const runningIds = new Set(running.map((r: any) => r.id));
+    orchestrator.updateAvailableAgents(
+      registered.map((a: any) => ({
+        name: a.name,
+        role: a.role || "general",
+        status: runningIds.has(a.id) ? "active" : "idle",
+      }))
+    );
+  } catch {}
+}
 
 // ─── Goals ───
 

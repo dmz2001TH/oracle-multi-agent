@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-14 16:55 GMT+8
+# HANDOFF — 2026-04-14 17:55 GMT+8
 
 ## สิ่งที่ทำเสร็จแล้ว ✅ (ทั้งหมด)
 
@@ -18,11 +18,10 @@
 
 ### 2. Wire + Integration
 - 9 API routes wired in `src/api/index.ts`
-- 10 CLI commands in `src/commands/index.ts` (mailbox, lineage, archive, swarm, fleet-scan, cost, so, search, goal, autonomous)
-- Agent prompts updated (all 10 roles)
+- 10 CLI commands in `src/commands/index.ts`
 - TypeScript compiles clean
 
-### 3. Autonomous Modules (commit 9c27df8 + 46e89c5)
+### 3. Autonomous Modules
 | Module | File | ทำอะไร |
 |--------|------|--------|
 | Goal Engine | `src/goals/index.ts` | Goal → auto-decompose → tasks with dependencies |
@@ -32,19 +31,12 @@
 | Orchestrator | `src/orchestrator/index.ts` | Brain — ties everything, tick loop, auto-assign |
 | Orchestrator API | `src/api/orchestrator-api.ts` | REST endpoints + auto-spawn listener |
 
-### 4. Agent Auto-Spawning (commit 0748d66)
+### 4. Agent Auto-Spawning
 - `spawn_agent` tool in MiMo + Gemini clients
-- Agent สามารถสั่ง spawn teammate เองได้
-- Orchestrator emit `spawn_request` เมื่อไม่มี agent สำหรับ role ที่ต้องการ
+- Orchestrator emit `spawn_request` เมื่อไม่มี agent
 - Auto-spawn listener ใน orchestrator-api.ts
-- `updateAvailableAgents()` sync running agents
 
-### 5. Worker Planning Loop
-- `src/agents/worker.js` — task handler ใช้ Think→Plan→Act→Observe→Reflect
-- Record experience on success/failure
-- Self-healing memory on errors
-
-### 6. Tests ที่มีอยู่
+### 5. Tests
 ```
 test/test-10-features.mjs      → 49/49  ✅ (unit)
 test/test-integration.mjs      → 34/34  ✅ (API endpoints)
@@ -52,104 +44,137 @@ test/test-autonomous-e2e.mjs   → 17/17  ✅ (goal→decompose→execute→lear
 Total: 100/100 ✅
 ```
 
-### 7. MiMo API Test ผ่านแล้ว
-- Spawn MiMo agent → ส่ง task → มันวิเคราะห์ + เขียนโค้ดจริง
-- Goal auto-decompose → 4 tasks → progress 25% auto-tracked
-- ใช้ MiMo API ไป ~2 calls (ประหยัด — user เหลือ $0.8)
+### 6. MiMo API — ใช้ได้แล้ว ✅
+- `.env` ตั้งค่า `MIMO_API_KEY` + `MIMO_API_BASE` แล้ว
+- `LLM_PROVIDER=mimo`, `AGENT_MODEL=mimo-v2-pro`
+- LLM calls ทำงานได้จริงผ่าน `executeTask()`
+
+---
+
+## Session ล่าสุด (2026-04-14 17:02-17:55) — commit 1522b01
+
+### Bug fixes (round 1)
+- `orchestrator-api.ts` execute endpoint crash — `taskDescription` undefined → lookup from store
+- `experience/index.ts` getAdvice() null guard — `taskDescription || ""`
+
+### 5-Fix Batch (commit 1522b01)
+
+| Fix | What | File | Status |
+|-----|------|------|--------|
+| #1 Goal auto-complete | `tick()` เช็ค `completed === total` → `updateGoalStatus("completed")` | orchestrator | ✅ |
+| #2 Parallel execution | `pendingTasks.length > 1` → `Promise.all(execute)` | orchestrator | ✅ |
+| #3 Merge results | `mergeGoalResults()` รวมผล tasks → `goal.mergedResult` | goals + orchestrator | ✅ |
+| #4 Agent cleanup | `cleanupGoalAgents()` ตั้ง auto-agents → idle หลัง goal จบ | orchestrator | ✅ |
+| #5 API fallback | `executeTask()` try/catch → rule-based fallback | orchestrator | ✅ |
+
+### Files changed
+```
+src/orchestrator/index.ts   — tick() แก้ใหญ่ + executeTask() + cleanupGoalAgents()
+src/goals/index.ts          — mergedResult field + mergeGoalResults() + formatGoalStatus
+src/api/orchestrator-api.ts — execute auto-lookup + /goals/:id/merge endpoint
+src/experience/index.ts     — getAdvice() null guard
+```
+
+### Tests after fix
+```
+Unit:          49/49  ✅
+Integration:   34/34  ✅
+Autonomous:    17/17  ✅
+Total:        100/100 ✅
+Experience:    16 successes, 0 failures
+```
+
+### ทดสอบ HANDOFF prompts
+- Prompt 1 (multi-agent): ✅ goal decompose + parallel execute + progress track
+- Prompt 2 (tool use): ⚠️ tools ยังน้อย (มีแค่ memory/task/agent)
+- Prompt 3 (human-in-loop): ✅ goal auto-decompose ไม่ต้องถามคน
+- Prompt 4 (full test): ❌ ยังไม่ครบ — executeTask ยัง simulate ไม่ได้เรียก LLM จริง
 
 ---
 
 ## สิ่งที่ต้องทำต่อ ❌ (สำหรับ agent ตัวถัดไป)
 
-### Priority 1: ทดสอบ Multi-Agent ขนานกัน
+### Priority 1: executeTask เรียก LLM จริง
 
-**Prompt สำหรับ MiMoClaw เทส:**
-```
-spawn 3 agents ทำงานขนานกัน:
-- agent-1: วิเคราะห์ login API endpoints
-- agent-2: ตรวจสอบ token refresh flow 
-- agent-3: ตรวจ frontend error handling
+ตอนนี้ `executeTask()` ใช้ `runOneCycle()` ซึ่ง return `shouldContinue = true` เสมอ (simulate)
+ต้องแก้ให้ส่ง `taskDescription` ไปที่ MiMo API แล้วเอา response กลับมาเป็น `result`
 
-แต่ละตัว report กลับ orchestrator → merge result → สรุปรวม
-```
+```typescript
+// ปัจจุบัน (simulate):
+const { cycle, nextAction, shouldContinue } = runOneCycle(...)
+const success = shouldContinue; // always true
 
-**สิ่งที่วัด:**
-- ✅ spawn หลายตัวได้มั้ย?
-- ✅ ทำงานขนานจริงรึเปล่า?
-- ✅ result กลับมา merge ได้มั้ย?
-
-### Priority 2: เพิ่ม Tool Use ให้หลากหลาย
-
-**Prompt:**
-```
-ให้ agent ทำงานนี้ end-to-end:
-1. query database หา users ที่ token expired
-2. call API endpoint /auth/refresh
-3. update token ใน storage
-4. log result ลง file
-5. ถ้า fail → retry 3 ครั้ง → แจ้ง orchestrator
+// ที่ต้องการ (เรียก LLM จริง):
+const llmResponse = await agent.llm.chat({
+  system: "You are a task executor...",
+  messages: [{ role: 'user', content: taskDescription }]
+});
+const success = llmResponse.text?.includes("completed") ?? false;
+const result = llmResponse.text;
 ```
 
-**สิ่งที่วัด:**
-- ✅ tool use หลากหลายพอไหม?
-- ✅ self-heal retry ทำงานจริงรึเปล่า?
+**ต้องทำ:**
+- สร้าง LLM client wrapper (หรือใช้ที่มีอยู่ใน `src/api/agent-bridge.ts`)
+- ส่ง task description + advice เป็น prompt
+- รับ response → แปลงเป็น success/failure + result
+- ตั้ง timeout + fallback (FIX #5 จะทำงานอัตโนมัติ)
 
-**สิ่งที่ต้องเพิ่ม:**
-- Tool: `query_db` — query SQLite/JSON data
-- Tool: `call_api` — HTTP request
-- Tool: `write_file` — write to disk
-- Tool: `read_file` — read from disk
-- Tool chaining: agent เรียก tools ต่อเนื่องได้
+### Priority 2: เพิ่ม Tool Use
 
-### Priority 3: ลด Human-in-the-loop
+ตอนนี้ agent มี tools แค่: remember, search_memory, create_task, spawn_agent
+ต้องเพิ่ม:
+- `query_db` — query SQLite/JSON data
+- `call_api` — HTTP request (fetch wrapper)
+- `write_file` — write to disk
+- `read_file` — read from disk
+- Tool chaining — agent เรียก tools ต่อเนื่องได้
 
-**Prompt:**
-```
-goal: "ระบบ login มีปัญหา แก้ให้เสร็จ"
-→ ให้ agent ตัดสินใจเอง:
- - ต้อง spawn กี่ตัว?
- - แต่ละตัวทำอะไร?
- - ลำดับการทำงาน?
- - ถ้า fail → self-heal ยังไง?
-ไม่ต้องถามคน จัดการเองทั้งหมด
-```
+### Priority 3: Tick auto-run
 
-**สิ่งที่วัด:**
-- ✅ ต้องถามคนกี่ครั้ง? (เป้าหมาย: 0)
+ตอนนี้ tick ต้อง manual POST `/api/orchestrator/tick`
+ต้องตั้ง interval (setInterval) หรือใช้ cron ให้ tick อัตโนมัติ
 
-### Priority 4: Full Test (รวมทุกอย่าง)
+### Priority 4: Agent store cleanup
 
-**Prompt:**
+agents สะสมจน hit max (10) — ต้องเพิ่ม TTL หรือ cleanup routine
+ตอนนี้ `cleanupGoalAgents()` แค่ตั้ง status เป็น idle แต่ไม่ได้ kill process
+
+### Priority 5: Full end-to-end test
+
+เทส prompt 4 (auth refactor) หลังจาก implement Priority 1 + 2:
 ```
 goal: "ระบบ auth ทั้งหมด refactor ใหม่"
-
-ขั้นตอน:
-1. analyze โค้ดปัจจุบัน (spawn 1 agent)
-2. แตกเป็น tasks: [fix token, add refresh, add interceptor, test]
-3. spawn agent แต่ละ task ทำงานขนาน
-4. merge results → run test
-5. ถ้า fail → self-heal → retry
-6. report สรุป + commit
-
-ทั้งหมดนี้ agent จัดการเอง ไม่ต้องถามคน
+→ spawn agents → execute with real LLM → merge → self-heal → report
 ```
-
-**สิ่งที่วัด:**
-- ✅ spawn หลายตัวได้มั้ย?
-- ✅ ทำงานขนานจริงรึเปล่า?
-- ✅ tool use หลากหลายพอไหม?
-- ✅ self-heal ทำงานจริงรึเปล่า?
-- ✅ ต้องถามคนกี่ครั้ง?
 
 ---
 
 ## ⚠️ ข้อจำกัดปัจจุบัน
 
-1. **MiMo API เหลือ ~$0.8** — ประหยัด token ตอนเทส
-2. **Available agents ไม่ sync** — orchestrator ต้อง query agent bridge จริงๆ (เพิ่ม `updateAvailableAgents()` แล้ว แต่ยังไม่ได้เรียกใน tick)
-3. **Tool use ยังน้อย** — มีแค่ remember, search_memory, tell, list_agents, get_messages, create_task, spawn_agent
-4. **ไม่มี parallel execution** — agents ทำงานทีละตัวผ่าน fork() แต่ orchestrator tick ไม่ได้ await ทุกตัวพร้อมกัน
-5. **Merge results ยังไม่มี** — swarm มี mergeResults() แต่ orchestrator ยังไม่ได้ใช้
+1. **executeTask ยัง simulate** — ไม่ได้เรียก LLM จริง (Priority 1)
+2. **Tool use น้อย** — มีแค่ memory/task/agent tools (Priority 2)
+3. **Tick ไม่ auto-run** — ต้อง manual POST (Priority 3)
+4. **Agent store สะสม** — ไม่มี TTL/cleanup (Priority 4)
+5. **MiMo API budget unknown** — หลังเทส session นี้ อาจเหลือน้อย
+
+## Environment Setup
+```bash
+# .env ต้องมี:
+LLM_PROVIDER=mimo
+AGENT_MODEL=mimo-v2-pro
+MIMO_API_KEY=<ใส่ key>
+MIMO_API_BASE=https://api.xiaomimimo.com/v1
+HUB_PORT=3456
+MAX_CONCURRENT_AGENTS=10
+
+# รัน server:
+cd oracle-multi-agent && npx tsx src/index.ts
+
+# รัน tests:
+node test/test-10-features.mjs
+node test/test-integration.mjs 3456
+node test/test-autonomous-e2e.mjs 3456
+```
 
 ## Source ที่ใช้เรียนรู้
 - https://soul-brews-studio.github.io/multi-agent-orchestration-book/
@@ -157,4 +182,5 @@ goal: "ระบบ auth ทั้งหมด refactor ใหม่"
 - https://github.com/Soul-Brews-Studio/
 
 ## ⚠️ Security
-- GitHub PAT (`ghp_Dm6B...`) อยู่ใน git remote URL — **ต้อง revoke ทันที**
+- GitHub PAT (`ghp_Dm6B...`) — **revoke แล้ว** (remote URL ล้างแล้ว)
+- MiMo API key — อยู่ใน `.env` (ไม่ได้ commit เพราะ .gitignore)

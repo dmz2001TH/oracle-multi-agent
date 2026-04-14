@@ -18,7 +18,8 @@ import { mountViews } from './views/index.js';
 import { agentBridgeApi } from './api/agent-bridge.js';
 import { memoryBridgeApi } from './api/memory-bridge.js';
 import { join, dirname } from 'path';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { homedir } from 'os';
 import { fileURLToPath } from 'url';
 import { WebSocketServer } from 'ws';
 import type { IncomingMessage } from 'http';
@@ -113,6 +114,52 @@ if (hasDist) {
     if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
     return c.text('Not found', 404);
   });
+
+  // Workspace file browser — serve agent-created files from ~/.oracle/
+  const WORKSPACE_DIR = process.env.ORACLE_WORKSPACE || join(homedir(), '.oracle');
+
+  app.get('/workspace-files/*', (c) => {
+    let reqPath = c.req.path.replace('/workspace-files/', '');
+    if (!reqPath) return c.text('Not found', 404);
+
+    const filePath = join(WORKSPACE_DIR, reqPath);
+    // Security: prevent path traversal
+    if (!filePath.startsWith(WORKSPACE_DIR)) return c.text('Forbidden', 403);
+    if (!existsSync(filePath)) return c.text('Not found', 404);
+
+    const s = statSync(filePath);
+    if (s.isDirectory()) {
+      // List directory
+      const files = readdirSync(filePath);
+      const html = `<!DOCTYPE html><html><head><title>📂 ${reqPath}</title><style>
+        body{font-family:monospace;background:#0a0a0f;color:#e5e7eb;padding:20px}
+        a{color:#64b5f6;text-decoration:none;display:block;padding:4px 0}
+        a:hover{text-decoration:underline} .dir{color:#22c55e}
+      </style></head><body><h2>📂 /workspace-files/${reqPath}</h2>
+      ${reqPath ? '<a href="/workspace-files/' + reqPath.split('/').slice(0,-1).join('/') + '">.. (back)</a>' : ''}
+      ${files.map(f => {
+        const isDir = statSync(join(filePath, f)).isDirectory();
+        return `<a href="/workspace-files/${reqPath}/${f}" class="${isDir ? 'dir' : ''}">${isDir ? '📁' : '📄'} ${f}</a>`;
+      }).join('')}
+      </body></html>`;
+      return c.html(html);
+    }
+
+    // Serve file
+    const content = readFileSync(filePath);
+    const ext = reqPath.split('.').pop() || '';
+    const mimeTypes: Record<string, string> = {
+      'html': 'text/html', 'htm': 'text/html', 'css': 'text/css',
+      'js': 'application/javascript', 'json': 'application/json',
+      'svg': 'image/svg+xml', 'png': 'image/png', 'jpg': 'image/jpeg',
+      'gif': 'image/gif', 'webp': 'image/webp', 'ico': 'image/x-icon',
+      'txt': 'text/plain', 'md': 'text/markdown', 'xml': 'application/xml',
+    };
+    return c.body(content, 200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+  });
+
+  // Quick access: /workspace → redirect to file browser
+  app.get('/workspace-files', (c) => c.redirect('/workspace-files/', 301));
 
   app.get('/workspace', (c) => {
     const f = join(PUBLIC_DIR, 'workspace.html');

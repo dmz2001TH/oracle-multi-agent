@@ -24,7 +24,7 @@ Repo: https://github.com/dmz2001TH/oracle-multi-agent
 สถานะปัจจุบัน
 ════════════════════════════════════════════
 
-44 commands | 40+ API endpoints | 11 plugins | 8 dashboard pages | 25 _ref repos
+5.0.0 | 44 commands | 50+ API endpoints | 11 plugins | 10 dashboard pages | 12 MCP tools | 11 agent tools | 25 _ref repos
 TypeScript: 0 errors
 ทุกไฟล์อัพเดทบน GitHub แล้ว
 Dashboard แสดงภาษาไทย

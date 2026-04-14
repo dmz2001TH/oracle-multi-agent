@@ -2,26 +2,57 @@
 
 > สำหรับ AI agent ตัวใหม่ที่จะสานต่อโปรเจ็คนี้
 
-## สถานะปัจจุบัน (2026-04-14 05:05 GMT+8)
+## สถานะปัจจุบัน (2026-04-15 00:43 GMT+8)
 
 **Repo**: https://github.com/dmz2001TH/oracle-multi-agent
 **Branch**: main
-**Commands**: 44 | **API Endpoints**: 40+ | **Plugins**: 11 | **Dashboard Pages**: 8 | **_ref repos**: 25
+**Version**: 5.0.0 | **Commands**: 44 | **API Endpoints**: 50+ | **Plugins**: 11 | **Dashboard Pages**: 10 | **MCP Tools**: 12 | **_ref repos**: 25
 
 ## ✅ สิ่งที่เสร็จแล้วทั้งหมด
 
-### Dashboard Pages (8 หน้า — inspired by Soul-Brews-Studio/maw-ui)
+### Dashboard Pages (10 หน้า — inspired by Soul-Brews-Studio/maw-ui)
 | # | Route | Description |
 |---|-------|-------------|
 | 1 | `/` | Main dashboard — agent list, chat, system stats, command list (ภาษาไทย) |
-| 2 | `/terminal` | Agent terminal — sidebar เลือก agent/session, terminal output + command input |
-| 3 | `/mission` | Mission Control — Pulse stats, task progress bars, workflow templates |
-| 4 | `/inbox` | Inbox dashboard — messages/handoffs/FYI/resonance filterable |
-| 5 | `/agents` | Agent detail — card grid, spawn, restart/sleep/stop, per-agent chat |
-| 6 | `/fleet` | Fleet overview — big-number stats, agent grid, health checks |
-| 7 | `/workspace` | Workspace — configs, skills overview, broadcast |
-| 8 | `/config` | Config viewer — system info, plugins, commands, fleet config JSON |
-| 9 | `/vault` | Vault dashboard (ψ/ stats, search, skills, principles) |
+| 2 | `/chat` | Soul Brews style chat — ChibiAvatars, Bubble/Timeline/Threads views, per-agent persistence |
+| 3 | `/feed` | Live Agent Feed — เห็นทุกการสื่อสารระหว่าง agent แบบ real-time |
+| 4 | `/terminal` | Agent terminal — sidebar เลือก agent/session, terminal output + command input |
+| 5 | `/mission` | Mission Control — Pulse stats, task progress bars, workflow templates |
+| 6 | `/inbox` | Inbox dashboard — messages/handoffs/FYI/resonance filterable |
+| 7 | `/agents` | Agent detail — card grid, spawn, restart/sleep/stop, per-agent chat |
+| 8 | `/fleet` | Fleet overview — big-number stats, agent grid, health checks |
+| 9 | `/federation` | Federation Mesh — canvas visualization, node health, soul sync |
+| 10 | `/workspace` | Workspace — configs, skills overview, broadcast |
+| 11 | `/config` | Config viewer — system info, plugins, commands, fleet config JSON |
+| 12 | `/vault` | Vault dashboard (ψ/ stats, search, skills, principles) |
+| 13 | `/workspace-files/` | File browser — serve agent-created files from ~/.oracle/ |
+
+### New Features Added (2026-04-15)
+1. **Federation Core** (`src/federation/index.ts`) — Full TypeScript federation system with HMAC-SHA256, health monitoring, soul sync
+2. **MCP Bridge** (`src/bridges/mcp-bridge.ts`) — JSON-RPC 2.0 MCP endpoint, 12 tools for Claude Code/Cursor
+3. **Enhanced Peer-Exec** (`src/api/peer-exec.ts`) — Session cookies, readonly protection, signature parsing
+4. **Federation Lens UI** (`public/federation.html`) — Canvas mesh visualization with animated connections
+5. **Chat UI** (`public/chat.html`) — Soul Brews style with ChibiAvatars, 3 view modes, per-agent persistence
+6. **Live Feed** (`public/feed.html`) — Real-time feed of all agent communication and activity
+7. **Workspace File Browser** — `/workspace-files/` serves agent-created files with directory listing
+8. **Chat Persistence** — Messages saved per-agent to `~/.oracle/chat/<agent>/`, restored on refresh
+9. **Inter-agent Broadcasting** — `tell` messages now visible in WebSocket feed
+10. **Agent Brain** — MiMo agent has `remember`, `search_memory`, `tell`, `list_agents`, `read_file`, `write_file`, `call_api` tools
+
+### Agent Tools (11 tools)
+| Tool | ทำอะไร |
+|------|--------|
+| `remember` | บันทึกความจำ |
+| `search_memory` | ค้นหาความจำ |
+| `tell` | ส่งข้อความหา agent อื่น |
+| `list_agents` | ดู agent ทั้งหมด |
+| `create_task` | สร้าง task |
+| `read_file` | อ่านไฟล์ |
+| `write_file` | เขียนไฟล์ |
+| `call_api` | เรียก API |
+| `query_data` | ค้น goals/tasks/experiences |
+| `get_messages` | เช็คข้อความ |
+| `spawn_agent` | สร้าง agent ใหม่ |
 
 ### Dashboard Navigation
 - ทุกหน้ามี nav bar เชื่อมถึงกัน

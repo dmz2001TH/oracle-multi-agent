@@ -1,8 +1,20 @@
-# HANDOFF — 2026-04-14 19:38 GMT+8
+# HANDOFF — 2026-04-15 00:43 GMT+8
 
 ## สิ่งที่ทำเสร็จแล้ว ✅ (ทั้งหมด)
 
-### 1. 10 Features ฐาน (commit 5039459)
+### New Features (2026-04-15) — commits 015cc8b → 27b55fb
+| # | Feature | Path | Status |
+|---|---------|------|--------|
+| 11 | Federation Core (TS) | `src/federation/index.ts` | ✅ |
+| 12 | MCP Bridge (JSON-RPC 2.0) | `src/bridges/mcp-bridge.ts` | ✅ |
+| 13 | Enhanced Peer-Exec | `src/api/peer-exec.ts` | ✅ |
+| 14 | Federation Lens UI | `public/federation.html` | ✅ |
+| 15 | Chat UI (Soul Brews style) | `public/chat.html` | ✅ |
+| 16 | Live Agent Feed | `public/feed.html` | ✅ |
+| 17 | Workspace File Browser | `src/index.ts` (/workspace-files/) | ✅ |
+| 18 | Per-Agent Chat Persistence | `public/index.html` + `/api/chat/` | ✅ |
+| 19 | Inter-Agent WS Broadcasting | `src/api/agent-bridge.ts` | ✅ |
+| 20 | Soul Sync API | `src/index.ts` | ✅ |
 | # | Feature | Path | Status |
 |---|---------|------|--------|
 | 1 | Mailbox System (Tier 2) | `src/mailbox/index.ts` | ✅ |

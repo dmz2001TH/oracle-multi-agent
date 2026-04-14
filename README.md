@@ -4,7 +4,7 @@ AI agents that remember, communicate, and collaborate — built on the Oracle ec
 
 **Repo**: https://github.com/dmz2001TH/oracle-multi-agent
 **Dashboard**: http://localhost:3456
-**Version**: 5.0.0 | **Commands**: 44 | **Plugins**: 11 | **API Endpoints**: 50+ | **Dashboard Pages**: 9 | **MCP Tools**: 12 | **_ref repos**: 25
+**Version**: 5.0.0 | **Commands**: 44 | **Plugins**: 11 | **API Endpoints**: 50+ | **Dashboard Pages**: 12 | **MCP Tools**: 12 | **Agent Tools**: 11 | **_ref repos**: 25
 
 ## Quick Start
 
@@ -22,20 +22,23 @@ GEMINI_API_KEY=<key> npx tsx src/index.ts
 
 เปิด http://localhost:3456
 
-## Dashboard (9 หน้า — ภาษาไทย)
+## Dashboard (12 หน้า — ภาษาไทย)
 
 | Route | ทำอะไร |
 |-------|--------|
 | `/` | หน้าหลัก — รายชื่อเอเจนต์, แชท, สถิติระบบ, คำสั่งทั้งหมด |
+| `/chat` | แชท — ChibiAvatars, Bubble/Timeline/Threads views, บันทึกแยกตาม agent |
+| `/feed` | Live Feed — เห็นทุกการสื่อสารระหว่าง agent แบบ real-time |
 | `/terminal` | เทอร์มินัล — เลือกเอเจนต์, ดู output, พิมพ์คำสั่ง |
 | `/mission` | มิชชั่น — Pulse stats, task progress, workflow templates |
 | `/inbox` | อินบ็อกซ์ — messages/handoffs/FYI/resonance แบบ filter |
 | `/agents` | เอเจนต์ — card grid, spawn, restart/sleep/stop, คุยทีละตัว |
 | `/fleet` | ฟลีต — ภาพรวมทั้งหมด, agent grid, health check |
-| `/federation` | Federation Lens — mesh visualization, node health, soul sync |
+| `/federation` | Federation Mesh — mesh visualization, node health, soul sync |
 | `/workspace` | เวิร์คสเปซ — workspace configs, skills, broadcast |
 | `/config` | ตั้งค่า — system info, plugins, commands, fleet config |
 | `/vault` | ห้องนิรภัย — ψ/ stats, search, skills, 5 หลักการ |
+| `/workspace-files/` | File browser — ดูไฟล์ที่ agent สร้าง |
 
 ทุกหน้ามี nav bar เชื่อมถึงกัน
 
@@ -195,6 +198,24 @@ export default definePlugin({
 
 ### Legacy
 - `/api/tasks`, `/api/inbox`, `/api/workflows`, `/api/loops`, `/api/projects`, `/api/cron`, `/api/federation`, `/api/logs`, `/api/costs`, etc.
+
+## Agent Tools (11 ตัว — agent ใช้ได้จริง)
+
+| Tool | ทำอะไร |
+|------|--------|
+| `remember` | บันทึกความจำลง memory |
+| `search_memory` | ค้นหาความจำ |
+| `tell` | ส่งข้อความหา agent อื่น |
+| `list_agents` | ดู agent ทั้งหมด |
+| `create_task` | สร้าง task |
+| `read_file` | อ่านไฟล์ source code |
+| `write_file` | เขียน/สร้างไฟล์ (อยู่ที่ ~/.oracle/) |
+| `call_api` | เรียก API ใดๆ |
+| `query_data` | ค้น goals/tasks/experiences |
+| `get_messages` | เช็คข้อความจาก agent อื่น |
+| `spawn_agent` | สร้าง agent ใหม่ |
+
+ดูผลงาน agent ได้ที่: `http://localhost:3456/workspace-files/`
 
 ## Agent Roles (9)
 

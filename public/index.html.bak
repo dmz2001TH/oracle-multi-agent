@@ -194,27 +194,55 @@ const API = window.location.origin;
 let ws = null;
 let agents = [];
 let selectedAgent = null;
-let chatBuffers = {}; // { agentId: [{role, text, ts, isCmd}] } — per-agent chat history
 
 // ─── Thai command descriptions ─────────────────────────────────────────────
 const CMD_TH = {
-  'help': 'แสดงคำสั่งทั้งหมด', 'awaken': 'ตั้งค่า identity (ชื่อ/ธาตุ/บทบาท/สโลแกน)',
-  'recap': 'สรุป session ย้อนหลัง (1-30 วัน)', 'fyi': 'บันทึกข้อมูลลง memory',
-  'rrr': 'Retrospective รายวัน (ดี/ปรับ/ทำ)', 'standup': 'Daily standup (เมื่อวาน/วันนี้/ติดขัด)',
-  'feel': 'บันทึกอารมณ์', 'forward': 'สร้าง session handoff',
-  'trace': 'ค้นหา memory + code', 'learn': 'วิเคราะห์ repository',
-  'who-are-you': 'แสดง identity + stats', 'philosophy': '5 หลักการ Oracle + Rule 6',
-  'skills': 'แสดง/ค้น skills', 'fleet': 'ตรวจนับ agents + nodes',
-  'pulse': 'Project board', 'workflow': 'เทมเพลต workflow',
-  'inbox': 'เช็คอินบ็อกซ์', 'overview': 'ภาพรวมระบบ',
-  'find': 'ค้น memory เร็ว', 'contacts': 'แสดงรายชื่อ contacts',
-  'peek': 'ดู output ล่าสุด', 'hey': 'ส่งข้อความให้ agent',
-  'wake': 'สร้าง/ปลุก agent', 'sleep': 'หยุด agent',
-  'stop': 'บังคับหยุด agent', 'broadcast': 'ส่งข้อความให้ทุก agents',
-  'bud': 'สร้าง oracle จาก parent', 'ls': 'แสดง agents ทั้งหมด',
-  'restart': 'รีสตาร์ท agent', 'task': 'ระบบ task',
-  'loop': 'จัดการ loop', 'tokens': 'ดู token usage',
-  'think': 'Think cycle', 'chat': 'ดู chat history ต่อ agent',
+  'help': 'แสดงคำสั่งทั้งหมด',
+  'awaken': 'ตั้งค่า identity (ชื่อ/ธาตุ/บทบาท/สโลแกน)',
+  'recap': 'สรุป session ย้อนหลัง (1-30 วัน)',
+  'fyi': 'บันทึกข้อมูลลง memory',
+  'rrr': 'Retrospective รายวัน (ดี/ปรับ/ทำ)',
+  'standup': 'Daily standup (เมื่อวาน/วันนี้/ติดขัด)',
+  'feel': 'บันทึกอารมณ์ (😊 happy, 😤 frustrated, 🔥 motivated...)',
+  'forward': 'สร้าง session handoff (ส่งต่อ context)',
+  'trace': 'ค้นหา memory + code (--deep ค้นลึก, --oracle เฉพาะ memory)',
+  'learn': 'วิเคราะห์ repository (รองรับ GitHub org URL)',
+  'who-are-you': 'แสดง identity + stats',
+  'philosophy': '5 หลักการ Oracle + Rule 6',
+  'skills': 'แสดง/ค้น 55 skills',
+  'resonance': 'บันทึก moment ที่ resonate',
+  'fleet': 'ตรวจนับ agents + nodes (--deep ละเอียด)',
+  'pulse': 'Project board (add/done/list)',
+  'workflow': 'เทมเพลต workflow (sequential/parallel/fan-out/review/pipeline)',
+  'distill': 'ดึง patterns จาก journal entries',
+  'inbox': 'เช็คอินบ็อกซ์ (tasks, handoffs, focus)',
+  'overview': 'ภาพรวมระบบ (ψ/, stats, uptime)',
+  'find': 'ค้น memory เร็ว (= trace --oracle)',
+  'soul-sync': 'ซิงค์ข้อมูลระหว่าง ψ/ กับ ~/.oracle/',
+  'contacts': 'แสดงรายชื่อ oracle contacts',
+  'oracle-v2': 'Oracle-v2 MCP server bridge (port 47778)',
+  'peek': 'ดู output ล่าสุดของ agent',
+  'hey': 'ส่งข้อความให้ agent',
+  'wake': 'สร้าง/ปลุก agent',
+  'sleep': 'หยุด agent อย่างนุ่มนวล',
+  'stop': 'บังคับหยุด agent',
+  'done': 'save state + หยุด agent',
+  'broadcast': 'ส่งข้อความให้ทุก agents',
+  'bud': 'สร้าง oracle จาก parent (--from / --root)',
+  'ls': 'แสดง agents ทั้งหมด (running + registered)',
+  'restart': 'รีสตาร์ท agent',
+  // Batch 4
+  'plugin': 'จัดการ plugins (list/install/remove)',
+  'task': 'ระบบ task — log(--commit/--blocker), show, comment, done',
+  'project': 'Project trees — create, add, show (tree view + progress)',
+  'loop': 'จัดการ loop — add(JSON)/trigger/enable/disable/remove/history',
+  'tokens': 'ดู token usage (--rebuild, --json)',
+  'think': 'Think cycle — ให้ agents เสนอ ideas',
+  'meeting': 'ประชุม — รวบรวม input จาก agents (--dry-run)',
+  'tab': 'จัดการ tabs — list/send ไป tmux sessions',
+  'view': 'ดู agent เต็มหน้าจอ (--clean)',
+  'chat': 'ดู chat history ต่อ agent',
+  'review': 'ดูผล think cycle proposals',
 };
 
 // ─── WebSocket ──────────────────────────────────────────────────────────────
@@ -224,10 +252,12 @@ function connectWS() {
   ws.onopen = () => {
     document.getElementById('ws-status').textContent = 'เชื่อมต่อแล้ว';
     document.getElementById('ws-status').style.background = 'var(--green)';
+    log('🔌 WebSocket เชื่อมต่อแล้ว');
   };
   ws.onclose = () => {
     document.getElementById('ws-status').textContent = 'หลุด';
     document.getElementById('ws-status').style.background = 'var(--red)';
+    log('🔌 WebSocket หลุด กำลังเชื่อมต่อใหม่...');
     setTimeout(connectWS, 3000);
   };
   ws.onmessage = (e) => {
@@ -244,70 +274,18 @@ function handleWS(msg) {
   if (msg.type === 'init' || msg.type === 'sessions') {
     renderRooms(msg.data || msg.sessions || []);
   }
-  if (msg.type === 'agent_spawned') { loadAgents(); }
-  if (msg.type === 'agent_died') { loadAgents(); }
+  if (msg.type === 'agent_spawned') {
+    log(`🤖 สร้างเอเจนต์: ${msg.name || msg.id}`);
+    loadAgents();
+  }
+  if (msg.type === 'agent_died') {
+    log(`💀 เอเจนต์หยุดทำงาน: ${msg.name || msg.id}`);
+    loadAgents();
+  }
   if (msg.type === 'reply') {
-    pushChatBuffer('system', msg.role || 'oracle', msg.message, msg.cmd);
-    renderMessages();
+    addMessage(msg.role || 'oracle', msg.message, msg.cmd);
   }
-}
-
-// ─── Chat Buffer (per-agent, persisted) ─────────────────────────────────────
-const SYS_KEY = '__system__'; // for commands & system messages
-
-function getBuffer(key) {
-  if (!chatBuffers[key]) chatBuffers[key] = [];
-  return chatBuffers[key];
-}
-
-function pushChatBuffer(agentId, role, text, isCmd, skipSave) {
-  const buf = getBuffer(agentId || SYS_KEY);
-  const entry = { role, text, ts: new Date().toISOString(), isCmd: !!isCmd };
-  buf.push(entry);
-  // Persist to server (fire-and-forget)
-  if (!skipSave) {
-    const oracle = agentId || SYS_KEY;
-    fetch(`${API}/api/chat/${oracle}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role, content: text }),
-    }).catch(() => {});
-  }
-  return entry;
-}
-
-// Load chat history from server for a specific agent
-async function loadChatHistory(agentId) {
-  const key = agentId || SYS_KEY;
-  if (chatBuffers[key] && chatBuffers[key].length > 0) return; // already loaded
-  try {
-    const res = await fetch(`${API}/api/chat/${key}?limit=100`);
-    const data = await res.json();
-    if (data.messages && data.messages.length > 0) {
-      chatBuffers[key] = data.messages.map(m => ({
-        role: m.role || 'oracle',
-        text: m.content || m.text || '',
-        ts: m.ts || new Date().toISOString(),
-        isCmd: false,
-      }));
-    }
-  } catch {}
-}
-
-// Render current chat buffer to DOM
-function renderMessages() {
-  const el = document.getElementById('messages');
-  const key = selectedAgent || SYS_KEY;
-  const buf = getBuffer(key);
-  el.innerHTML = '';
-  for (const msg of buf) {
-    const div = document.createElement('div');
-    const isUser = msg.role === 'user';
-    div.className = `msg ${isUser ? 'user' : 'oracle'}${msg.isCmd ? ' cmd' : ''}`;
-    const timeStr = msg.ts ? new Date(msg.ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
-    div.innerHTML = `<div class="role">${msg.role} <span style="font-size:0.65rem;color:var(--dim)">${timeStr}</span></div><div>${escapeHtml(msg.text)}</div>`;
-    el.appendChild(div);
-  }
-  el.scrollTop = el.scrollHeight;
+  log(`← ${msg.type}: ${JSON.stringify(msg).substring(0, 100)}`);
 }
 
 // ─── Agents ─────────────────────────────────────────────────────────────────
@@ -321,29 +299,20 @@ async function loadAgents() {
     document.getElementById('sys-agents').textContent = realAgents.length;
 
     const el = document.getElementById('agent-list');
-    el.innerHTML = agents.map(a => {
-      const isReal = a.role !== 'human' && a.role !== 'system';
-      if (!isReal) return '';
-      const unread = getBuffer(a.id).length;
-      return `
-        <div class="agent-item ${selectedAgent === a.id ? 'active' : ''}" onclick="selectAgent('${a.id}')">
-          <span class="agent-dot ${a.running ? 'active' : 'idle'}"></span>
-          <span class="agent-name">${a.name}</span>
-          <span class="agent-role">${a.role}</span>
-          ${unread > 0 ? `<span style="font-size:0.6rem;background:var(--accent);color:#fff;padding:1px 5px;border-radius:8px">${unread}</span>` : ''}
-        </div>
-      `;
-    }).join('') || '<div style="font-size:0.8rem;color:var(--dim);padding:0.5rem">ยังไม่มีเอเจนต์ — กดปุ่ม "สร้างเอเจนต์" ด้านล่าง</div>';
-  } catch (e) {}
+    el.innerHTML = agents.map(a => `
+      <div class="agent-item ${selectedAgent === a.id ? 'active' : ''}" onclick="selectAgent('${a.id}')">
+        <span class="agent-dot ${a.running ? 'active' : 'idle'}"></span>
+        <span class="agent-name">${a.name}</span>
+        <span class="agent-role">${a.role}</span>
+      </div>
+    `).join('') || '<div style="font-size:0.8rem;color:var(--dim);padding:0.5rem">ยังไม่มีเอเจนต์ — กดปุ่ม "สร้างเอเจนต์" ด้านล่าง</div>';
+  } catch (e) { log('❌ โหลดเอเจนต์ล้มเหลว: ' + e.message); }
 }
 
-async function selectAgent(id) {
+function selectAgent(id) {
   selectedAgent = id;
   const agent = agents.find(a => a.id === id);
   document.getElementById('chat-title').textContent = `💬 ${agent?.name || id} (${agent?.role || '?'})`;
-  // Load chat history from server
-  await loadChatHistory(id);
-  renderMessages();
   loadAgents();
 }
 
@@ -356,25 +325,20 @@ async function spawnAgent() {
       body: JSON.stringify({ name, role }),
     });
     const data = await res.json();
-    pushChatBuffer(SYS_KEY, 'system', `⚡ สร้างแล้ว: ${data.name} (${data.role})`);
-    renderMessages();
+    log(`⚡ สร้างแล้ว: ${data.name} (${data.role})`);
     document.getElementById('spawn-name').value = '';
     setTimeout(loadAgents, 1000);
-  } catch (e) { pushChatBuffer(SYS_KEY, 'system', `❌ สร้างล้มเหลว: ${e.message}`); renderMessages(); }
+  } catch (e) { log('❌ สร้างล้มเหลว: ' + e.message); }
 }
 
-// ─── Chat (send) ────────────────────────────────────────────────────────────
+// ─── Chat ───────────────────────────────────────────────────────────────────
 async function sendChat() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
   if (!text) return;
   input.value = '';
+  addMessage('user', text);
 
-  const targetKey = selectedAgent || SYS_KEY;
-  pushChatBuffer(targetKey, 'user', text);
-  renderMessages();
-
-  // Commands
   if (text.startsWith('/')) {
     try {
       const res = await fetch(`${API}/api/commands/execute`, {
@@ -382,13 +346,11 @@ async function sendChat() {
         body: JSON.stringify({ input: text }),
       });
       const data = await res.json();
-      pushChatBuffer(targetKey, 'oracle', data.message || 'ไม่มีผลลัพธ์', true);
-    } catch (e) { pushChatBuffer(targetKey, 'oracle', '❌ ' + e.message); }
-    renderMessages();
+      addMessage('oracle', data.message || 'ไม่มีผลลัพธ์', true);
+    } catch (e) { addMessage('oracle', '❌ ' + e.message); }
     return;
   }
 
-  // Chat with selected agent
   if (selectedAgent) {
     try {
       const res = await fetch(`${API}/api/v2/agents/${selectedAgent}/chat`, {
@@ -397,22 +359,30 @@ async function sendChat() {
       });
       const data = await res.json();
       if (!res.ok) {
-        pushChatBuffer(targetKey, 'oracle', `⚠️ ${data.error || 'เกิดข้อผิดพลาด'}\n\n💡 เอเจนต์อาจหยุดทำงานแล้ว — ลองสร้างใหม่`);
+        addMessage('oracle', `⚠️ ${data.error || 'เกิดข้อผิดพลาด'}\n\n💡 เอเจนต์อาจหยุดทำงานแล้ว — ลองสร้างใหม่จากแถบซ้าย`);
         loadAgents();
-      } else {
-        pushChatBuffer(targetKey, data.agent || 'agent', data.response || data.message || 'ไม่มีผลลัพธ์');
+        return;
       }
-    } catch (e) { pushChatBuffer(targetKey, 'oracle', '❌ ' + e.message); }
-    renderMessages();
+      addMessage(data.agent || 'agent', data.response || data.message || 'ไม่มีผลลัพธ์');
+    } catch (e) { addMessage('oracle', '❌ ' + e.message); }
     return;
   }
 
-  pushChatBuffer(SYS_KEY, 'oracle', 'ยังไม่ได้เลือก agent — กดเลือกจากแถบซ้าย หรือพิมพ์ /wake <ชื่อ> <role>');
-  renderMessages();
+  // No agent selected and not a command — tell user what to do
+  addMessage('oracle', 'ยังไม่ได้เลือก agent — กดเลือกจากแถบซ้าย หรือพิมพ์ /wake <ชื่อ> <role>');
+}
+
+function addMessage(role, text, isCmd) {
+  const el = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role === 'user' ? 'user' : 'oracle'}${isCmd ? ' cmd' : ''}`;
+  div.innerHTML = `<div class="role">${role}</div><div>${escapeHtml(text)}</div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
 }
 
 function escapeHtml(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
 }
 
 // ─── Rooms ──────────────────────────────────────────────────────────────────
@@ -485,9 +455,7 @@ loadStats();
 setInterval(loadAgents, 10000);
 setInterval(loadStats, 30000);
 
-// Welcome message
-pushChatBuffer(SYS_KEY, 'oracle', 'สวัสดีครับ 👋 สร้าง agent จากแถบซ้าย แล้วเริ่มคุยได้เลย\n\nหรือพิมพ์ /wake <ชื่อ> <role> เพื่อปลุก agent\nพิมพ์ /help ดูคำสั่งทั้งหมด\n\n🧠 แชทจะถูกบันทึกแยกตาม agent — refresh หน้าแล้วไม่หาย!');
-renderMessages();
+addMessage('oracle', 'สวัสดีครับ 👋 สร้าง agent จากแถบซ้าย แล้วเริ่มคุยได้เลย\n\nหรือพิมพ์ /wake <ชื่อ> <role> เพื่อปลุก agent\nพิมพ์ /help ดูคำสั่งทั้งหมด', true);
 </script>
 </body>
 </html>

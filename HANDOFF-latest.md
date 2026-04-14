@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-14 17:55 GMT+8
+# HANDOFF — 2026-04-14 19:38 GMT+8
 
 ## สิ่งที่ทำเสร็จแล้ว ✅ (ทั้งหมด)
 
@@ -16,171 +16,274 @@
 | 9 | Cost Model by Tier | `src/cost-model/index.ts` | ✅ |
 | 10 | WireGuard P2P | `src/wireguard/index.ts` | ✅ |
 
-### 2. Wire + Integration
-- 9 API routes wired in `src/api/index.ts`
-- 10 CLI commands in `src/commands/index.ts`
-- TypeScript compiles clean
+### 2. Wire + Integration — 9 API routes, 10 CLI commands, tsc clean
 
 ### 3. Autonomous Modules
-| Module | File | ทำอะไร |
-|--------|------|--------|
-| Goal Engine | `src/goals/index.ts` | Goal → auto-decompose → tasks with dependencies |
-| Planning Loop | `src/planning/index.ts` | Think→Plan→Act→Observe→Reflect cycle |
-| Experience Memory | `src/experience/index.ts` | Learn from success/failure, pattern extraction |
-| Self-Healing | `src/healing/index.ts` | Error analysis → retry/alternative/decompose/escalate |
-| Orchestrator | `src/orchestrator/index.ts` | Brain — ties everything, tick loop, auto-assign |
-| Orchestrator API | `src/api/orchestrator-api.ts` | REST endpoints + auto-spawn listener |
+| Module | File |
+|--------|------|
+| Goal Engine | `src/goals/index.ts` |
+| Planning Loop | `src/planning/index.ts` |
+| Experience Memory | `src/experience/index.ts` |
+| Self-Healing | `src/healing/index.ts` |
+| Orchestrator | `src/orchestrator/index.ts` |
+| Orchestrator API | `src/api/orchestrator-api.ts` |
 
-### 4. Agent Auto-Spawning
-- `spawn_agent` tool in MiMo + Gemini clients
-- Orchestrator emit `spawn_request` เมื่อไม่มี agent
-- Auto-spawn listener ใน orchestrator-api.ts
+### 4. Agent Auto-Spawning — `spawn_agent` tool + auto-spawn listener
 
-### 5. Tests
-```
-test/test-10-features.mjs      → 49/49  ✅ (unit)
-test/test-integration.mjs      → 34/34  ✅ (API endpoints)
-test/test-autonomous-e2e.mjs   → 17/17  ✅ (goal→decompose→execute→learn)
-Total: 100/100 ✅
-```
-
-### 6. MiMo API — ใช้ได้แล้ว ✅
-- `.env` ตั้งค่า `MIMO_API_KEY` + `MIMO_API_BASE` แล้ว
+### 5. LLM Integration
+- MiMo client (`src/agents/mimo-client.js`) + Gemini + PromptDee
+- `.env` มี `MIMO_API_KEY` + `MIMO_API_BASE` (key จริงแล้ว)
 - `LLM_PROVIDER=mimo`, `AGENT_MODEL=mimo-v2-pro`
-- LLM calls ทำงานได้จริงผ่าน `executeTask()`
 
----
+### 6. Priority 1-5 (commit a2077fb)
+- `llm-client.ts` — LLM wrapper (MiMo + Gemini)
+- `executeTask()` เรียก LLM จริง + fallback
+- 4 tools ใหม่: read_file, write_file, call_api, query_data
+- `tools-api.ts` — file ops + data query endpoints
+- Auto-tick setInterval 15s
+- Agent TTL cleanup ทุก 5min
 
-## Session ล่าสุด (2026-04-14 17:02-17:55) — commit 1522b01
+### 7. Parallel + Full Autonomy (commit 0862447)
+- `tick()` — `Promise.allSettled()` parallel batch
+- `getReadyTasksForGoal()` — strict dependency check
+- `executeTask()` — full pipeline with LLM + fallback
+- Auto-tick + `/tick/start|stop|stats`
+- Cleanup auto-agents idle > 30min
 
-### Bug fixes (round 1)
-- `orchestrator-api.ts` execute endpoint crash — `taskDescription` undefined → lookup from store
-- `experience/index.ts` getAdvice() null guard — `taskDescription || ""`
+### 8. Tool Chaining (commit caa1818) ← ล่าสุด
+- `callLLMWithTools()` — multi-turn loop: ส่ง tool defs → execute tool → ส่งผลกลับ LLM → loop
+- `ORCHESTRATOR_TOOL_DEFS` — 5 tools (read_file, write_file, call_api, query_data, remember)
+- `ToolExecutor` type — pluggable tool execution callback
+- Orchestrator `executeTask()` ใช้ `callLLMWithTools()` แทน single-shot
+- Unified tool dispatch `POST /api/tools/:name` — รองรับ underscore + dash
+- `hubUrl` config field สำหรับ tool executor routing
+- Falls back to single-shot for Gemini provider
 
-### 5-Fix Batch (commit 1522b01)
-
-| Fix | What | File | Status |
-|-----|------|------|--------|
-| #1 Goal auto-complete | `tick()` เช็ค `completed === total` → `updateGoalStatus("completed")` | orchestrator | ✅ |
-| #2 Parallel execution | `pendingTasks.length > 1` → `Promise.all(execute)` | orchestrator | ✅ |
-| #3 Merge results | `mergeGoalResults()` รวมผล tasks → `goal.mergedResult` | goals + orchestrator | ✅ |
-| #4 Agent cleanup | `cleanupGoalAgents()` ตั้ง auto-agents → idle หลัง goal จบ | orchestrator | ✅ |
-| #5 API fallback | `executeTask()` try/catch → rule-based fallback | orchestrator | ✅ |
-
-### Files changed
+### 9. Tests
 ```
-src/orchestrator/index.ts   — tick() แก้ใหญ่ + executeTask() + cleanupGoalAgents()
-src/goals/index.ts          — mergedResult field + mergeGoalResults() + formatGoalStatus
-src/api/orchestrator-api.ts — execute auto-lookup + /goals/:id/merge endpoint
-src/experience/index.ts     — getAdvice() null guard
-```
-
-### Tests after fix
-```
-Unit:          49/49  ✅
-Integration:   34/34  ✅
-Autonomous:    17/17  ✅
-Total:        100/100 ✅
-Experience:    16 successes, 0 failures
-```
-
-### ทดสอบ HANDOFF prompts
-- Prompt 1 (multi-agent): ✅ goal decompose + parallel execute + progress track
-- Prompt 2 (tool use): ⚠️ tools ยังน้อย (มีแค่ memory/task/agent)
-- Prompt 3 (human-in-loop): ✅ goal auto-decompose ไม่ต้องถามคน
-- Prompt 4 (full test): ❌ ยังไม่ครบ — executeTask ยัง simulate ไม่ได้เรียก LLM จริง
-
----
-
-## สิ่งที่ต้องทำต่อ ❌ (สำหรับ agent ตัวถัดไป)
-
-### Priority 1: executeTask เรียก LLM จริง
-
-ตอนนี้ `executeTask()` ใช้ `runOneCycle()` ซึ่ง return `shouldContinue = true` เสมอ (simulate)
-ต้องแก้ให้ส่ง `taskDescription` ไปที่ MiMo API แล้วเอา response กลับมาเป็น `result`
-
-```typescript
-// ปัจจุบัน (simulate):
-const { cycle, nextAction, shouldContinue } = runOneCycle(...)
-const success = shouldContinue; // always true
-
-// ที่ต้องการ (เรียก LLM จริง):
-const llmResponse = await agent.llm.chat({
-  system: "You are a task executor...",
-  messages: [{ role: 'user', content: taskDescription }]
-});
-const success = llmResponse.text?.includes("completed") ?? false;
-const result = llmResponse.text;
-```
-
-**ต้องทำ:**
-- สร้าง LLM client wrapper (หรือใช้ที่มีอยู่ใน `src/api/agent-bridge.ts`)
-- ส่ง task description + advice เป็น prompt
-- รับ response → แปลงเป็น success/failure + result
-- ตั้ง timeout + fallback (FIX #5 จะทำงานอัตโนมัติ)
-
-### Priority 2: เพิ่ม Tool Use
-
-ตอนนี้ agent มี tools แค่: remember, search_memory, create_task, spawn_agent
-ต้องเพิ่ม:
-- `query_db` — query SQLite/JSON data
-- `call_api` — HTTP request (fetch wrapper)
-- `write_file` — write to disk
-- `read_file` — read from disk
-- Tool chaining — agent เรียก tools ต่อเนื่องได้
-
-### Priority 3: Tick auto-run
-
-ตอนนี้ tick ต้อง manual POST `/api/orchestrator/tick`
-ต้องตั้ง interval (setInterval) หรือใช้ cron ให้ tick อัตโนมัติ
-
-### Priority 4: Agent store cleanup
-
-agents สะสมจน hit max (10) — ต้องเพิ่ม TTL หรือ cleanup routine
-ตอนนี้ `cleanupGoalAgents()` แค่ตั้ง status เป็น idle แต่ไม่ได้ kill process
-
-### Priority 5: Full end-to-end test
-
-เทส prompt 4 (auth refactor) หลังจาก implement Priority 1 + 2:
-```
-goal: "ระบบ auth ทั้งหมด refactor ใหม่"
-→ spawn agents → execute with real LLM → merge → self-heal → report
+test/test-10-features.mjs      → 49/49  ✅
+test/test-integration.mjs      → 34/34  ✅
+test/test-autonomous-e2e.mjs   → 17/17  ✅
+test/test-tool-chaining.mjs    → 15/15  ✅
+Total: 115/115 ✅
 ```
 
 ---
 
-## ⚠️ ข้อจำกัดปัจจุบัน
+## สิ่งที่เริ่มทำแล้วยังไม่เสร็จ — 4 Modules ใหม่
 
-1. **executeTask ยัง simulate** — ไม่ได้เรียก LLM จริง (Priority 1)
-2. **Tool use น้อย** — มีแค่ memory/task/agent tools (Priority 2)
-3. **Tick ไม่ auto-run** — ต้อง manual POST (Priority 3)
-4. **Agent store สะสม** — ไม่มี TTL/cleanup (Priority 4)
-5. **MiMo API budget unknown** — หลังเทส session นี้ อาจเหลือน้อย
+จากการศึกษาหนังสือ Multi-Agent Orchestration Book + maw guide — พบว่าขาด 8 features สำคัญ
+**ได้สร้าง 4 modules แล้ว แต่ยังไม่ได้ wire เข้า API + orchestrator**
 
-## Environment Setup
+### ไฟล์ที่สร้างแล้ว (uncommitted)
+
+| Module | File | สถานะ |
+|--------|------|--------|
+| **Message Bus** | `src/messaging/index.ts` | ✅ โค้ดเสร็จ — ❌ ยังไม่ได้ wire API |
+| **Task Board** | `src/board/index.ts` | ✅ โค้ดเสร็จ — ❌ ยังไม่ได้ wire API |
+| **Loops** | `src/loops/index.ts` | ✅ โค้ดเสร็จ — ❌ ยังไม่ได้ wire API |
+| **Fleet** | `src/fleet/index.ts` | ✅ โค้ดเสร็จ — ❌ ยังไม่ได้ wire API |
+
+---
+
+## สิ่งที่ต้องทำต่อ ❌ (agent ตัวถัดไป)
+
+### Step 1: Wire 4 modules เข้า API (ง่าย — copy pattern จาก orchestrator-api.ts)
+
+สร้าง API routes สำหรับแต่ละ module:
+
+**Messaging API** (`src/api/messaging-api.ts`):
+```
+POST /api/messaging/send          — sendMessage({from, to, content, summary, type})
+GET  /api/messaging/:agent/inbox  — getMessages(agent)
+POST /api/messaging/:agent/read   — markRead(agent)
+POST /api/messaging/broadcast     — broadcast({from, content, agents})
+POST /api/messaging/report        — reportCompletion({agent, taskId, summary})
+POST /api/messaging/blocker       — reportBlocker({agent, taskId, blocker})
+GET  /api/messaging/stats         — getMessageStats()
+GET  /api/messaging/all           — getAllMessages()
+```
+
+**Board API** (`src/api/board-api.ts`):
+```
+POST /api/board/tasks             — createTask({subject, description, owner, priority})
+GET  /api/board/tasks             — listTasks(filter)
+GET  /api/board/tasks/:id         — getTask(id)
+PATCH /api/board/tasks/:id        — updateTask(id, {status, owner})
+POST /api/board/tasks/:id/claim   — claimTask(id, agentName)
+POST /api/board/tasks/:id/log     — addLog(id, {agent, type, message})
+GET  /api/board/tasks/:id/timeline — getTaskTimeline(id)
+GET  /api/board/kanban            — getKanban() + formatKanban()
+POST /api/board/projects          — createProject(name, description)
+GET  /api/board/projects          — listProjects()
+POST /api/board/projects/:id/add  — addTaskToProject(projectId, taskId)
+GET  /api/board/projects/:id      — formatProject(id)
+GET  /api/board/stats             — getBoardStats()
+```
+
+**Loops API** (`src/api/loops-api.ts`):
+```
+POST /api/loops                   — createLoop({name, agent, schedule, prompt})
+GET  /api/loops                   — listLoops()
+GET  /api/loops/:id               — getLoop(id)
+POST /api/loops/:id/enable        — enableLoop(id)
+POST /api/loops/:id/disable       — disableLoop(id)
+DELETE /api/loops/:id             — deleteLoop(id)
+POST /api/loops/:id/trigger       — triggerLoop(id) — trigger ทันที
+GET  /api/loops/:id/history       — getLoopHistory(id)
+POST /api/loops/wakeup            — scheduleWakeup({agent, delaySeconds, prompt, reason})
+GET  /api/loops/wakeups           — listWakeups()
+GET  /api/loops/stats             — getLoopStats()
+GET  /api/loops/format            — formatLoops() — text view
+```
+
+**Fleet API** (`src/api/fleet-api.ts`):
+```
+POST /api/fleet/register          — registerAgent({name, role, worktree})
+POST /api/fleet/:name/wake        — wakeAgent(name, task?)
+POST /api/fleet/:name/sleep       — sleepAgent(name)
+POST /api/fleet/:name/idle        — idleAgent(name)
+POST /api/fleet/:name/assign      — assignWork(name, task)
+GET  /api/fleet/:name/peek        — peekAgent(name)
+GET  /api/fleet                   — listFleet() + formatFleet()
+GET  /api/fleet/overview          — getFleetOverview()
+POST /api/fleet/wake-all          — wakeAll()
+POST /api/fleet/stop-all          — stopAll()
+DELETE /api/fleet/:name           — deregisterAgent(name)
+```
+
+**Wire เข้า `src/api/index.ts`** — import + app.route(...)
+
+### Step 2: เชื่อม Modules เข้า Orchestrator
+
+- **Message Bus → executeTask()**: เพิ่ม reporting contract — agent ต้อง reportCompletion() เมื่อเสร็จ
+- **Board → Goal decomposition**: เมื่อ createGoal/decomposeGoal → auto-createTask on board
+- **Loops → orchestrator tick**: listen on `loop:execute` event → createGoal from prompt
+- **Fleet → agent management**: registerAgent เมื่อ spawn, wakeAgent/sleepAgent lifecycle
+
+### Step 3: Dashboard Module (ยังไม่ได้สร้าง)
+
+สร้าง `src/dashboard/index.ts` + `src/api/dashboard-api.ts`:
+```
+GET /api/dashboard/overview     — สรุปทั้งหมด (goals, agents, tasks, tokens)
+GET /api/dashboard/goals/:id    — goal detail + progress bar
+GET /api/dashboard/agents       — agent status + workload
+GET /api/dashboard/experience   — experience stats + success rate
+GET /api/dashboard/logs         — real-time event log (SSE)
+GET /api/dashboard/kanban       — formatted kanban board
+GET /api/dashboard/fleet        — formatted fleet status
+GET /api/dashboard/loops        — formatted loop status
+```
+
+### Step 4: เชื่อม MiMo Client เข้า Board + Messaging
+
+- `mimo-client.js` `_executeTool()` — เพิ่ม cases สำหรับ board tools:
+  - `create_task` → ใช้ board.createTask() แทน generic
+  - `log_task` → board.addLog()
+  - `send_message` → messaging.sendMessage()
+  - `report` → messaging.reportCompletion()
+
+### Step 5: Tests สำหรับ modules ใหม่
+
+สร้าง `test/test-new-modules.mjs`:
+- Phase 1: Messaging — send, inbox, broadcast, report, blocker
+- Phase 2: Board — create, claim, log, kanban, project
+- Phase 3: Loops — create, trigger, disable, wakeup
+- Phase 4: Fleet — register, wake, sleep, peek, overview
+- Phase 5: Integration — messaging→board→orchestrator flow
+
+### Step 6: State Hygiene
+
+- JSONL atomic writes: writeFileSync(.tmp) → renameSync (แทน appendFileSync ตรงๆ)
+- Monotonic IDs: เพิ่ม timestamp prefix ใน ID generation
+- Consider SQLite migration สำหรับ modules ที่ query บ่อย
+
+### Step 7: Push + Full Test
+
 ```bash
-# .env ต้องมี:
-LLM_PROVIDER=mimo
-AGENT_MODEL=mimo-v2-pro
-MIMO_API_KEY=<ใส่ key>
-MIMO_API_BASE=https://api.xiaomimimo.com/v1
-HUB_PORT=3456
-MAX_CONCURRENT_AGENTS=10
+cd oracle-multi-agent
+git add -A
+git commit -m "feat: Message Bus, Task Board, Loops, Fleet, Dashboard — full maw parity"
+git push origin main  # ต้อง set remote URL ด้วย token
 
-# รัน server:
-cd oracle-multi-agent && npx tsx src/index.ts
-
-# รัน tests:
+# รัน tests ทั้งหมด
 node test/test-10-features.mjs
 node test/test-integration.mjs 3456
 node test/test-autonomous-e2e.mjs 3456
+node test/test-tool-chaining.mjs 3456
+node test/test-new-modules.mjs 3456
 ```
 
-## Source ที่ใช้เรียนรู้
+---
+
+## Architecture หลังจากนี้ (เป้าหมายสุดท้าย)
+
+```
+                     ┌─────────────────────────┐
+                     │     Human Dashboard      │
+                     │  /api/dashboard/*        │
+                     └────────────┬────────────┘
+                                  │
+        ┌─────────────────────────┼─────────────────────────┐
+        │                         │                         │
+  ┌─────▼─────┐           ┌──────▼──────┐           ┌──────▼──────┐
+  │   Board   │           │ Orchestrator │           │   Loops     │
+  │ /api/board│◄─────────►│ /api/orchest│◄─────────►│ /api/loops  │
+  │ kanban    │           │  tick()     │           │ cron-like   │
+  │ logs      │           │  execute()  │           │ schedules   │
+  └─────┬─────┘           └──────┬──────┘           └─────────────┘
+        │                        │
+  ┌─────▼─────┐           ┌──────▼──────┐
+  │ Messaging │           │   Fleet     │
+  │ send/hey  │◄─────────►│ wake/sleep  │
+  │ inbox     │           │ peek/ls     │
+  │ report    │           │ overview    │
+  └─────┬─────┘           └──────┬──────┘
+        │                        │
+        └────────┬───────────────┘
+                 │
+          ┌──────▼──────┐
+          │  MiMo Agent │
+          │  (workers)  │
+          │  tool chain │
+          └─────────────┘
+```
+
+---
+
+## Environment Setup
+```bash
+cd oracle-multi-agent
+# .env:
+LLM_PROVIDER=mimo
+AGENT_MODEL=mimo-v2-pro
+MIMO_API_KEY=<key>
+MIMO_API_BASE=https://api.xiaomimimo.com/v1
+HUB_PORT=3456
+MAX_CONCURRENT_AGENTS=10
+ORCHESTRATOR_TICK_MS=15000
+AGENT_TTL_MS=1800000
+
+# Run:
+npx tsx src/index.ts
+
+# Tests:
+node test/test-10-features.mjs
+node test/test-integration.mjs 3456
+node test/test-autonomous-e2e.mjs 3456
+node test/test-tool-chaining.mjs 3456
+```
+
+## Commits
+```
+5039459 feat: 10 base features + wire + CLI
+a2077fb feat: Priority 1-5 — real LLM execution, tools, auto-tick
+0862447 feat: parallel execution, full autonomy, tools registry
+caa1818 feat: Priority 1 — Tool Chaining (multi-turn LLM + tool dispatch)
+```
+
+## Source
+- https://github.com/dmz2001TH/oracle-multi-agent
 - https://soul-brews-studio.github.io/multi-agent-orchestration-book/
 - https://github.com/the-oracle-keeps-the-human-human/oracle-maw-guide
-- https://github.com/Soul-Brews-Studio/
-
-## ⚠️ Security
-- GitHub PAT (`ghp_Dm6B...`) — **revoke แล้ว** (remote URL ล้างแล้ว)
-- MiMo API key — อยู่ใน `.env` (ไม่ได้ commit เพราะ .gitignore)
+- https://github.com/Soul-Brews-Studio/maw-js

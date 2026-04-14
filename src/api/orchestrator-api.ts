@@ -3,7 +3,7 @@
  */
 import { Hono } from "hono";
 import { AutonomousOrchestrator } from "../orchestrator/index.js";
-import { listGoals, getGoal, getGoalProgress, formatGoalStatus, getReadyTasks, getTasksForGoal } from "../goals/index.js";
+import { listGoals, getGoal, getGoalProgress, formatGoalStatus, getReadyTasks, getTasksForGoal, mergeGoalResults } from "../goals/index.js";
 import { getExperienceStats, getAdvice, learnPatterns } from "../experience/index.js";
 import { getHealingStats, learnHealingPatterns } from "../healing/index.js";
 import { sendMessage } from "../mailbox/index.js";
@@ -82,6 +82,13 @@ orchestratorApi.get("/api/orchestrator/goals/:id/ready", (c) => {
   return c.json({ ok: true, tasks: getReadyTasks(c.req.param("id")) });
 });
 
+// ── FIX #3: Merge results endpoint ──
+orchestratorApi.post("/api/orchestrator/goals/:id/merge", (c) => {
+  const goalId = c.req.param("id");
+  const merged = mergeGoalResults(goalId);
+  return c.json({ ok: true, mergedResult: merged });
+});
+
 // ─── Tick (process one cycle) ───
 
 orchestratorApi.post("/api/orchestrator/tick", async () => {
@@ -95,7 +102,21 @@ orchestratorApi.post("/api/orchestrator/tick", async () => {
 
 orchestratorApi.post("/api/orchestrator/execute", async (c) => {
   const b = await c.req.json();
-  const result = await orchestrator.executeTask(b.agent, b.taskId, b.goalId, b.description);
+  // Look up task description from goal store if not provided
+  let description = b.description;
+  let agentName = b.agent || "general";
+  if (!description && b.goalId) {
+    const tasks = getTasksForGoal(b.goalId);
+    const task = tasks.find((t: any) => t.id === b.taskId);
+    if (task) {
+      description = task.description || task.title;
+    }
+  }
+  if (!description) {
+    description = b.taskId || "untitled task";
+  }
+  syncAvailableAgents();
+  const result = await orchestrator.executeTask(agentName, b.taskId, b.goalId, description);
   return c.json({ ok: true, ...result });
 });
 

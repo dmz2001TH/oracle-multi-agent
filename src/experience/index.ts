@@ -220,7 +220,8 @@ export function getAdvice(taskType: string, taskDescription: string): {
   basedOn: number;
   avoidList: string[];
 } {
-  const keywords = taskDescription.split(/\s+/).filter(w => w.length > 3);
+  const desc = taskDescription || "";
+  const keywords = desc.split(/\s+/).filter(w => w.length > 3);
   const experiences = getRelevantExperiences(taskType, keywords);
   const patterns = getPatterns(taskType);
 

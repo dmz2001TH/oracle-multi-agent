@@ -21,6 +21,7 @@ export interface Goal {
   completedAt?: string;
   parentId?: string;           // parent goal if this is a subtask
   tasks: Task[];
+  mergedResult?: string;       // FIX #3: merged summary of all task results
   metadata: {
     estimatedComplexity?: "simple" | "moderate" | "complex";
     requiredRoles?: string[];
@@ -240,6 +241,45 @@ export function assignTask(taskId: string, agentName: string): boolean {
   return found;
 }
 
+// ─── FIX #3: Merge Results ───
+
+export function mergeGoalResults(goalId: string): string {
+  const tasks = getTasksForGoal(goalId);
+  const completed = tasks.filter(t => t.status === "completed");
+  const failed = tasks.filter(t => t.status === "failed");
+
+  const parts: string[] = [];
+  if (completed.length > 0) {
+    parts.push(`✅ Completed (${completed.length}):`);
+    completed.forEach(t => parts.push(`  - ${t.title}: ${t.result || "done"}`));
+  }
+  if (failed.length > 0) {
+    parts.push(`❌ Failed (${failed.length}):`);
+    failed.forEach(t => parts.push(`  - ${t.title}: ${t.errorLog[t.errorLog.length - 1] || "unknown"}`));
+  }
+
+  const merged = parts.join("\n");
+
+  // Store merged result in goal
+  ensureDir();
+  if (existsSync(goalsFile())) {
+    const lines = readFileSync(goalsFile(), "utf-8").split("\n").filter(Boolean);
+    const updated = lines.map(l => {
+      try {
+        const g = JSON.parse(l);
+        if (g.id === goalId) {
+          g.mergedResult = merged;
+          return JSON.stringify(g);
+        }
+      } catch {}
+      return l;
+    });
+    writeFileSync(goalsFile(), updated.join("\n") + "\n");
+  }
+
+  return merged;
+}
+
 // ─── Progress Tracking ───
 
 export function getGoalProgress(goalId: string): {
@@ -275,8 +315,13 @@ export function formatGoalStatus(goalId: string): string {
     "",
     `Progress: ${progress.completed}/${progress.total} (${progress.percent}%)`,
     `Failed: ${progress.failed} | Blocked: ${progress.blocked} | Pending: ${progress.pending}`,
-    "",
   ];
+
+  // FIX #3: Show merged result if available
+  if (goal.mergedResult) {
+    lines.push("", `📋 Merged Results:`, goal.mergedResult);
+  }
+  lines.push("");
 
   for (const t of tasks) {
     const icon = t.status === "completed" ? "✅" : t.status === "failed" ? "❌" : t.status === "in_progress" ? "🔄" : t.status === "blocked" ? "🚧" : "⏳";

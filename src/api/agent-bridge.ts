@@ -197,25 +197,23 @@ agentBridgeApi.post("/api/agent-callback/:id", async (c) => {
 
 // ─── V2 API routes ──────────────────────────────────────────────
 
-// ─── List all agents ────────────────────────────────────────────
+// ─── List agents ───────────────────────────────────────────────
 agentBridgeApi.get("/api/v2/agents", (c) => {
-  const registered = store.listAgents();
+  const agents = store.listAgents();
   const running = manager.getRunningAgents();
-  const runningIds = new Set(running.map((a: any) => a.id));
-
-  const agents = registered.map((a: any) => ({
-    ...a,
-    running: runningIds.has(a.id),
-  }));
-
-  // Add running agents not in DB
-  for (const r of running) {
-    if (!agents.find((a: any) => a.id === r.id)) {
-      agents.push({ ...r, running: true });
-    }
-  }
-
-  return c.json({ agents, total: agents.length });
+  const result = agents.map((a: any) => {
+    const agentRunning = running.find((r: any) => r.id === a.id);
+    const persistentAgent = persistentAgents.get(a.id);
+    const recentMessages = store.getMessages(a.id, 5);
+    return {
+      ...a,
+      running: !!agentRunning || !!persistentAgent, // Include persistent agents as running
+      isPersistent: !!persistentAgent,
+      serviceUrl: persistentAgent?.serviceUrl,
+      recentMessages,
+    };
+  });
+  return c.json({ agents: result });
 });
 
 // ─── Spawn agent ────────────────────────────────────────────────
@@ -273,6 +271,20 @@ agentBridgeApi.post("/api/v2/agents/:id/chat", async (c) => {
   if (!message) return c.json({ error: "กรุณาส่งข้อความ (message is required)" }, 400);
 
   try {
+    // Check if agent is running as persistent service
+    const persistentAgent = persistentAgents.get(id);
+    if (persistentAgent) {
+      // Forward to persistent agent service
+      const response = await fetch(`${persistentAgent.serviceUrl}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      });
+      const result = await response.json();
+      return c.json(result);
+    }
+
+    // Fall back to manager (child process mode)
     const result = await manager.chatWithAgent(id, message);
     return c.json(result);
   } catch (err: any) {
@@ -292,6 +304,62 @@ agentBridgeApi.post("/api/v2/agents/:fromId/tell/:toId", async (c) => {
   try {
     const result = manager.agentTellAgent(fromId, toId, message);
     return c.json(result);
+  } catch (err: any) {
+    return c.json({ error: err.message }, 400);
+  }
+});
+
+// ─── Persistent agent registration (for Option 3: worker mode) ──
+const persistentAgents = new Map<string, { serviceUrl: string; lastSeen: number }>();
+
+// Register persistent agent
+agentBridgeApi.post("/api/v2/agents/register", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const { id, name, role, personality, serviceUrl, status } = body;
+
+  if (!id || !name || !serviceUrl) {
+    return c.json({ error: "id, name, and serviceUrl are required" }, 400);
+  }
+
+  try {
+    // Track as persistent agent (in-memory only to avoid DB conflicts)
+    persistentAgents.set(id, {
+      serviceUrl,
+      lastSeen: Date.now(),
+    });
+
+    console.log(`✅ Persistent agent registered: ${name} (${role}) @ ${serviceUrl}`);
+    return c.json({ ok: true, registered: id });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 400);
+  }
+});
+
+// Unregister persistent agent
+agentBridgeApi.post("/api/v2/agents/:id/unregister", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    persistentAgents.delete(id);
+    store.updateAgentStatus(id, 'stopped');
+    console.log(`✅ Persistent agent unregistered: ${id}`);
+    return c.json({ ok: true, unregistered: id });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 400);
+  }
+});
+
+// Heartbeat for persistent agents
+agentBridgeApi.post("/api/v2/agents/:id/heartbeat", async (c) => {
+  const id = c.req.param("id");
+
+  try {
+    const agent = persistentAgents.get(id);
+    if (agent) {
+      agent.lastSeen = Date.now();
+      return c.json({ ok: true });
+    }
+    return c.json({ error: "Agent not registered" }, 404);
   } catch (err: any) {
     return c.json({ error: err.message }, 400);
   }

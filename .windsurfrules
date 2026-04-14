@@ -1,0 +1,55 @@
+# Windsurf Rules for oracle-multi-agent
+
+## MISSION: อัพเกรดโปรเจกต์นี้เป็น Autonomous Multi-Agent Framework
+
+## PHASE GATING - สำคัญมาก
+1. **PHASE 0: RESEARCH** = ทำให้เสร็จเลย ไม่ต้องรอ OK สร้างไฟล์ docs/ ได้
+2. **PHASE 1-3: IMPLEMENT** = ห้ามเริ่มจนกว่าผู้ใช้จะพิมพ์ "OK" หรือ "GO PHASE 1"
+
+## หลักการ 5 แหล่ง - ต้องอ้างอิงเสมอ
+
+### 1. Superpowers - Workflow & Skills
+- URL: https://github.com/obra/superpowers
+- Phase 0: ศึกษาขั้นตอน brainstorm → write-plan → execute
+- Phase 1+: ห้ามเขียนโค้ดก่อนมี Plan, ต้องมี TDD, ใช้ YAGNI, ต้องมี Critique Loop
+- ถ้าจะสร้างฟีเจอร์ใหม่ ต้องสร้าง skill ใน `core/skills/` ก่อน
+
+### 2. LangGraph - Orchestration Engine  
+- URL: https://github.com/langchain-ai/langgraph
+- Phase 0: ศึกษา StateGraph, Checkpoint, Command pattern
+- Phase 1+: Orchestrator ต้องเป็น StateGraph เท่านั้น ห้ามเขียน while loop เอง
+- ใช้ `SqliteSaver` หรือสร้าง `OracleCheckpointer` เก็บ state
+- Agent คุยกันผ่าน State ไม่ใช่เรียกฟังก์ชันตรง
+
+### 3. PyAgentSpec - Agent Definition
+- URL: https://github.com/oracle/agent-spec
+- Phase 0: ศึกษาโครงสร้าง .yaml และวิธี load
+- Phase 1+: Agent ทุกตัวต้องมีไฟล์ `.yaml` ใน `agents/` ห้าม hardcode
+- ใช้ PyAgentSpec load agent ไม่ใช่ new Agent()
+
+### 4. Soul-Brews-Studio - Orchestration Pattern + UI
+- URL: https://soul-brews-studio.github.io/multi-agent-orchestration-book/
+- Phase 0: เลือกว่าใช้ Hierarchical หรือ Hybrid Pattern + ออกแบบ Dashboard
+- Phase 1+: ถ้าเลือก Hierarchical ต้องมี CEO->Planner->Worker
+- Dashboard port 3456 ต้องมี: Goal input, Realtime log, Agent status card, Approve button
+- ใช้ WebSocket stream log ไม่ใช่ polling
+
+### 5. oracle-maw-guide - Memory + Safety
+- URL: https://github.com/the-oracle-keeps-the-human-human/oracle-maw-guide
+- Phase 0: ศึกษา MAW Lifecycle, Circuit Breaker, 3-layer Memory
+- Phase 1+: ต้อง implement MAW Lifecycle, Circuit Breaker, เก็บ Memory 3 แบบใน Oracle DB
+- Backend ล่ม Agent ต้อง resume งานได้จาก Checkpoint ห้ามเริ่มใหม่
+
+## กฎการเขียนโค้ด ใช้ตอน Phase 1+ เท่านั้น
+1. เขียนเทสก่อนโค้ดเสมอ ใช้ pytest
+2. ทุกฟังก์ชันต้องมี docstring บอกว่ามาจาก repo ไหน เช่น "From LangGraph StateGraph pattern"
+3. ห้ามใช้ in-memory Map เก็บ state ถาวร ต้องลง Oracle DB
+4. Agent Service ต้อง auto-register กับ Backend ทุก 10 วิ
+5. ไฟล์ใหม่ต้องใส่ header comment ว่าเลียนแบบมาจาก source ไหน
+
+## กฎการตอบ - สำคัญ
+1. **Phase 0 ห้ามตอบ placeholder หรือ ... เด็ดขาด** ต้องสรุปจริงจาก 5 URL
+2. **Phase 0 เสร็จต้องพิมพ์ "RESEARCH DONE" + สรุป 3 บรรทัดจริง** + สร้างไฟล์ docs/research/framework-comparison.md
+3. **ห้ามถามกลับว่า "ให้ทำเลยมั้ย"** ถ้าอยู่ Phase 0 ให้ทำเลย ถ้าอยู่ Phase 1+ ให้รอ OK
+
+## โครงสร้างโฟลเดอร์ที่ต้องยึดตาม Phase 1+

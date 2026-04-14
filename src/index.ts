@@ -222,6 +222,25 @@ app.get('/health', (c) => c.json({
   },
 }));
 
+// /api/health endpoint for dashboard compatibility
+app.get('/api/health', (c) => c.json({
+  ok: true,
+  version: '5.0.0',
+  host: config.host,
+  port: config.port,
+  process: processType,
+  agents: {
+    provider: process.env.LLM_PROVIDER || 'gemini',
+    model: process.env.AGENT_MODEL || 'gemini-2.0-flash',
+    maxConcurrent: Number(process.env.MAX_CONCURRENT_AGENTS || 5),
+  },
+  v2Api: {
+    agents: '/api/v2/agents',
+    memory: '/api/v2/memory/search',
+    messages: '/api/v2/messages',
+  },
+}));
+
 // ─── Dashboard state routes ──────────────────────
 
 // In-memory UI state store
@@ -344,6 +363,40 @@ app.post('/api/federation/broadcast', async (c) => {
     const manager = getFederationManager();
     const results = await manager.broadcast(body.message || '', body.exclude);
     return c.json({ ok: true, results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// POST /api/oracle/trigger — Trigger Oracle Dashboard workflow
+app.post('/api/oracle/trigger', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { goal, priority = 'medium', callback_url } = body;
+    
+    const oracleApiKey = process.env.ORACLE_API_KEY || 'sk-oracle-xxxx';
+    const oracleBaseUrl = process.env.ORACLE_BASE_URL || 'http://localhost:3460';
+    
+    console.log(`[Hono] Triggering Oracle Dashboard: ${goal}`);
+    
+    // Forward to Oracle Dashboard
+    const response = await fetch(`${oracleBaseUrl}/api/oracle/goal`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': oracleApiKey
+      },
+      body: JSON.stringify({ goal, priority, callback_url })
+    });
+    
+    const result = await response.json();
+    
+    return c.json({
+      ok: true,
+      goal_id: result.goal_id,
+      status: result.status,
+      message: 'Goal forwarded to Oracle Dashboard'
+    });
   } catch (e: any) {
     return c.json({ error: e.message }, 500);
   }

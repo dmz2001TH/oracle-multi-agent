@@ -12,7 +12,11 @@
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "dashboard:dev": "cd src/dashboard && npx vite",
-    "dashboard:build": "cd src/dashboard && npx vite build"
+    "dashboard:build": "cd src/dashboard && npx vite build",
+    "migrate": "echo 'Migration placeholder - Oracle DB schema setup'",
+    "start:service": "npx tsx services/start-service.ts",
+    "start:dashboard": "npx tsx api/start-dashboard.ts",
+    "start:all": "concurrently \"npm run start:service\" \"npm run start:dashboard\""
   },
   "keywords": [
     "ai",
@@ -36,15 +40,20 @@
     "dotenv": "^16.4.0",
     "drizzle-orm": "^0.45.2",
     "execa": "^9.0.0",
+    "express": "^5.2.1",
     "hono": "^4.12.5",
     "mqtt": "^5.15.1",
     "node-pty": "^1.0.0",
+    "socket.io": "^4.8.3",
     "uuid": "^10.0.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "yaml": "^2.8.3"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
+    "@types/socket.io": "^3.0.1",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.0.0",

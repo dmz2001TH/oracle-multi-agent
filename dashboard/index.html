@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oracle Multi-Agent Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+  <div class="container mx-auto p-4">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-blue-400 mb-2">🧠 Oracle Multi-Agent Dashboard</h1>
+      <p class="text-gray-400">Real-time agent orchestration and monitoring</p>
+    </div>
+
+    <!-- Goal Input -->
+    <div class="mb-8 bg-gray-800 rounded-lg p-6">
+      <h2 class="text-xl font-semibold mb-4">🎯 Submit Goal</h2>
+      <div class="flex gap-4">
+        <input 
+          type="text" 
+          id="goal-input" 
+          placeholder="Enter your goal here..."
+          class="flex-1 bg-gray-700 text-white px-4 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+        >
+        <select id="goal-priority" class="bg-gray-700 text-white px-4 py-2 rounded border border-gray-600">
+          <option value="low">Low Priority</option>
+          <option value="medium" selected>Medium Priority</option>
+          <option value="high">High Priority</option>
+        </select>
+        <button 
+          id="submit-goal" 
+          class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-semibold"
+        >
+          Submit Goal
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Agent Status Cards -->
+      <div class="lg:col-span-2">
+        <div class="bg-gray-800 rounded-lg p-6">
+          <h2 class="text-xl font-semibold mb-4">🤖 Agent Status</h2>
+          <div id="agent-status-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Agent cards will be dynamically inserted here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Approval Panel -->
+      <div>
+        <div class="bg-gray-800 rounded-lg p-6">
+          <h2 class="text-xl font-semibold mb-4">✋ Pending Approvals</h2>
+          <div id="approval-list" class="space-y-4">
+            <p class="text-gray-400 text-sm">No pending approvals</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Realtime Log -->
+    <div class="mt-6 bg-gray-800 rounded-lg p-6">
+      <h2 class="text-xl font-semibold mb-4">📋 Realtime Logs</h2>
+      <div 
+        id="log-container" 
+        class="bg-gray-900 rounded p-4 h-64 overflow-y-auto font-mono text-sm"
+      >
+        <!-- Logs will be dynamically inserted here -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Connect to WebSocket
+    const socket = io('http://localhost:3460');
+
+    // Goal submission
+    document.getElementById('submit-goal').addEventListener('click', () => {
+      const goalInput = document.getElementById('goal-input');
+      const goalPriority = document.getElementById('goal-priority');
+      const goal = goalInput.value.trim();
+      
+      if (!goal) return;
+      
+      socket.emit('goal_submit', {
+        goal: goal,
+        priority: goalPriority.value
+      });
+      
+      goalInput.value = '';
+      addLog('info', 'Goal submitted: ' + goal);
+    });
+
+    // Handle agent status updates
+    socket.on('agent_status', (data) => {
+      updateAgentStatusCards(data.agents);
+    });
+
+    // Handle log stream
+    socket.on('log_stream', (data) => {
+      addLog(data.level, `[${data.agentId}] ${data.message}`);
+    });
+
+    // Handle approval requests
+    socket.on('approve_request', (data) => {
+      addApprovalRequest(data);
+    });
+
+    // Handle approval results
+    socket.on('approval_result', (data) => {
+      removeApprovalRequest(data.requestId);
+      addLog('info', `Approval ${data.approved ? 'approved' : 'rejected'}: ${data.comment}`);
+    });
+
+    // Handle goal updates
+    socket.on('goal_update', (data) => {
+      addLog('info', `Goal ${data.status}: ${data.message}`);
+    });
+
+    // Handle errors
+    socket.on('error', (data) => {
+      addLog('error', `Error: ${data.message}`);
+    });
+
+    // Update agent status cards
+    function updateAgentStatusCards(agents) {
+      const grid = document.getElementById('agent-status-grid');
+      grid.innerHTML = agents.map(agent => {
+        const statusColor = getStatusColor(agent.status);
+        return `
+          <div class="bg-gray-700 rounded-lg p-4 border border-gray-600">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="font-semibold text-blue-400">${agent.agentId}</h3>
+              <span class="px-2 py-1 rounded text-xs ${statusColor}">${agent.status}</span>
+            </div>
+            <div class="text-sm text-gray-400">
+              <p>Registered: ${new Date(agent.registeredAt).toLocaleTimeString()}</p>
+              <p>Last heartbeat: ${new Date(agent.lastHeartbeat).toLocaleTimeString()}</p>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getStatusColor(status) {
+      const colors = {
+        'active': 'bg-green-600',
+        'inactive': 'bg-gray-600',
+        'crashed': 'bg-red-600'
+      };
+      return colors[status] || 'bg-gray-600';
+    }
+
+    // Add log entry
+    function addLog(level, message) {
+      const container = document.getElementById('log-container');
+      const time = new Date().toLocaleTimeString();
+      const levelColors = {
+        'debug': 'text-gray-400',
+        'info': 'text-blue-400',
+        'warn': 'text-yellow-400',
+        'error': 'text-red-400'
+      };
+      
+      const logEntry = document.createElement('div');
+      logEntry.className = `mb-1 ${levelColors[level] || 'text-white'}`;
+      logEntry.textContent = `[${time}] ${level.toUpperCase()}: ${message}`;
+      
+      container.appendChild(logEntry);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // Add approval request
+    function addApprovalRequest(data) {
+      const list = document.getElementById('approval-list');
+      
+      // Clear "no pending approvals" message
+      if (list.querySelector('.text-gray-400')) {
+        list.innerHTML = '';
+      }
+      
+      const request = document.createElement('div');
+      request.id = `request-${data.requestId}`;
+      request.className = 'bg-gray-700 rounded p-4 border border-gray-600';
+      request.innerHTML = `
+        <div class="mb-3">
+          <h4 class="font-semibold text-yellow-400">${data.decision}</h4>
+          <p class="text-sm text-gray-300">${data.rationale}</p>
+        </div>
+        <div class="flex gap-2">
+          <button 
+            onclick="approve('${data.requestId}', true)" 
+            class="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded"
+          >
+            Approve
+          </button>
+          <button 
+            onclick="approve('${data.requestId}', false)" 
+            class="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded"
+          >
+            Reject
+          </button>
+        </div>
+      `;
+      
+      list.appendChild(request);
+    }
+
+    // Remove approval request
+    function removeApprovalRequest(requestId) {
+      const element = document.getElementById(`request-${requestId}`);
+      if (element) {
+        element.remove();
+      }
+      
+      // Show "no pending approvals" if list is empty
+      const list = document.getElementById('approval-list');
+      if (list.children.length === 0) {
+        list.innerHTML = '<p class="text-gray-400 text-sm">No pending approvals</p>';
+      }
+    }
+
+    // Handle approval action
+    window.approve = function(requestId, approved) {
+      socket.emit('approve_request', {
+        requestId: requestId,
+        approved: approved,
+        comment: approved ? 'Approved by user' : 'Rejected by user'
+      });
+    };
+
+    // Connection status
+    socket.on('connect', () => {
+      addLog('info', 'Connected to dashboard');
+    });
+
+    socket.on('disconnect', () => {
+      addLog('warn', 'Disconnected from dashboard');
+    });
+  </script>
+</body>
+</html>

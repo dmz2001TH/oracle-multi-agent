@@ -2,6 +2,8 @@
 
 AI agents that remember, communicate, and collaborate — built on the Oracle ecosystem.
 
+![MAW Compliant](https://img.shields.io/badge/MAW-Compliant-green) ![LangGraph](https://img.shields.io/badge/LangGraph-Ready-blue) ![PyAgentSpec](https://img.shields.io/badge/PyAgentSpec-Configured-purple)
+
 **Repo**: https://github.com/dmz2001TH/oracle-multi-agent
 **Dashboard**: http://localhost:3456
 **Version**: 5.0.0 | **Commands**: 44 | **Plugins**: 11 | **API Endpoints**: 50+ | **Dashboard Pages**: 12 | **MCP Tools**: 12 | **Agent Tools**: 11 | **_ref repos**: 25
@@ -9,18 +11,12 @@ AI agents that remember, communicate, and collaborate — built on the Oracle ec
 ## Quick Start
 
 ```bash
-git clone https://github.com/dmz2001TH/oracle-multi-agent.git
-cd oracle-multi-agent
 npm install
-
-# MiMo
-LLM_PROVIDER=mimo MIMO_API_KEY=<key> AGENT_MODEL=mimo-v2-pro npx tsx src/index.ts
-
-# Gemini
-GEMINI_API_KEY=<key> npx tsx src/index.ts
+npm run migrate
+npm run start:all
 ```
 
-เปิด http://localhost:3456
+Access dashboard at http://localhost:3456/dashboard/index.html
 
 ## Dashboard (12 หน้า — ภาษาไทย)
 

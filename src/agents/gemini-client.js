@@ -87,6 +87,29 @@ const TOOL_DEFINITIONS = [
       required: ['name', 'role'],
     },
   },
+  {
+    name: 'query_graph',
+    description: 'Search the shared knowledge graph (Oracle-v2) for information learned by all agents. Use for finding knowledge across the entire system.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query for the knowledge graph' },
+        limit: { type: 'integer', description: 'Max results to return', default: 10 },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'fetch_url',
+    description: 'Fetch content from a URL (web pages, GitHub repos, etc.). Use for learning from external sources.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'Full URL to fetch' },
+      },
+      required: ['url'],
+    },
+  },
 ];
 
 export class GeminiAgent extends EventEmitter {
@@ -143,6 +166,7 @@ export class GeminiAgent extends EventEmitter {
   async _executeTool(name, args) {
     switch (name) {
       case 'remember': {
+        // Save to local MemoryStore
         await this._hubPost(`/api/agent-callback/${this.id}`, {
           type: 'memory',
           data: {
@@ -154,6 +178,20 @@ export class GeminiAgent extends EventEmitter {
         });
         // Also cache locally
         this.memoryCache.push({ content: args.content, category: args.category });
+
+        // Auto-sync to Oracle-v2 knowledge graph
+        try {
+          await this._hubPost('/api/oracle-v2/learn', {
+            pattern: args.content,
+            type: args.category || 'general',
+            tags: args.tags || '',
+            source: `agent:${this.name}`,
+          });
+        } catch (err) {
+          // Silently fail if Oracle-v2 is not available
+          console.warn(`Failed to sync to Oracle-v2: ${err.message}`);
+        }
+
         return { success: true, message: `Remembered: "${args.content.slice(0, 50)}..."` };
       }
 
@@ -228,6 +266,31 @@ export class GeminiAgent extends EventEmitter {
         } catch (err) { return { error: `Failed: ${err.message}` }; }
       }
 
+      case 'query_graph': {
+        try {
+          const params = new URLSearchParams();
+          params.set('q', args.query);
+          if (args.limit) params.set('limit', String(args.limit));
+          const res = await this._hubGet(`/api/oracle-v2/search?${params.toString()}`);
+          return { results: res, count: res.length || 0, source: 'knowledge_graph' };
+        } catch (err) {
+          return { error: `Graph query failed: ${err.message}` };
+        }
+      }
+
+      case 'fetch_url': {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 30000);
+          const res = await fetch(args.url, { signal: controller.signal });
+          clearTimeout(timeout);
+          const text = await res.text();
+          return { status: res.status, ok: res.ok, content: text.slice(0, 50000) }; // Limit to 50k chars
+        } catch (err) {
+          return { error: `Failed to fetch URL: ${err.message}` };
+        }
+      }
+
       default:
         return { error: `Unknown tool: ${name}` };
     }
@@ -243,7 +306,7 @@ export class GeminiAgent extends EventEmitter {
   }
 
   async _conversationLoop() {
-    const MAX_TURNS = 10;
+    const MAX_TURNS = 15; // increased to handle complex tasks
     let turnCount = 0;
     let finalResponse = '';
 

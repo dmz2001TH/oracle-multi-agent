@@ -86,6 +86,11 @@ oracleV2Api.get("/api/oracle-v2/stats", async (c) => {
   return proxy(c, "GET", "/api/stats");
 });
 
+// GET /api/oracle-v2/graph
+oracleV2Api.get("/api/oracle-v2/graph", async (c) => {
+  return proxy(c, "GET", "/api/graph");
+});
+
 // GET /api/oracle-v2/list
 oracleV2Api.get("/api/oracle-v2/list", async (c) => {
   const qs = new URL(c.req.url).search;

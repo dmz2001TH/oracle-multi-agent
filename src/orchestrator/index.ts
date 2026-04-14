@@ -15,6 +15,9 @@
  */
 
 import { EventEmitter } from "events";
+import { readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
 import {
   createGoal, getGoal, listGoals, updateGoalStatus,
   decomposeGoal, getTasksForGoal, getReadyTasks, getBlockedTasks,
@@ -104,14 +107,38 @@ export class AutonomousOrchestrator extends EventEmitter {
         description: s.description,
         assignedTo: this.findBestAgent(s.suggestedRole) || undefined,
         priority: "normal" as const,
-        dependsOn: s.dependsOn?.map(di => `placeholder-${di}`) || [],
+        dependsOn: s.dependsOn?.map(di => `task-${goal.id}-${di}`) || [],
       }));
 
-      // Decompose
+      // Decompose — tasks get real IDs
       const tasks = decomposeGoal(goal.id, taskSpecs);
 
-      // Fix placeholder dependencies with real task IDs
-      this.fixDependencies(tasks);
+      // Fix placeholder dependencies: map index-based refs to real task IDs
+      for (const task of tasks) {
+        task.dependsOn = task.dependsOn.map(dep => {
+          const match = dep.match(/^task-.*-(\d+)$/);
+          if (match) {
+            const idx = parseInt(match[1]);
+            return tasks[idx]?.id || dep;
+          }
+          return dep;
+        });
+      }
+
+      // Update tasks file with corrected dependencies
+      try {
+        const tasksFile = join(homedir(), ".oracle", "goals", "tasks.jsonl");
+        const lines = readFileSync(tasksFile, "utf-8").split("\n").filter(Boolean);
+        const taskMap = new Map(tasks.map(t => [t.id, t]));
+        const updated = lines.map(l => {
+          try {
+            const t = JSON.parse(l);
+            if (taskMap.has(t.id)) return JSON.stringify(taskMap.get(t.id));
+            return l;
+          } catch { return l; }
+        });
+        writeFileSync(tasksFile, updated.join("\n") + "\n");
+      } catch {}
 
       this.emit("goal_decomposed", { goal, tasks });
 

@@ -156,6 +156,8 @@ agentBridgeApi.post("/api/agents/:fromId/tell/:toId", async (c) => {
   const fromAgent: any = store.getAgent(fromId);
   try {
     (target as any).process.send({ type: 'incoming_message', from: fromId, fromName: fromAgent?.name || 'Unknown', content: body.message });
+    // Broadcast inter-agent message to dashboard
+    wsBroadcast({ type: 'inter_agent', from: fromAgent?.name || fromId, to: (target as any).name || toId, message: body.message, ts: new Date().toISOString() });
     return c.json({ ok: true, sent: true });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
@@ -165,6 +167,7 @@ agentBridgeApi.post("/api/agents/:fromId/tell/:toId", async (c) => {
 agentBridgeApi.post("/api/agent-callback/:id", async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json();
+  const agentName = (store.getAgent(id) as any)?.name || id;
   switch (body.type) {
     case 'memory':
       if (body.data?.content) store.addMemory(id, body.data.content, body.data.category, body.data.importance, body.data.tags);
@@ -174,9 +177,19 @@ agentBridgeApi.post("/api/agent-callback/:id", async (c) => {
       break;
     case 'status':
       store.updateAgentStatus(id, body.data?.status || 'active');
+      wsBroadcast({ type: 'status', agent: agentName, status: body.data?.status, ts: new Date().toISOString() });
       break;
-    case 'thought': case 'response': case 'task':
-      store.sendMessage(id, `[${body.type}] ${body.data?.content || JSON.stringify(body.data)}`, null, null, 'system');
+    case 'thought':
+      wsBroadcast({ type: 'thought', agent: agentName, content: body.data?.content, ts: new Date().toISOString() });
+      store.sendMessage(id, `[thought] ${body.data?.content || JSON.stringify(body.data)}`, null, null, 'system');
+      break;
+    case 'response':
+      wsBroadcast({ type: 'reply', agent: agentName, message: body.data?.content, ts: new Date().toISOString() });
+      store.sendMessage(id, `[response] ${body.data?.content || JSON.stringify(body.data)}`, null, null, 'system');
+      break;
+    case 'task':
+      wsBroadcast({ type: 'thought', agent: agentName, content: `[task] ${body.data?.content || JSON.stringify(body.data)}`, ts: new Date().toISOString() });
+      store.sendMessage(id, `[task] ${body.data?.content || JSON.stringify(body.data)}`, null, null, 'system');
       break;
   }
   return c.json({ ok: true });

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Feed — Oracle Multi-Agent</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0a0a0f; --surface: #111118; --surface2: #18181f;
+      --border: rgba(255,255,255,0.06); --text: rgba(255,255,255,0.95);
+      --muted: rgba(255,255,255,0.25); --dim: rgba(255,255,255,0.12);
+      --accent: #64b5f6; --green: #22c55e; --yellow: #eab308;
+      --purple: #a855f7; --orange: #f97316; --red: #ef4444; --cyan: #06b6d4;
+    }
+    body { font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; }
+
+    /* Sidebar */
+    .sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+    .sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .sidebar-header h2 { font-size: 14px; font-weight: 700; color: var(--accent); }
+    .nav { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .nav a { padding: 4px 10px; border-radius: 6px; text-decoration: none; color: var(--muted); font-size: 11px; transition: all 0.2s; }
+    .nav a:hover { color: var(--text); background: var(--surface2); }
+    .nav a.active { color: var(--accent); background: rgba(100,181,246,0.12); }
+
+    .filter-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .filter-item {
+      display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+      border-radius: 8px; cursor: pointer; font-size: 12px; transition: all 0.2s; margin-bottom: 2px;
+    }
+    .filter-item:hover { background: var(--surface2); }
+    .filter-item.active { background: rgba(100,181,246,0.12); }
+    .filter-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .filter-item .name { flex: 1; font-weight: 600; }
+    .filter-item .count { font-size: 10px; color: var(--muted); background: var(--bg); padding: 1px 5px; border-radius: 6px; }
+
+    /* Main */
+    .main { flex: 1; display: flex; flex-direction: column; }
+    .header {
+      padding: 12px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.01);
+    }
+    .header h1 { font-size: 15px; font-weight: 700; flex: 1; }
+    .live-indicator { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--green); }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
+
+    .stats { display: flex; gap: 16px; font-size: 11px; color: var(--muted); }
+    .stats span { font-family: monospace; }
+
+    /* Feed */
+    .feed { flex: 1; overflow-y: auto; padding: 16px 20px; }
+    .feed::-webkit-scrollbar { width: 6px; }
+    .feed::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+    .feed-item {
+      display: flex; gap: 12px; padding: 10px 14px; border-radius: 10px;
+      margin-bottom: 6px; transition: all 0.2s; animation: fadeIn 0.3s ease;
+    }
+    .feed-item:hover { background: rgba(255,255,255,0.03); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .feed-icon { font-size: 18px; flex-shrink: 0; width: 28px; text-align: center; }
+    .feed-content { flex: 1; min-width: 0; }
+    .feed-header { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+    .feed-from { font-size: 12px; font-weight: 700; }
+    .feed-arrow { font-size: 10px; color: var(--dim); }
+    .feed-to { font-size: 12px; font-weight: 600; }
+    .feed-type { font-size: 9px; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .feed-time { font-size: 10px; color: var(--dim); font-family: monospace; margin-left: auto; }
+    .feed-body { font-size: 13px; color: rgba(255,255,255,0.75); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .feed-body.collapsed { max-height: 60px; overflow: hidden; position: relative; }
+    .feed-body.collapsed::after {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 30px;
+      background: linear-gradient(transparent, var(--bg));
+    }
+
+    /* Type colors */
+    .type-message { background: rgba(100,181,246,0.15); color: var(--accent); }
+    .type-thought { background: rgba(168,85,247,0.15); color: var(--purple); }
+    .type-status { background: rgba(34,197,94,0.15); color: var(--green); }
+    .type-task { background: rgba(249,115,22,0.15); color: var(--orange); }
+    .type-error { background: rgba(239,68,68,0.15); color: var(--red); }
+    .type-feed { background: rgba(6,182,212,0.15); color: var(--cyan); }
+
+    /* Empty */
+    .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--muted); gap: 12px; }
+    .empty .icon { font-size: 48px; }
+    .empty .text { font-size: 14px; }
+
+    /* Controls */
+    .controls { padding: 8px 12px; border-top: 1px solid var(--border); display: flex; gap: 6px; }
+    .ctrl-btn {
+      flex: 1; padding: 6px; border-radius: 6px; border: 1px solid var(--border);
+      background: none; color: var(--muted); font-size: 10px; cursor: pointer;
+      font-family: inherit; transition: all 0.2s;
+    }
+    .ctrl-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .ctrl-btn.active { background: rgba(100,181,246,0.12); color: var(--accent); border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>📡 Live Feed</h2>
+    </div>
+    <div class="nav">
+      <a href="/">Home</a>
+      <a href="/chat">Chat</a>
+      <a href="/feed" class="active">Feed</a>
+      <a href="/federation">Federation</a>
+    </div>
+    <div class="filter-list" id="filter-list"></div>
+    <div class="controls">
+      <button class="ctrl-btn active" data-filter="all" onclick="setFilter('all')">All</button>
+      <button class="ctrl-btn" data-filter="message" onclick="setFilter('message')">💬 Msg</button>
+      <button class="ctrl-btn" data-filter="thought" onclick="setFilter('thought')">🧠 Think</button>
+      <button class="ctrl-btn" data-filter="status" onclick="setFilter('status')">⚡ Status</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="header">
+      <h1>📡 Agent Live Feed</h1>
+      <div class="live-indicator">
+        <div class="live-dot"></div>
+        <span>LIVE</span>
+      </div>
+      <div class="stats">
+        <span id="stat-total">0 events</span>
+        <span>|</span>
+        <span id="stat-agents">0 agents</span>
+      </div>
+    </div>
+    <div class="feed" id="feed">
+      <div class="empty">
+        <div class="icon">📡</div>
+        <div class="text">กำลังรอ agent สื่อสารกัน...<br>สร้าง agent แล้วสั่งงาน จะเห็นที่นี่</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API = location.origin;
+const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+
+let events = [];
+let filter = 'all';
+let agentFilter = null;
+let agents = [];
+const AGENT_COLORS = ['#ff6b6b','#4ecdc4','#45b7d1','#96ceb4','#ffa07a','#dda0dd','#98d8c8','#f7dc6f','#bb8fce','#85c1e9'];
+
+function nameHash(n) { let h=0; for(let i=0;i<n.length;i++) h=((h<<5)-h+n.charCodeAt(i))|0; return Math.abs(h); }
+function agentColor(name) { return AGENT_COLORS[nameHash(name) % AGENT_COLORS.length]; }
+function displayName(n) { return (n||'unknown').replace(/-oracle$/,'').replace(/-mawjs$/,''); }
+function formatTime(ts) { return new Date(ts).toLocaleTimeString('th-TH', {hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+
+// SVG Chibi
+function chibi(name, size=24) {
+  const c = agentColor(name);
+  const h = nameHash(name);
+  const eye = (h>>4)%3;
+  let eyes = eye===0
+    ? `<circle cx="-4" cy="-6" r="2.5" fill="#fff"/><circle cx="4" cy="-6" r="2.5" fill="#fff"/><circle cx="-3.5" cy="-6" r="1.5" fill="#222"/><circle cx="4.5" cy="-6" r="1.5" fill="#222"/>`
+    : eye===1
+    ? `<path d="M-6 -6 Q-4 -8 -2 -6" fill="none" stroke="#222" stroke-width="1.2"/><path d="M2 -6 Q4 -8 6 -6" fill="none" stroke="#222" stroke-width="1.2"/>`
+    : `<circle cx="-4" cy="-6" r="2.5" fill="#fff"/><circle cx="4" cy="-6" r="2.5" fill="#fff"/><text x="-4" y="-4" text-anchor="middle" fill="${c}" font-size="5">*</text><text x="4" y="-4" text-anchor="middle" fill="${c}" font-size="5">*</text>`;
+  return `<svg width="${size}" height="${size}" viewBox="-18 -22 36 36" style="flex-shrink:0"><circle cx="0" cy="-4" r="14" fill="${c}" stroke="#fff" stroke-width="1"/>${eyes}<path d="M-2 -1 Q0 1 2 -1" fill="none" stroke="#333" stroke-width="0.8"/></svg>`;
+}
+
+// Add event
+function addEvent(evt) {
+  // Normalize
+  const e = {
+    from: evt.from || evt.oracle || evt.source || 'system',
+    to: evt.to || evt.target || '',
+    type: evt.type || evt.event || 'feed',
+    message: evt.message || evt.msg || evt.content || '',
+    ts: evt.ts || evt.timestamp || new Date().toISOString(),
+  };
+  events.unshift(e);
+  if (events.length > 500) events.length = 500;
+  renderFeed();
+  renderFilters();
+}
+
+// Render feed
+function renderFeed() {
+  const el = document.getElementById('feed');
+  let filtered = events;
+  if (filter !== 'all') filtered = filtered.filter(e => e.type === filter);
+  if (agentFilter) filtered = filtered.filter(e => e.from === agentFilter || e.to === agentFilter);
+
+  if (filtered.length === 0) {
+    el.innerHTML = `<div class="empty"><div class="icon">📡</div><div class="text">ยังไม่มี event<br>สร้าง agent แล้วสั่งงาน จะเห็นที่นี่</div></div>`;
+    return;
+  }
+
+  const icons = { message: '💬', thought: '🧠', status: '⚡', task: '📋', error: '❌', feed: '📡' };
+
+  el.innerHTML = filtered.slice(0, 100).map(e => {
+    const icon = icons[e.type] || '📡';
+    const fromColor = agentColor(e.from);
+    const toColor = e.to ? agentColor(e.to) : '';
+    const isLong = (e.message || '').length > 200;
+    return `<div class="feed-item">
+      <div class="feed-icon">${icon}</div>
+      <div class="feed-content">
+        <div class="feed-header">
+          ${chibi(e.from)}
+          <span class="feed-from" style="color:${fromColor}">${displayName(e.from)}</span>
+          ${e.to ? `<span class="feed-arrow">→</span>${chibi(e.to)}<span class="feed-to" style="color:${toColor}">${displayName(e.to)}</span>` : ''}
+          <span class="feed-type type-${e.type}">${e.type}</span>
+          <span class="feed-time">${formatTime(e.ts)}</span>
+        </div>
+        ${e.message ? `<div class="feed-body ${isLong ? 'collapsed' : ''}" onclick="this.classList.toggle('collapsed')">${escapeHtml(e.message)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('stat-total').textContent = `${events.length} events`;
+}
+
+function renderFilters() {
+  const counts = {};
+  for (const e of events) counts[e.from] = (counts[e.from] || 0) + 1;
+  const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+  document.getElementById('stat-agents').textContent = `${sorted.length} agents`;
+
+  const el = document.getElementById('filter-list');
+  el.innerHTML = sorted.map(([name, count]) => `
+    <div class="filter-item ${agentFilter === name ? 'active' : ''}" onclick="setAgentFilter('${name}')">
+      ${chibi(name, 20)}
+      <span class="name" style="color:${agentColor(name)}">${displayName(name)}</span>
+      <span class="count">${count}</span>
+    </div>
+  `).join('');
+}
+
+function setFilter(f) {
+  filter = f;
+  document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  renderFeed();
+}
+
+function setAgentFilter(name) {
+  agentFilter = agentFilter === name ? null : name;
+  renderFilters();
+  renderFeed();
+}
+
+function escapeHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+
+// WebSocket — listen for ALL agent events
+function connectWS() {
+  const ws = new WebSocket(`${wsProto}//${location.host}/ws`);
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      // Capture all relevant event types
+      if (msg.type === 'agent_spawned') {
+        addEvent({ from: 'system', type: 'status', message: `⚡ Agent spawned: ${msg.name || msg.id} (${msg.role || '?'})`, ts: new Date().toISOString() });
+      } else if (msg.type === 'agent_died') {
+        addEvent({ from: 'system', type: 'status', message: `💀 Agent stopped: ${msg.name || msg.id}`, ts: new Date().toISOString() });
+      } else if (msg.type === 'reply') {
+        addEvent({ from: msg.agent || msg.role || 'oracle', type: msg.cmd ? 'task' : 'message', message: msg.message, ts: msg.ts || new Date().toISOString() });
+      } else if (msg.type === 'thought') {
+        addEvent({ from: msg.agent || msg.source || 'agent', type: 'thought', message: msg.content || msg.message, ts: new Date().toISOString() });
+      } else if (msg.type === 'inter_agent') {
+        addEvent({ from: msg.from, to: msg.to, type: 'message', message: msg.message, ts: new Date().toISOString() });
+      } else if (msg.type === 'feed' || msg.type === 'maw-log') {
+        for (const entry of (msg.entries || [msg])) {
+          addEvent({ from: entry.from || entry.oracle, to: entry.to, type: 'feed', message: entry.msg || entry.message, ts: entry.ts || new Date().toISOString() });
+        }
+      }
+    } catch {}
+  };
+  ws.onclose = () => setTimeout(connectWS, 3000);
+}
+
+// Load existing feed on start
+async function loadFeed() {
+  try {
+    const res = await fetch(`${API}/api/feed?limit=100`);
+    const data = await res.json();
+    for (const evt of (data.events || []).reverse()) {
+      addEvent({ from: evt.oracle || evt.source, type: 'feed', message: evt.message, ts: evt.timestamp || new Date().toISOString() });
+    }
+  } catch {}
+}
+
+// Also poll inbox for inter-agent messages
+async function pollInbox() {
+  try {
+    const res = await fetch(`${API}/api/inbox?limit=20`);
+    const data = await res.json();
+    for (const msg of (data.messages || [])) {
+      if (!msg._seen) {
+        addEvent({ from: msg.from, to: msg.to, type: 'message', message: msg.body || msg.subject || '', ts: msg.ts });
+        msg._seen = true;
+      }
+    }
+  } catch {}
+}
+
+// Load agents for sidebar
+async function loadAgents() {
+  try {
+    const res = await fetch(`${API}/api/v2/agents`);
+    const data = await res.json();
+    agents = (data.agents || []).filter(a => a.role !== 'human' && a.role !== 'system');
+  } catch {}
+}
+
+connectWS();
+loadFeed();
+loadAgents();
+setInterval(pollInbox, 5000);
+setInterval(loadAgents, 15000);
+</script>
+</body>
+</html>

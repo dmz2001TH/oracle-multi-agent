@@ -161,6 +161,12 @@ if (hasDist) {
   // Quick access: /workspace → redirect to file browser
   app.get('/workspace-files', (c) => c.redirect('/workspace-files/', 301));
 
+  app.get('/feed', (c) => {
+    const f = join(PUBLIC_DIR, 'feed.html');
+    if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
+    return c.text('Not found', 404);
+  });
+
   app.get('/workspace', (c) => {
     const f = join(PUBLIC_DIR, 'workspace.html');
     if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));

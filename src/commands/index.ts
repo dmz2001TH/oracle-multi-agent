@@ -31,6 +31,21 @@ import { createSwarmTask, fanOutResearch, createReviewTrio, mergeResults, SwarmE
 import { scanFleet, formatFleetReport } from "../fleet-scan/index.js";
 import { calculateCost, logCost, generateReport, formatCostReport } from "../cost-model/index.js";
 import { isWireGuardAvailable, getInterfaceStatus, pingPeer, getFederationStatus, generateConfig } from "../wireguard/index.js";
+import { AutonomousOrchestrator } from "../orchestrator/index.js";
+import { listGoals, getGoal, getGoalProgress, formatGoalStatus, suggestDecomposition } from "../goals/index.js";
+import { getExperienceStats, getAdvice, learnPatterns } from "../experience/index.js";
+import { getHealingStats, learnHealingPatterns } from "../healing/index.js";
+import { runOneCycle } from "../planning/index.js";
+
+// Orchestrator singleton
+const orchestrator = new AutonomousOrchestrator({
+  teamName: "default",
+  availableAgents: [],
+  maxConcurrentTasks: 5,
+  autoDecompose: true,
+  autoAssign: true,
+  learnFromOutcomes: true,
+});
 
 const ORACLE_DIR = join(homedir(), ".oracle");
 const MEMORY_DIR = join(ORACLE_DIR, "memory");
@@ -1457,6 +1472,109 @@ export function searchCmd(args: string, ctx: CommandContext): CommandResult {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// AUTONOMOUS ORCHESTRATOR COMMANDS
+// ═══════════════════════════════════════════════════════════════════
+
+// ─── /goal — Goal pursuit & decomposition ────────────────────────────────
+
+export function goal(args: string, ctx: CommandContext): CommandResult {
+  const parts = args?.trim().split(/\s+/) || [];
+  const action = parts[0] || "list";
+  const rest = parts.slice(1).join(" ") || "";
+
+  switch (action) {
+    case "create": {
+      const pipeParts = rest.split("|").map(s => s.trim());
+      if (pipeParts.length < 2) return { status: "ok", message: "🎯 ใช้: /goal create <title> | <description>" };
+      const [title, desc] = pipeParts;
+      orchestrator.pursueGoal(title, desc).then(result => {
+        console.log(`🎯 Goal created: ${title} (${result.tasks.length} tasks)`);
+      }).catch(() => {});
+      return { status: "ok", message: `🎯 Goal created: "${title}"\n⏳ Auto-decomposing into tasks...` };
+    }
+    case "status": {
+      if (!rest) return { status: "ok", message: "🎯 ใช้: /goal status <goal-id>" };
+      const goals = listGoals();
+      const goal = goals.find(g => g.id === rest || g.title.toLowerCase().includes(rest.toLowerCase()));
+      if (!goal) return { status: "ok", message: `🎯 ไม่พบ goal: ${rest}` };
+      return { status: "ok", message: formatGoalStatus(goal.id) };
+    }
+    case "tick": {
+      orchestrator.tick().then(result => {
+        console.log(`🎯 Tick: ${result.tasksAdvanced} advanced, ${result.recoveries} recovered`);
+      }).catch(() => {});
+      return { status: "ok", message: "🎯 Orchestrator tick — processing goals..." };
+    }
+    case "list":
+    default: {
+      const goals = listGoals();
+      if (goals.length === 0) return { status: "ok", message: "🎯 **Goals** — ไม่มี goal\n\n/goal create <title> | <description>" };
+      return {
+        status: "ok",
+        message: `🎯 **Goals** (${goals.length})\n\n` +
+          goals.map(g => {
+            const progress = getGoalProgress(g.id);
+            const icon = g.status === "completed" ? "✅" : g.status === "failed" ? "❌" : g.status === "in_progress" ? "🔄" : "⏳";
+            return `${icon} **${g.title}** [${g.status}] ${progress.percent}% (${progress.completed}/${progress.total})`;
+          }).join("\n"),
+      };
+    }
+  }
+}
+
+// ─── /autonomous — Full autonomous status + control ──────────────────────
+
+export function autonomous(args: string, ctx: CommandContext): CommandResult {
+  const action = args?.trim().split(/\s+/)[0] || "status";
+
+  switch (action) {
+    case "status": {
+      return { status: "ok", message: orchestrator.getStatusReport() };
+    }
+    case "learn": {
+      orchestrator.learn();
+      return { status: "ok", message: "🧠 Learned new patterns from experience + failures" };
+    }
+    case "advice": {
+      const desc = args?.replace("advice", "").trim() || "general task";
+      const advice = getAdvice("general", desc);
+      return {
+        status: "ok",
+        message: `🧠 **Advice** for: "${desc}"\n\nRecommendation: ${advice.recommendation}\nConfidence: ${Math.round(advice.confidence * 100)}%\nBased on: ${advice.basedOn} experiences\nAvoid: ${advice.avoidList.join(", ") || "none"}`,
+      };
+    }
+    case "experience": {
+      const stats = getExperienceStats();
+      return {
+        status: "ok",
+        message: `🧠 **Experience Stats**\n\nTotal: ${stats.total}\nSuccesses: ${stats.successes}\nFailures: ${stats.failures}\nPartials: ${stats.partials}\n\nBy Type:\n${Object.entries(stats.byType).map(([t, c]) => `- ${t}: ${c}`).join("\n") || "none"}`,
+      };
+    }
+    case "healing": {
+      const stats = getHealingStats();
+      return {
+        status: "ok",
+        message: `🩹 **Self-Healing Stats**\n\nFailures: ${stats.totalFailures}\nResolved: ${stats.resolved}\nRate: ${Math.round(stats.resolutionRate * 100)}%\n\nStrategies:\n${Object.entries(stats.byStrategy).map(([s, d]) => `- ${s}: ${d.resolved}/${d.total}`).join("\n") || "none"}`,
+      };
+    }
+    case "plan": {
+      const desc = args?.replace("plan", "").trim() || "test task";
+      const suggestions = suggestDecomposition(desc);
+      return {
+        status: "ok",
+        message: `🧠 **Suggested Plan** for: "${desc}"\n\n` +
+          suggestions.map((s, i) => `${i + 1}. **${s.title}** [${s.suggestedRole}] — ${s.description}${s.dependsOn ? ` (after: ${s.dependsOn.join(",")})` : ""}`).join("\n"),
+      };
+    }
+    default:
+      return {
+        status: "ok",
+        message: "🧠 **Autonomous Commands**\n\n/autonomous status — full system status\n/autonomous learn — learn patterns\n/autonomous advice <task> — get advice\n/autonomous experience — view experience stats\n/autonomous healing — view healing stats\n/autonomous plan <task> — suggest decomposition",
+      };
+  }
+}
+
 const COMMANDS: Record<string, CommandHandler> = {
   awaken,
   recap,
@@ -1501,6 +1619,9 @@ const COMMANDS: Record<string, CommandHandler> = {
   so: standingOrdersCmd,
   "standing-orders": standingOrdersCmd,
   search: searchCmd,
+  // Autonomous Orchestrator
+  goal,
+  autonomous,
 };
 
 export function listCommands(): { name: string; description: string }[] {
@@ -1547,6 +1668,9 @@ export function listCommands(): { name: string; description: string }[] {
     { name: "cost", description: "💰 Cost model by tier — calculate/log/report" },
     { name: "so", description: "📋 Standing orders — persistent agent context (/so add/list)" },
     { name: "search", description: "🔍 Hybrid search — FTS5 + semantic (replaces linear scan)" },
+    // Autonomous Orchestrator
+    { name: "goal", description: "🎯 Goal pursuit — create/status/tick (auto-decompose)" },
+    { name: "autonomous", description: "🧠 Autonomous status — experience/healing/advice/plan" },
   ];
 }
 

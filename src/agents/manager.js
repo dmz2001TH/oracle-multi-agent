@@ -19,6 +19,10 @@ const AGENT_ROLES = {
 - ค้นหาข้อมูล → ใช้ hybrid search (/search) แทน linear scan
 - วิจัยแบบ parallel → ใช้ swarm (/swarm fan-out) แทนทำคนเดียว
 - ก่อน session หมด → archive state ไว้ (/archive save)
+- **รับ goal ใหญ่ → /goal create แล้วระบบจะแตกเป็น subtasks อัตโนมัติ**
+- **ทำงานอัตโนมัติ → Think → Plan → Act → Observe → Reflect loop**
+- **เรียนรู้จากความผิดพลาด → ระบบ self-healing จะ retry/alternative/decompose อัตโนมัติ**
+- **ดูสถานะระบบ → /autonomous status**
 
 **สำคัญมาก:**
 - เมื่อผู้ใช้บอกให้จำอะไร → ใช้ remember tool เก็บเลย ไม่ต้องบอกให้พิมพ์ /fyi

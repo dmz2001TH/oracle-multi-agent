@@ -147,25 +147,63 @@ process.on('message', async (msg) => {
     }
 
     case 'task': {
-      // Phase 3: Auto-communication — handle assigned task
+      // Phase 3 + Autonomous: handle assigned task with planning loop
       console.log(`📋 ${agent.name} received task: ${msg.title}`);
-      agent._callback('status', { status: 'working' });
+      agent._callback('status', { status: 'thinking' });
+
+      // THINK phase — analyze the task
+      const thinkPrompt = [
+        `TASK: ${msg.title}`,
+        msg.description ? `Description: ${msg.description}` : '',
+        msg.goalId ? `Goal ID: ${msg.goalId}` : '',
+        '',
+        'Before executing, analyze:',
+        '1. What is the expected outcome?',
+        '2. What tools/approach do I need?',
+        '3. What could go wrong?',
+        '4. Do I have enough context?',
+        '',
+        'Then execute the task and report results.',
+      ].filter(Boolean).join('\n');
+
       try {
-        const result = await agent.processMessage(
-          `TASK ASSIGNED: ${msg.title}\n${msg.description || ''}\n\nComplete this task and report your results.`
-        );
+        // PLAN + ACT phase — process with LLM
+        agent._callback('status', { status: 'working' });
+        const result = await agent.processMessage(thinkPrompt);
+
+        // OBSERVE phase — check if result looks successful
+        const success = !result.toLowerCase().includes('error') && result.length > 10;
+
+        // REFLECT phase — record experience
+        agent._callback('memory', {
+          content: `Task: ${msg.title} — ${success ? 'SUCCESS' : 'FAILED'} — ${result.slice(0, 200)}`,
+          category: 'experience',
+          importance: success ? 3 : 5,
+          tags: `task,${success ? 'success' : 'failure'},autonomous`,
+        });
+
         // Report task completion
         process.send({
           type: 'task_completed',
           taskId: msg.taskId,
           result: result,
+          success: success,
         });
         agent._callback('response', { content: result });
       } catch (err) {
+        // Self-healing: record failure for learning
+        agent._callback('memory', {
+          content: `Task FAILED: ${msg.title} — Error: ${err.message}`,
+          category: 'failure',
+          importance: 5,
+          tags: 'task,failure,self-healing',
+        });
+
         process.send({
           type: 'task_completed',
           taskId: msg.taskId,
           result: `Error: ${err.message}`,
+          success: false,
         });
       } finally {
         agent._callback('status', { status: 'active' });

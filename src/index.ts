@@ -102,6 +102,12 @@ if (hasDist) {
     return c.text('Not found', 404);
   });
 
+  app.get('/federation', (c) => {
+    const f = join(PUBLIC_DIR, 'federation.html');
+    if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
+    return c.text('Not found', 404);
+  });
+
   app.get('/workspace', (c) => {
     const f = join(PUBLIC_DIR, 'workspace.html');
     if (existsSync(f)) return c.html(readFileSync(f, 'utf-8'));
@@ -246,6 +252,43 @@ app.get('/api/maw-log', (c) => {
 
 // Redirect /agents.html → /agents (dedicated agents page)
 app.get('/agents.html', (c) => c.redirect('/agents', 301));
+
+// POST /api/soul-sync — Federation soul sync (sync memory between peers)
+app.post('/api/soul-sync', async (c) => {
+  try {
+    const { getFederationManager } = await import('./federation/index.js');
+    const manager = getFederationManager();
+    const result = await manager.soulSync();
+    return c.json(result);
+  } catch (e: any) {
+    return c.json({ error: e.message, synced: [], failed: [], totalEntries: 0 }, 500);
+  }
+});
+
+// GET /api/federation/mesh — Full mesh status (enhanced)
+app.get('/api/federation/mesh', async (c) => {
+  try {
+    const { getFederationManager } = await import('./federation/index.js');
+    const manager = getFederationManager();
+    const status = await manager.getStatus();
+    return c.json(status);
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+// POST /api/federation/broadcast — Broadcast to all peers
+app.post('/api/federation/broadcast', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const { getFederationManager } = await import('./federation/index.js');
+    const manager = getFederationManager();
+    const results = await manager.broadcast(body.message || '', body.exclude);
+    return c.json({ ok: true, results });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
 
 // GET /api/plugins — list loaded plugins
 app.get('/api/plugins', async (c) => {

@@ -51,6 +51,7 @@ import { hybridSearchApi } from "./hybrid-search-api.js";
 import { wireguardApi } from "./wireguard-api.js";
 import { orchestratorApi } from "./orchestrator-api.js";
 import { toolsApi } from "./tools-api.js";
+import { mcpBridgeApi } from "../bridges/mcp-bridge.js";
 
 export const api = new Hono();
 
@@ -102,3 +103,4 @@ api.route("/", hybridSearchApi);
 api.route("/", wireguardApi);
 api.route("/", orchestratorApi);
 api.route("/", toolsApi);
+api.route("/", mcpBridgeApi);

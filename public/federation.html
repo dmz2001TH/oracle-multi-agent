@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Federation Lens — Oracle Multi-Agent</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0a0e17; --surface: #111827; --border: #1f2937;
+      --text: #e5e7eb; --muted: #6b7280; --accent: #06b6d4;
+      --green: #22c55e; --red: #ef4444; --yellow: #eab308;
+      --purple: #a855f7; --orange: #f97316;
+    }
+    body { font-family: 'SF Mono', 'Fira Code', monospace; background: var(--bg); color: var(--text); }
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 24px; border-bottom: 1px solid var(--border);
+    }
+    .header h1 { font-size: 18px; color: var(--accent); }
+    .header .clock { color: var(--muted); font-size: 13px; }
+    .nav { display: flex; gap: 8px; padding: 12px 24px; border-bottom: 1px solid var(--border); }
+    .nav a {
+      padding: 6px 14px; border-radius: 6px; text-decoration: none;
+      color: var(--muted); font-size: 13px; transition: all 0.2s;
+    }
+    .nav a:hover { color: var(--text); background: var(--surface); }
+    .nav a.active { color: var(--accent); background: rgba(6,182,212,0.1); }
+
+    .main { display: grid; grid-template-columns: 1fr 300px; min-height: calc(100vh - 110px); }
+
+    /* Mesh canvas area */
+    .mesh-area { position: relative; overflow: hidden; }
+    canvas#mesh { width: 100%; height: 100%; display: block; }
+    .mesh-legend {
+      position: absolute; bottom: 16px; left: 16px;
+      background: rgba(17,24,39,0.9); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px; font-size: 12px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Sidebar */
+    .sidebar {
+      border-left: 1px solid var(--border); padding: 16px;
+      overflow-y: auto; background: var(--surface);
+    }
+    .sidebar h2 { font-size: 14px; color: var(--accent); margin-bottom: 12px; }
+    .sidebar h3 { font-size: 12px; color: var(--muted); margin: 16px 0 8px; text-transform: uppercase; }
+
+    .node-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px; margin-bottom: 8px;
+      transition: border-color 0.2s;
+    }
+    .node-card:hover { border-color: var(--accent); }
+    .node-card .name { font-weight: 600; font-size: 14px; }
+    .node-card .status { font-size: 12px; margin-top: 4px; }
+    .node-card .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+    .dot-online { background: var(--green); }
+    .dot-offline { background: var(--red); }
+    .dot-unknown { background: var(--muted); }
+    .node-card .meta { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-box {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px; text-align: center;
+    }
+    .stat-box .value { font-size: 20px; font-weight: 700; color: var(--accent); }
+    .stat-box .label { font-size: 11px; color: var(--muted); }
+
+    .actions { display: flex; gap: 8px; margin-top: 16px; }
+    .btn {
+      flex: 1; padding: 8px; border: 1px solid var(--border);
+      border-radius: 6px; background: var(--bg); color: var(--text);
+      cursor: pointer; font-size: 12px; font-family: inherit;
+      transition: all 0.2s;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-primary { background: rgba(6,182,212,0.15); border-color: var(--accent); color: var(--accent); }
+
+    .log-area {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px; margin-top: 12px;
+      max-height: 200px; overflow-y: auto; font-size: 11px;
+    }
+    .log-entry { padding: 2px 0; color: var(--muted); }
+    .log-entry .ts { color: var(--yellow); }
+    .log-entry .from { color: var(--green); }
+    .log-entry .to { color: var(--purple); }
+
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .pulsing { animation: pulse 2s infinite; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🕸️ Federation Lens</h1>
+    <div class="clock" id="clock">loading...</div>
+  </div>
+  <div class="nav">
+    <a href="/">Home</a>
+    <a href="/agents">Agents</a>
+    <a href="/fleet">Fleet</a>
+    <a href="/federation" class="active">Federation</a>
+    <a href="/vault">Vault</a>
+    <a href="/config">Config</a>
+  </div>
+  <div class="main">
+    <div class="mesh-area">
+      <canvas id="mesh"></canvas>
+      <div class="mesh-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Online</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Offline</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Local</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div> Clock Warning</div>
+      </div>
+    </div>
+    <div class="sidebar">
+      <h2>Mesh Overview</h2>
+      <div class="stat-grid" id="stats"></div>
+
+      <h3>Nodes</h3>
+      <div id="nodes"></div>
+
+      <h3>Actions</h3>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="refresh()">↻ Refresh</button>
+        <button class="btn" onclick="pingAll()">⚡ Ping All</button>
+        <button class="btn" onclick="soulSync()">🔄 Soul Sync</button>
+      </div>
+
+      <h3>Message Log</h3>
+      <div class="log-area" id="log">
+        <div class="log-entry">Waiting for messages...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = window.location.origin;
+    let meshData = null;
+    let animFrame = null;
+
+    // ─── Canvas mesh visualization ───────────────────────────────
+    const canvas = document.getElementById('mesh');
+    const ctx = canvas.getContext('2d');
+    let nodePositions = [];
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width * devicePixelRatio;
+      canvas.height = rect.height * devicePixelRatio;
+      canvas.style.width = rect.width + 'px';
+      canvas.style.height = rect.height + 'px';
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+    }
+
+    function layoutNodes(nodes) {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const cx = rect.width / 2, cy = rect.height / 2;
+      const radius = Math.min(cx, cy) * 0.6;
+      const total = nodes.length + 1; // +1 for local
+      nodePositions = [];
+
+      // Local node at center
+      nodePositions.push({
+        x: cx, y: cy, name: 'local', status: 'online',
+        agents: [], isLocal: true, node: meshData?.nodeName || 'local'
+      });
+
+      // Peers around the circle
+      nodes.forEach((n, i) => {
+        const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
+        nodePositions.push({
+          x: cx + radius * Math.cos(angle),
+          y: cy + radius * Math.sin(angle),
+          name: n.name, status: n.status, agents: n.agents || [],
+          isLocal: false, node: n.node || n.name,
+          latency: n.latency, clockWarning: n.clockWarning
+        });
+      });
+    }
+
+    function drawMesh() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      if (!nodePositions.length) {
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '14px SF Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Loading mesh...', rect.width / 2, rect.height / 2);
+        return;
+      }
+
+      const local = nodePositions[0];
+      const peers = nodePositions.slice(1);
+
+      // Draw connections from local to each peer
+      for (const peer of peers) {
+        ctx.beginPath();
+        ctx.moveTo(local.x, local.y);
+        ctx.lineTo(peer.x, peer.y);
+        if (peer.status === 'online') {
+          ctx.strokeStyle = 'rgba(6,182,212,0.3)';
+          ctx.lineWidth = 2;
+          // Animated particles
+          const t = (Date.now() % 3000) / 3000;
+          const px = local.x + (peer.x - local.x) * t;
+          const py = local.y + (peer.y - local.y) * t;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(px, py, 3, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(6,182,212,0.8)';
+          ctx.fill();
+        } else {
+          ctx.strokeStyle = 'rgba(239,68,68,0.15)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+
+      // Draw peer-to-peer connections
+      for (let i = 0; i < peers.length; i++) {
+        for (let j = i + 1; j < peers.length; j++) {
+          if (peers[i].status === 'online' && peers[j].status === 'online') {
+            ctx.beginPath();
+            ctx.moveTo(peers[i].x, peers[i].y);
+            ctx.lineTo(peers[j].x, peers[j].y);
+            ctx.strokeStyle = 'rgba(168,85,247,0.1)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Draw local node
+      drawNode(local, true);
+
+      // Draw peer nodes
+      for (const peer of peers) {
+        drawNode(peer, false);
+      }
+
+      animFrame = requestAnimationFrame(drawMesh);
+    }
+
+    function drawNode(node, isLocal) {
+      const r = isLocal ? 28 : 22;
+
+      // Glow
+      if (node.status === 'online') {
+        const glow = ctx.createRadialGradient(node.x, node.y, r * 0.5, node.x, node.y, r * 2);
+        glow.addColorStop(0, isLocal ? 'rgba(6,182,212,0.2)' : 'rgba(34,197,94,0.15)');
+        glow.addColorStop(1, 'transparent');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, r * 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Circle
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+      if (isLocal) {
+        ctx.fillStyle = 'rgba(6,182,212,0.2)';
+        ctx.strokeStyle = '#06b6d4';
+        ctx.lineWidth = 2;
+      } else if (node.status === 'online') {
+        ctx.fillStyle = 'rgba(34,197,94,0.15)';
+        ctx.strokeStyle = node.clockWarning ? '#eab308' : '#22c55e';
+        ctx.lineWidth = 2;
+      } else {
+        ctx.fillStyle = 'rgba(239,68,68,0.1)';
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1;
+      }
+      ctx.fill();
+      ctx.stroke();
+
+      // Label
+      ctx.fillStyle = '#e5e7eb';
+      ctx.font = 'bold 11px SF Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(node.name, node.x, node.y - r - 8);
+
+      // Agent count
+      if (node.agents?.length > 0) {
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '10px SF Mono, monospace';
+        ctx.fillText(`${node.agents.length} agents`, node.x, node.y + r + 14);
+      }
+
+      // Latency
+      if (node.latency && !isLocal) {
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = '9px SF Mono, monospace';
+        ctx.fillText(`${node.latency}ms`, node.x, node.y + 4);
+      }
+    }
+
+    // ─── Data fetching ──────────────────────────────────────────
+    async function fetchMesh() {
+      try {
+        const res = await fetch(`${API}/api/federation/status`);
+        meshData = await res.json();
+        renderStats();
+        renderNodes();
+        layoutNodes(meshData.nodes || []);
+      } catch (e) {
+        console.error('Failed to fetch mesh:', e);
+      }
+    }
+
+    async function fetchLog() {
+      try {
+        const res = await fetch(`${API}/api/feed?limit=20`);
+        const data = await res.json();
+        const logEl = document.getElementById('log');
+        const events = data.events || data || [];
+        if (!events.length) {
+          logEl.innerHTML = '<div class="log-entry">No messages yet</div>';
+          return;
+        }
+        logEl.innerHTML = events.slice(-15).map(e => {
+          const ts = (e.timestamp || e.ts || '').slice(11, 19) || '??';
+          const from = e.source || e.from || 'system';
+          const msg = (e.message || e.msg || e.text || '').slice(0, 60);
+          return `<div class="log-entry"><span class="ts">${ts}</span> <span class="from">${from}</span> ${msg}</div>`;
+        }).join('');
+      } catch {}
+    }
+
+    function renderStats() {
+      if (!meshData) return;
+      const el = document.getElementById('stats');
+      el.innerHTML = `
+        <div class="stat-box"><div class="value">${meshData.totalNodes || 0}</div><div class="label">Nodes</div></div>
+        <div class="stat-box"><div class="value" style="color:var(--green)">${meshData.onlineNodes || 0}</div><div class="label">Online</div></div>
+        <div class="stat-box"><div class="value">${(meshData.nodes || []).reduce((n, p) => n + (p.agents?.length || 0), 0)}</div><div class="label">Remote Agents</div></div>
+        <div class="stat-box"><div class="value" style="font-size:14px">${meshData.clockHealth?.timezone || '??'}</div><div class="label">Timezone</div></div>
+      `;
+    }
+
+    function renderNodes() {
+      if (!meshData) return;
+      const el = document.getElementById('nodes');
+      const nodes = meshData.nodes || [];
+      if (!nodes.length) {
+        el.innerHTML = '<div class="node-card"><div class="name" style="color:var(--muted)">No peers configured</div><div class="meta">Add namedPeers to config</div></div>';
+        return;
+      }
+      el.innerHTML = nodes.map(n => {
+        const dotClass = n.status === 'online' ? 'dot-online' : n.status === 'offline' ? 'dot-offline' : 'dot-unknown';
+        const agents = (n.agents || []).join(', ') || 'none';
+        return `
+          <div class="node-card">
+            <div class="name">${n.node || n.name}</div>
+            <div class="status"><span class="dot ${dotClass}"></span>${n.status || 'unknown'}${n.latency ? ` · ${n.latency}ms` : ''}${n.clockWarning ? ' ⚠️ clock drift' : ''}</div>
+            <div class="meta">${n.url}</div>
+            <div class="meta">Agents: ${agents}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ─── Actions ────────────────────────────────────────────────
+    async function refresh() {
+      await Promise.all([fetchMesh(), fetchLog()]);
+    }
+
+    async function pingAll() {
+      await fetchMesh();
+      // Re-render after ping (mesh data updates via status endpoint)
+      layoutNodes(meshData?.nodes || []);
+    }
+
+    async function soulSync() {
+      try {
+        const res = await fetch(`${API}/api/soul-sync`, { method: 'POST' });
+        const data = await res.json();
+        alert(`Soul Sync: ${data.synced?.length || 0} synced, ${data.failed?.length || 0} failed`);
+      } catch {
+        alert('Soul sync endpoint not available');
+      }
+    }
+
+    // ─── Clock ──────────────────────────────────────────────────
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock').textContent =
+        now.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    }
+
+    // ─── Init ───────────────────────────────────────────────────
+    window.addEventListener('resize', () => { resizeCanvas(); layoutNodes(meshData?.nodes || []); });
+    resizeCanvas();
+    updateClock();
+    setInterval(updateClock, 1000);
+    fetchMesh();
+    fetchLog();
+    setInterval(fetchMesh, 30000);
+    setInterval(fetchLog, 10000);
+    drawMesh();
+  </script>
+</body>
+</html>

@@ -4,7 +4,7 @@ AI agents that remember, communicate, and collaborate — built on the Oracle ec
 
 **Repo**: https://github.com/dmz2001TH/oracle-multi-agent
 **Dashboard**: http://localhost:3456
-**Version**: 5.0.0 | **Commands**: 44 | **Plugins**: 11 | **API Endpoints**: 40+ | **Dashboard Pages**: 8 | **_ref repos**: 25
+**Version**: 5.0.0 | **Commands**: 44 | **Plugins**: 11 | **API Endpoints**: 50+ | **Dashboard Pages**: 9 | **MCP Tools**: 12 | **_ref repos**: 25
 
 ## Quick Start
 
@@ -22,7 +22,7 @@ GEMINI_API_KEY=<key> npx tsx src/index.ts
 
 เปิด http://localhost:3456
 
-## Dashboard (8 หน้า — ภาษาไทย)
+## Dashboard (9 หน้า — ภาษาไทย)
 
 | Route | ทำอะไร |
 |-------|--------|
@@ -32,6 +32,7 @@ GEMINI_API_KEY=<key> npx tsx src/index.ts
 | `/inbox` | อินบ็อกซ์ — messages/handoffs/FYI/resonance แบบ filter |
 | `/agents` | เอเจนต์ — card grid, spawn, restart/sleep/stop, คุยทีละตัว |
 | `/fleet` | ฟลีต — ภาพรวมทั้งหมด, agent grid, health check |
+| `/federation` | Federation Lens — mesh visualization, node health, soul sync |
 | `/workspace` | เวิร์คสเปซ — workspace configs, skills, broadcast |
 | `/config` | ตั้งค่า — system info, plugins, commands, fleet config |
 | `/vault` | ห้องนิรภัย — ψ/ stats, search, skills, 5 หลักการ |
@@ -146,7 +147,7 @@ export default definePlugin({
 });
 ```
 
-## API Endpoints (40+)
+## API Endpoints (50+)
 
 ### Core
 - `GET /health` — Health check
@@ -171,6 +172,26 @@ export default definePlugin({
 - `GET /api/oracle-v2/search` — Search KB
 - `POST /api/oracle-v2/learn` — Add knowledge
 - (+ 10 more endpoints)
+
+### Federation Mesh (NEW)
+- `GET /api/federation/status` — Federation peer status
+- `GET /api/federation/mesh` — Full mesh topology
+- `POST /api/federation/broadcast` — Broadcast to all peers
+- `POST /api/soul-sync` — Sync memory between peers
+- `POST /api/peer/exec` — Remote command execution (HMAC-SHA256 signed)
+- `GET /api/peer/exec` — Session diagnostics
+
+### MCP Bridge (NEW)
+- `POST /api/mcp` — JSON-RPC 2.0 MCP endpoint
+- `GET /api/mcp/tools` — List 12 MCP tools
+- `GET /api/mcp/status` — MCP bridge status
+
+### Autonomous Orchestrator (NEW)
+- `POST /api/orchestrator/goal` — Create goal + auto-decompose
+- `POST /api/orchestrator/tick` — Run one orchestration cycle
+- `GET /api/orchestrator/status` — Orchestrator stats
+- `GET /api/orchestrator/goals` — List all goals
+- `GET /api/orchestrator/advice` — Get AI advice for task
 
 ### Legacy
 - `/api/tasks`, `/api/inbox`, `/api/workflows`, `/api/loops`, `/api/projects`, `/api/cron`, `/api/federation`, `/api/logs`, `/api/costs`, etc.

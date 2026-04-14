@@ -24,6 +24,7 @@ const orchestrator = new AutonomousOrchestrator({
   autoDecompose: true,
   autoAssign: true,
   learnFromOutcomes: true,
+  hubUrl: `http://localhost:${process.env.HUB_PORT || 3456}`,
   llmConfig: mimoKey ? {
     provider: provider as "mimo" | "gemini",
     apiKey: mimoKey,

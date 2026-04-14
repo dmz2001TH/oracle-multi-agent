@@ -44,8 +44,8 @@ import { sendMessage, readInbox } from "../mailbox/index.js";
 import { archiveSession } from "../archive/index.js";
 import { logCost } from "../cost-model/index.js";
 import {
-  callLLM, parseTaskResult, buildTaskPrompt, fallbackResponse,
-  type LLMConfig, type LLMResponse,
+  callLLM, callLLMWithTools, parseTaskResult, buildTaskPrompt, fallbackResponse,
+  type LLMConfig, type LLMResponse, type ToolExecutor,
 } from "./llm-client.js";
 
 // ═══════════════════════════════════════════════════════════════
@@ -60,6 +60,7 @@ export interface OrchestratorConfig {
   autoAssign: boolean;
   learnFromOutcomes: boolean;
   llmConfig?: LLMConfig;
+  hubUrl?: string; // base URL of the hub server (e.g. http://localhost:3456)
 }
 
 export interface OrchestratorState {
@@ -361,12 +362,15 @@ export class AutonomousOrchestrator extends EventEmitter {
     });
   }
 
-  // ─── 3. executeTask — full pipeline ──────────────────────
+  // ─── 3. executeTask — full pipeline with tool chaining ───
 
   /**
    * executeTask pipeline:
-   *   getSafeAdvice() → runOneCycle() → callLLM() → parseTaskResult()
+   *   getSafeAdvice() → runOneCycle() → callLLMWithTools() (or callLLM) → parseTaskResult()
    *   → fallbackResponse() on error → recordExperience()
+   *
+   * When MiMo provider + API key available: uses tool chaining (multi-turn)
+   * Otherwise: falls back to single-shot or planning cycle simulation
    */
   async executeTask(
     agentName: string,
@@ -386,7 +390,7 @@ export class AutonomousOrchestrator extends EventEmitter {
       );
       cycleId = cycle.id;
 
-      // Step 3: Real LLM execution
+      // Step 3: Real LLM execution with tool chaining
       if (this.config.llmConfig?.apiKey) {
         const { system, user } = buildTaskPrompt(
           taskDescription,
@@ -394,25 +398,63 @@ export class AutonomousOrchestrator extends EventEmitter {
           null
         );
 
-        console.log(`🤖 [${agentName}] LLM exec: "${taskDescription.slice(0, 60)}..."`);
-        const llmResponse = await callLLM(this.config.llmConfig, system, user);
-        const parsed = parseTaskResult(llmResponse.text);
+        // Hub-based tool executor — routes tool calls to hub API
+        const hubUrl = this.config.hubUrl || "http://localhost:3456";
 
+        const executeTool: ToolExecutor = async (name: string, args: Record<string, any>) => {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+
+            // Route tool calls to hub tools-api
+            const res = await fetch(`${hubUrl}/api/tools/${name}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(args),
+              signal: controller.signal,
+            });
+            clearTimeout(timeout);
+
+            if (!res.ok) {
+              const text = await res.text();
+              return { error: `Tool ${name} failed: ${res.status} ${text.slice(0, 200)}` };
+            }
+            return await res.json();
+          } catch (err: any) {
+            return { error: `Tool ${name} error: ${err.message}` };
+          }
+        };
+
+        console.log(`🤖 [${agentName}] LLM+tools exec: "${taskDescription.slice(0, 60)}..."`);
+        const { text, toolCallsLog } = await callLLMWithTools(
+          this.config.llmConfig, system, user, executeTool
+        );
+
+        if (toolCallsLog.length > 0) {
+          console.log(`  🔧 ${toolCallsLog.length} tool call(s): ${toolCallsLog.map(t => t.name).join(", ")}`);
+        }
+
+        const parsed = parseTaskResult(text);
         console.log(`  ${parsed.success ? "✅" : "❌"} ${parsed.reasoning}`);
 
         updateTaskStatus(taskId, parsed.success ? "completed" : "failed", parsed.result);
 
         const experience = this.recordOutcome(
-          agentName, taskDescription, "llm execution",
+          agentName, taskDescription, `llm+tools (${toolCallsLog.length} calls)`,
           parsed.success, parsed.result, parsed.reasoning
         );
 
         completeCycle(cycleId, parsed.result, parsed.success);
-        return { success: parsed.success, result: parsed.result, experience, llmUsed: true };
+        return {
+          success: parsed.success,
+          result: parsed.result,
+          experience,
+          llmUsed: true,
+        };
       }
 
       // Step 4: No LLM config — planning cycle simulation
-      const success = true; // runOneCycle always returns shouldContinue=true for simple tasks
+      const success = true;
       const result = `Task "${taskDescription}" completed via planning cycle`;
 
       updateTaskStatus(taskId, success ? "completed" : "failed", result);

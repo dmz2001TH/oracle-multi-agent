@@ -81,6 +81,113 @@ const TOOL_REGISTRY = [
   },
 ];
 
+// ═══════════════════════════════════════════════════════════
+// Unified Tool Dispatch (for orchestrator tool chaining)
+// POST /api/tools/:name — dispatch tool call by name
+// ═══════════════════════════════════════════════════════════
+
+toolsApi.post("/api/tools/:name", async (c) => {
+  const toolName = c.req.param("name");
+  let args: any = {};
+  try { args = await c.req.json(); } catch {}
+
+  switch (toolName) {
+    case "read_file":
+    case "read-file": {
+      const path = args.path;
+      if (!path) return c.json({ error: "path is required" }, 400);
+      const resolved = path.startsWith("/") ? path : join(WORKSPACE, path);
+      if (BLOCKED_FILES.some(b => resolved.includes(b))) return c.json({ error: "Access restricted" }, 403);
+      if (!existsSync(resolved)) return c.json({ error: `File not found: ${path}` }, 404);
+      const content = readFileSync(resolved, "utf-8");
+      const lines = content.split("\n");
+      const maxLines = args.max_lines || args.maxLines || 200;
+      return c.json({ path, lines: lines.slice(0, maxLines), totalLines: lines.length, truncated: lines.length > maxLines });
+    }
+
+    case "write_file":
+    case "write-file": {
+      const path = args.path;
+      const content = args.content;
+      if (!path || content === undefined) return c.json({ error: "path and content are required" }, 400);
+      const resolved = path.startsWith("/") ? path : join(WORKSPACE, path);
+      if (BLOCKED_FILES.some(b => resolved.includes(b))) return c.json({ error: "Cannot overwrite this file" }, 403);
+      if (content.length > MAX_FILE_SIZE) return c.json({ error: "Content too large" }, 400);
+      mkdirSync(dirname(resolved), { recursive: true });
+      writeFileSync(resolved, content, "utf-8");
+      return c.json({ ok: true, path, bytesWritten: content.length });
+    }
+
+    case "call_api": {
+      try {
+        const url = args.url;
+        if (!url) return c.json({ error: "url is required" }, 400);
+        const method = args.method || "GET";
+        const headers = { "Content-Type": "application/json", ...(args.headers || {}) };
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        const fetchOpts: any = { method, headers, signal: controller.signal };
+        if (["POST", "PUT", "PATCH"].includes(method) && args.body) fetchOpts.body = args.body;
+        const res = await fetch(url, fetchOpts);
+        clearTimeout(timeout);
+        const text = await res.text();
+        let body: any;
+        try { body = JSON.parse(text); } catch { body = text; }
+        return c.json({ status: res.status, ok: res.ok, body });
+      } catch (err: any) {
+        return c.json({ error: `API call failed: ${err.message}` }, 500);
+      }
+    }
+
+    case "query_data": {
+      const source = args.source;
+      if (!source) return c.json({ error: "source is required" }, 400);
+      const filter = args.filter || "";
+      const limit = args.limit || 20;
+      const filterParts = filter
+        ? Object.fromEntries(filter.split(",").map((f: string) => { const [k, v] = f.split("="); return [k?.trim(), v?.trim()]; }).filter(([k, v]: any) => k && v))
+        : {};
+      let results: any[] = [];
+      switch (source) {
+        case "goals": {
+          const f = join(homedir(), ".oracle", "goals", "goals.jsonl");
+          if (existsSync(f)) { results = readFileSync(f, "utf-8").split("\n").filter(Boolean).map((l: string) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); if (filterParts.status) results = results.filter((g: any) => g.status === filterParts.status); }
+          break;
+        }
+        case "tasks": {
+          const f = join(homedir(), ".oracle", "goals", "tasks.jsonl");
+          if (existsSync(f)) { results = readFileSync(f, "utf-8").split("\n").filter(Boolean).map((l: string) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); if (filterParts.status) results = results.filter((t: any) => t.status === filterParts.status); }
+          break;
+        }
+        case "experiences": {
+          const f = join(homedir(), ".oracle", "experience", "experiences.jsonl");
+          if (existsSync(f)) { results = readFileSync(f, "utf-8").split("\n").filter(Boolean).map((l: string) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); }
+          break;
+        }
+        default: return c.json({ error: `Unknown source: ${source}` }, 400);
+      }
+      return c.json({ source, results: results.slice(0, limit), count: results.length });
+    }
+
+    case "remember": {
+      // Store to a local memories file
+      try {
+        const memFile = join(homedir(), ".oracle", "memories.jsonl");
+        mkdirSync(dirname(memFile), { recursive: true });
+        const entry = JSON.stringify({ content: args.content, category: args.category || "general", importance: args.importance || 1, timestamp: new Date().toISOString() });
+        const { appendFileSync } = await import("fs");
+        appendFileSync(memFile, entry + "\n");
+        return c.json({ ok: true, message: `Remembered: "${String(args.content).slice(0, 50)}..."` });
+      } catch (err: any) {
+        return c.json({ error: `Remember failed: ${err.message}` }, 500);
+      }
+    }
+
+    default:
+      return c.json({ error: `Unknown tool: ${toolName}. Available: read_file, write_file, call_api, query_data, remember` }, 404);
+  }
+});
+
 // GET /api/tools — list all tools
 toolsApi.get("/api/tools", (c) => {
   return c.json({

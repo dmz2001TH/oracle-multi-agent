@@ -369,7 +369,7 @@ async function sendChat() {
   }
 
   // No agent selected and not a command — tell user what to do
-  addMessage('oracle', '💡 เลือกเอเจนต์จากแถบซ้ายเพื่อแชท หรือพิมพ์ /command (เช่น /help, /ls) เพื่อใช้คำสั่ง');
+  addMessage('oracle', 'ยังไม่ได้เลือก agent — กดเลือกจากแถบซ้าย หรือพิมพ์ /wake <ชื่อ> <role>');
 }
 
 function addMessage(role, text, isCmd) {
@@ -455,7 +455,7 @@ loadStats();
 setInterval(loadAgents, 10000);
 setInterval(loadStats, 30000);
 
-addMessage('oracle', '🔮 Oracle Multi-Agent v5.0 พร้อมใช้งาน!\n\n📋 พิมพ์ /help เพื่อดูคำสั่งทั้งหมด\n⚡ สร้างเอเจนต์จากแถบซ้าย หรือพิมพ์ /wake\n💬 พิมพ์ข้อความเพื่อคุยกับเอเจนต์\n\nคำสั่งยอดนิยม:\n/awaken — ตั้งค่าตัวตน\n/fyi บันทึก — จำข้อมูล\n/recap — สรุป session\n/skills — ดูสกิลทั้งหมด', true);
+addMessage('oracle', 'สวัสดีครับ 👋 สร้าง agent จากแถบซ้าย แล้วเริ่มคุยได้เลย\n\nหรือพิมพ์ /wake <ชื่อ> <role> เพื่อปลุก agent\nพิมพ์ /help ดูคำสั่งทั้งหมด', true);
 </script>
 </body>
 </html>

@@ -2019,7 +2019,7 @@ export function hey(args: string, ctx: CommandContext): CommandResult {
 
     return {
       status: "ok",
-      message: `💬 ส่งข้อความไป ${agentName}: "${message}"\n⏳ กำลังรอคำตอบ...`,
+      message: `💬 ส่งให้ ${agentName} แล้ว`,
       data: { to: agentName, message },
     };
   } catch (e: any) {
@@ -2061,7 +2061,7 @@ export function wake(args: string, ctx: CommandContext): CommandResult {
 
   return {
     status: "ok",
-    message: `⚡ กำลังปลุก **${name}** (role: ${role})...\n⏳ รอสักครู่...`,
+    message: `⚡ ${name} ตื่นแล้ว (${role})`,
     data: { name, role },
   };
 }
@@ -2070,7 +2070,7 @@ export function wake(args: string, ctx: CommandContext): CommandResult {
 
 export function sleepCmd(args: string, ctx: CommandContext): CommandResult {
   if (!args || args.trim().length === 0) {
-    return { status: "ok", message: "💤 ใช้: /sleep <agent-name>" };
+    return { status: "ok", message: "💤 พิมพ์ /sleep <ชื่อ agent>" };
   }
 
   const agentName = args.trim();
@@ -2081,7 +2081,7 @@ export function sleepCmd(args: string, ctx: CommandContext): CommandResult {
       return { status: "ok", message: `❌ ไม่พบ agent: ${agentName}` };
     }
     _agentManager.stopAgent(agent.id);
-    return { status: "ok", message: `💤 ${agentName} กำลังพัก...` };
+    return { status: "ok", message: `💤 ${agentName} หลับแล้ว` };
   } catch (e: any) {
     return { status: "error", message: `❌ sleep error: ${e.message}` };
   }
@@ -2102,7 +2102,7 @@ export function stopCmd(args: string, ctx: CommandContext): CommandResult {
       return { status: "ok", message: `❌ ไม่พบ agent: ${agentName}` };
     }
     _agentManager.stopAgent(agent.id);
-    return { status: "ok", message: `🛑 ${agentName} ถูกบังคับหยุด` };
+    return { status: "ok", message: `🛑 ${agentName} หยุดแล้ว` };
   } catch (e: any) {
     return { status: "error", message: `❌ stop error: ${e.message}` };
   }
@@ -2154,7 +2154,7 @@ export function broadcastCmd(args: string, ctx: CommandContext): CommandResult {
 
     return {
       status: "ok",
-      message: `📢 Broadcast ไปยัง ${running.length} agents: "${args}"`,
+      message: `📢 ส่งไป ${running.length} agents แล้ว`,
       data: { recipients: running.length, message: args },
     };
   } catch (e: any) {
@@ -2185,7 +2185,7 @@ export function bud(args: string, ctx: CommandContext): CommandResult {
 
   return {
     status: "ok",
-    message: `🌱 กำลังสร้าง **${name}** (role: ${role}${parentRole ? `, from: ${parentRole}` : ", root"})...\n⏳ รอสักครู่...`,
+    message: `🌱 ${name} เกิดแล้ว (${role})`,
     data: { name, role, parent: parentRole },
   };
 }

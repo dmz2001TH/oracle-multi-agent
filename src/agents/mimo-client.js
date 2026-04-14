@@ -104,6 +104,70 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  // ── NEW TOOLS (Priority 2) ──
+  {
+    type: 'function',
+    function: {
+      name: 'read_file',
+      description: 'Read the contents of a file from disk',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File path to read (relative to workspace or absolute)' },
+          max_lines: { type: 'integer', description: 'Max lines to return (default 200)', default: 200 },
+        },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'write_file',
+      description: 'Write content to a file on disk. Creates parent directories if needed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File path to write' },
+          content: { type: 'string', description: 'Content to write to the file' },
+        },
+        required: ['path', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'call_api',
+      description: 'Make an HTTP request to an external API or internal endpoint. Returns the response body.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'URL to call (full URL or relative path starting with /)' },
+          method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], default: 'GET' },
+          headers: { type: 'object', description: 'Request headers as key-value pairs', default: {} },
+          body: { type: 'string', description: 'Request body (JSON string for POST/PUT/PATCH)', default: '' },
+        },
+        required: ['url'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_data',
+      description: 'Query stored data (goals, tasks, experiences, memories) using filters. Use for finding historical data.',
+      parameters: {
+        type: 'object',
+        properties: {
+          source: { type: 'string', enum: ['goals', 'tasks', 'experiences', 'memories', 'agents'], description: 'Data source to query' },
+          filter: { type: 'string', description: 'Filter condition (e.g. status=completed, role=coder)', default: '' },
+          limit: { type: 'integer', description: 'Max results to return', default: 20 },
+        },
+        required: ['source'],
+      },
+    },
+  },
 ];
 
 export class MiMoAgent extends EventEmitter {
@@ -241,6 +305,66 @@ export class MiMoAgent extends EventEmitter {
           return { success: true, agent: { name: res.name, role: res.role, id: res.id }, first_task: args.task || null };
         } catch (err) {
           return { error: `Failed to spawn agent: ${err.message}` };
+        }
+      }
+
+      // ── NEW TOOLS (Priority 2) ──
+
+      case 'read_file': {
+        try {
+          const res = await this._hubPost('/api/tools/read-file', {
+            path: args.path,
+            maxLines: args.max_lines || 200,
+          });
+          return res;
+        } catch (err) {
+          return { error: `Failed to read file: ${err.message}` };
+        }
+      }
+
+      case 'write_file': {
+        try {
+          const res = await this._hubPost('/api/tools/write-file', {
+            path: args.path,
+            content: args.content,
+          });
+          return res;
+        } catch (err) {
+          return { error: `Failed to write file: ${err.message}` };
+        }
+      }
+
+      case 'call_api': {
+        try {
+          const url = args.url.startsWith('/') ? `${this.hubUrl}${args.url}` : args.url;
+          const method = args.method || 'GET';
+          const headers = { 'Content-Type': 'application/json', ...(args.headers || {}) };
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 15000);
+          const fetchOpts = { method, headers, signal: controller.signal };
+          if (['POST', 'PUT', 'PATCH'].includes(method) && args.body) {
+            fetchOpts.body = args.body;
+          }
+          const res = await fetch(url, fetchOpts);
+          clearTimeout(timeout);
+          const text = await res.text();
+          let body;
+          try { body = JSON.parse(text); } catch { body = text; }
+          return { status: res.status, ok: res.ok, body };
+        } catch (err) {
+          return { error: `API call failed: ${err.message}` };
+        }
+      }
+
+      case 'query_data': {
+        try {
+          const params = new URLSearchParams();
+          if (args.filter) params.set('filter', args.filter);
+          if (args.limit) params.set('limit', String(args.limit));
+          const res = await this._hubGet(`/api/tools/query/${args.source}?${params.toString()}`);
+          return res;
+        } catch (err) {
+          return { error: `Query failed: ${err.message}` };
         }
       }
 

@@ -11,7 +11,12 @@ import { manager, store } from "./agent-bridge.js";
 
 export const orchestratorApi = new Hono();
 
-// Initialize orchestrator singleton
+// Initialize orchestrator singleton with LLM config from env
+const mimoKey = process.env.MIMO_API_KEY || "";
+const mimoBase = process.env.MIMO_API_BASE || "https://api.xiaomimimo.com/v1";
+const provider = process.env.LLM_PROVIDER || "mimo";
+const agentModel = process.env.AGENT_MODEL || "mimo-v2-pro";
+
 const orchestrator = new AutonomousOrchestrator({
   teamName: "default",
   availableAgents: [],
@@ -19,7 +24,98 @@ const orchestrator = new AutonomousOrchestrator({
   autoDecompose: true,
   autoAssign: true,
   learnFromOutcomes: true,
+  llmConfig: mimoKey ? {
+    provider: provider as "mimo" | "gemini",
+    apiKey: mimoKey,
+    apiBase: mimoBase,
+    model: agentModel,
+    timeoutMs: 30000,
+  } : undefined,
 });
+
+// ─── Priority 3: Auto-tick via setInterval ───────────────────
+const TICK_INTERVAL_MS = parseInt(process.env.ORCHESTRATOR_TICK_MS || "15000"); // default 15s
+let tickRunning = false;
+let tickTimer: ReturnType<typeof setInterval> | null = null;
+let tickStats = { totalTicks: 0, totalGoals: 0, totalTasks: 0, totalFailures: 0, lastTick: "" };
+
+function startAutoTick() {
+  if (tickTimer) return;
+  console.log(`⏱️ Orchestrator auto-tick every ${TICK_INTERVAL_MS}ms`);
+  tickTimer = setInterval(async () => {
+    if (tickRunning) return; // skip if previous tick still running
+    tickRunning = true;
+    try {
+      syncAvailableAgents();
+      const result = await orchestrator.tick();
+      tickStats.totalTicks++;
+      tickStats.totalGoals += result.goalsProcessed;
+      tickStats.totalTasks += result.tasksCompleted + result.tasksFailed;
+      tickStats.totalFailures += result.tasksFailed;
+      tickStats.lastTick = new Date().toISOString();
+
+      if (result.goalsProcessed > 0) {
+        console.log(`⏱️ Tick #${tickStats.totalTicks}: goals=${result.goalsProcessed} tasks+${result.tasksCompleted} fail=${result.tasksFailed} recoveries=${result.recoveries}`);
+      }
+    } catch (err: any) {
+      console.warn(`⚠️ Tick error: ${err.message}`);
+    } finally {
+      tickRunning = false;
+    }
+  }, TICK_INTERVAL_MS);
+}
+
+function stopAutoTick() {
+  if (tickTimer) {
+    clearInterval(tickTimer);
+    tickTimer = null;
+    console.log("⏱️ Auto-tick stopped");
+  }
+}
+
+// ─── Priority 4: Agent Store Cleanup (TTL) ────────────────────
+const AGENT_TTL_MS = parseInt(process.env.AGENT_TTL_MS || String(30 * 60 * 1000)); // default 30min
+let cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+function cleanupIdleAgents() {
+  try {
+    const running = manager.getRunningAgents();
+    const registered = (store.listAgents() as any[]);
+    const now = Date.now();
+    let killed = 0;
+
+    for (const agent of registered) {
+      // Only cleanup auto-spawned agents
+      if (!(agent as any).name?.startsWith("auto-")) continue;
+
+      const runningAgent = running.find((r: any) => r.id === (agent as any).id);
+      if (!runningAgent) continue; // not running, skip
+
+      const lastActive = ((agent as any).last_active || (agent as any).created_at || 0) * 1000;
+      const idleMs = now - lastActive;
+
+      if (idleMs > AGENT_TTL_MS) {
+        console.log(`🧹 TTL cleanup: ${(agent as any).name} (idle ${Math.round(idleMs / 60000)}min)`);
+        try {
+          manager.stopAgent((agent as any).id);
+          killed++;
+        } catch {}
+      }
+    }
+
+    if (killed > 0) {
+      console.log(`🧹 Cleaned up ${killed} idle agent(s)`);
+    }
+  } catch (err: any) {
+    console.warn(`⚠️ Cleanup error: ${err.message}`);
+  }
+}
+
+// Run cleanup every 5 minutes
+cleanupTimer = setInterval(cleanupIdleAgents, 5 * 60 * 1000);
+
+// Start auto-tick immediately (can be toggled via API)
+startAutoTick();
 
 // ─── Auto-Spawn: Listen for spawn requests from orchestrator ───
 orchestrator.on("spawn_request", async ({ role, reason, task }) => {
@@ -149,4 +245,25 @@ orchestratorApi.post("/api/orchestrator/learn", () => {
 
 orchestratorApi.get("/api/orchestrator/healing/stats", (c) => {
   return c.json({ ok: true, stats: getHealingStats() });
+});
+
+// ─── Priority 3: Auto-Tick Control ───
+
+orchestratorApi.get("/api/orchestrator/tick/stats", (c) => {
+  return c.json({
+    ok: true,
+    autoTickEnabled: tickTimer !== null,
+    intervalMs: TICK_INTERVAL_MS,
+    stats: tickStats,
+  });
+});
+
+orchestratorApi.post("/api/orchestrator/tick/start", (c) => {
+  startAutoTick();
+  return c.json({ ok: true, message: "Auto-tick started", intervalMs: TICK_INTERVAL_MS });
+});
+
+orchestratorApi.post("/api/orchestrator/tick/stop", (c) => {
+  stopAutoTick();
+  return c.json({ ok: true, message: "Auto-tick stopped" });
 });

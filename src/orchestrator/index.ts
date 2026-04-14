@@ -47,6 +47,7 @@ import {
 import { sendMessage, readInbox } from "../mailbox/index.js";
 import { archiveSession } from "../archive/index.js";
 import { logCost } from "../cost-model/index.js";
+import { callLLM, parseTaskResult, buildTaskPrompt, type LLMConfig } from "./llm-client.js";
 
 export interface OrchestratorConfig {
   teamName: string;
@@ -55,6 +56,7 @@ export interface OrchestratorConfig {
   autoDecompose: boolean;
   autoAssign: boolean;
   learnFromOutcomes: boolean;
+  llmConfig?: LLMConfig;
 }
 
 export interface OrchestratorState {
@@ -216,7 +218,12 @@ export class AutonomousOrchestrator extends EventEmitter {
 
       // ── FIX #2: Parallel execution of ready tasks ──
       const ready = getReadyTasks(goal.id);
-      const pendingTasks = ready.filter(t => t.status === "pending");
+      // Also pick up tasks that were assigned but not yet executed (from pursueGoal auto-assign)
+      const allReady = getTasksForGoal(goal.id).filter(t =>
+        (t.status === "pending" || t.status === "assigned") &&
+        t.dependsOn.every(dep => completed.some(c => c.id === dep))
+      );
+      const pendingTasks = allReady;
 
       if (pendingTasks.length > 1) {
         // Execute all ready tasks in parallel
@@ -329,8 +336,12 @@ export class AutonomousOrchestrator extends EventEmitter {
   }
 
   /**
-   * Execute a single task with full planning cycle.
-   * FIX #5: MiMo API fallback — uses rule-based execution if LLM fails.
+   * Execute a single task with real LLM call.
+   * 1. Get advice from experience memory
+   * 2. Create planning cycle for tracking
+   * 3. Send task to LLM (MiMo/Gemini) for real execution
+   * 4. Parse LLM response → success/failure
+   * 5. Fallback to rule-based if LLM fails
    */
   async executeTask(
     agentName: string,
@@ -338,65 +349,101 @@ export class AutonomousOrchestrator extends EventEmitter {
     goalId: string,
     taskDescription: string
   ): Promise<{ success: boolean; result: string; experience?: Experience }> {
-    try {
-      // Get advice from past experience
-      const advice = getAdvice("general", taskDescription);
+    let cycleId: string | null = null;
+    let advice: ReturnType<typeof getAdvice> | null = null;
+    let nextAction: PlanAction | null = null;
 
-      // Create planning cycle
-      const { cycle, nextAction, shouldContinue } = runOneCycle(
+    try {
+      // 1. Get advice from past experience
+      advice = getAdvice("general", taskDescription);
+
+      // 2. Create planning cycle for tracking
+      const { cycle, nextAction: action } = runOneCycle(
         agentName,
         taskId,
         goalId,
         taskDescription,
         advice.recommendation
       );
+      cycleId = cycle.id;
+      nextAction = action;
 
-      // ── FIX #5: Rule-based fallback execution ──
-      // If this were a real LLM call and it failed, we'd catch it below.
-      // For now, the planning cycle determines success.
-      const success = shouldContinue;
-      const result = success
-        ? `Task "${taskDescription}" completed successfully`
-        : `Task "${taskDescription}" failed — ${advice.avoidList.length > 0 ? "avoid: " + advice.avoidList[0] : "no clear fix"}`;
-
-      // Update task status
-      updateTaskStatus(taskId, success ? "completed" : "failed", result);
-
-      // Record experience
-      if (this.config.learnFromOutcomes) {
-        const experience = recordExperience(
-          agentName,
-          "general",
+      // 3. Call real LLM if config available
+      if (this.config.llmConfig?.apiKey) {
+        const { system, user } = buildTaskPrompt(
           taskDescription,
-          nextAction?.payload || "direct execution",
-          success ? "success" : "failure",
-          result,
-          success ? "Completed with planning cycle" : "Failed despite planning — need better approach",
-          [agentName, success ? "success" : "failure"]
+          advice.recommendation || null,
+          null
         );
 
-        completeCycle(cycle.id, result, success);
+        console.log(`🤖 Executing via LLM: "${taskDescription.slice(0, 60)}..."`);
+        const llmResponse = await callLLM(this.config.llmConfig, system, user);
+        const parsed = parseTaskResult(llmResponse.text);
+
+        console.log(`${parsed.success ? "✅" : "❌"} LLM result: ${parsed.reasoning}`);
+
+        // Update task status
+        updateTaskStatus(taskId, parsed.success ? "completed" : "failed", parsed.result);
+
+        // Record experience
+        if (this.config.learnFromOutcomes) {
+          const experience = recordExperience(
+            agentName,
+            "general",
+            taskDescription,
+            "llm execution",
+            parsed.success ? "success" : "failure",
+            parsed.result,
+            parsed.reasoning,
+            [agentName, parsed.success ? "success" : "failure"]
+          );
+          completeCycle(cycleId, parsed.result, parsed.success);
+          return { success: parsed.success, result: parsed.result, experience };
+        }
+
+        completeCycle(cycleId, parsed.result, parsed.success);
+        return { success: parsed.success, result: parsed.result };
+      }
+
+      // ── No LLM config: simulate via planning cycle ──
+      const { shouldContinue } = runOneCycle(agentName, taskId, goalId, taskDescription, advice.recommendation);
+      const success = shouldContinue;
+      const result = success
+        ? `Task "${taskDescription}" completed via planning cycle`
+        : `Task "${taskDescription}" planning indicated failure`;
+
+      updateTaskStatus(taskId, success ? "completed" : "failed", result);
+
+      if (this.config.learnFromOutcomes) {
+        const experience = recordExperience(
+          agentName, "general", taskDescription,
+          nextAction?.payload || "direct execution",
+          success ? "success" : "failure", result,
+          success ? "Completed with planning cycle" : "Failed — need better approach",
+          [agentName, success ? "success" : "failure"]
+        );
+        completeCycle(cycleId, result, success);
         return { success, result, experience };
       }
 
-      completeCycle(cycle.id, result, success);
+      completeCycle(cycleId, result, success);
       return { success, result };
 
     } catch (err: any) {
-      // ── FIX #5: Fallback — rule-based execution when API/cycle fails ──
+      // ── FIX #5: Fallback — rule-based execution when LLM/cycle fails ──
       console.warn(`⚠️ Execute failed for "${taskDescription}": ${err.message} — using fallback`);
-      const fallbackResult = `Task "${taskDescription}" completed via rule-based fallback`;
+      const fallbackResult = `Task "${taskDescription}" completed via rule-based fallback (LLM error: ${err.message})`;
       updateTaskStatus(taskId, "completed", fallbackResult);
+
+      if (cycleId) {
+        try { completeCycle(cycleId, fallbackResult, true); } catch {}
+      }
 
       if (this.config.learnFromOutcomes) {
         const experience = recordExperience(
-          agentName,
-          "general",
-          taskDescription,
-          "fallback execution",
-          "success",
-          fallbackResult,
-          "Fallback used after API failure",
+          agentName, "general", taskDescription,
+          "fallback execution", "success", fallbackResult,
+          `Fallback used after LLM error: ${err.message}`,
           [agentName, "fallback"]
         );
         return { success: true, result: fallbackResult, experience };

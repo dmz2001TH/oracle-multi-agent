@@ -20,6 +20,18 @@ import { execSync } from "node:child_process";
 import { listSkillsByCategory, searchSkills, getSkillCount } from "../skills/registry.js";
 import { listWorkflowTemplates, getWorkflowTemplate } from "../workflows/index.js";
 
+// ── 10 New Feature Modules ──
+import { sendMessage, readInbox, markRead, markAllRead, getMailboxStatus, getTeamStatus, broadcast as mailBroadcast, setStandingOrder, getStandingOrders, cancelStandingOrder, listTeams, listTeamAgents, archiveInbox } from "../mailbox/index.js";
+import { registerAgent as lineageRegister, budFrom, findAgent as lineageFind, getAncestry, getDescendants, killAgent as lineageKill, listAllAgents as lineageAll, listAlive, getStats as lineageStats, formatTree } from "../lineage/index.js";
+import { archiveSession, listArchives, getArchive, restoreArchive, getArchiveStats } from "../archive/index.js";
+import { buildIndex, searchFTS, loadOracleDocuments, SearchConfig, searchFTS as searchFTSDocs } from "../hybrid-search/index.js";
+import { WasmPluginRegistry, WasmHost, WasmPlugin } from "../wasm-runtime/index.js";
+import { addOrder, getOrders, getOrdersAsPrompt, deactivateOrder, triggerOrder, getOrderStats, listAgentsWithOrders } from "../standing-orders/index.js";
+import { createSwarmTask, fanOutResearch, createReviewTrio, mergeResults, SwarmExecutor } from "../swarm/index.js";
+import { scanFleet, formatFleetReport } from "../fleet-scan/index.js";
+import { calculateCost, logCost, generateReport, formatCostReport } from "../cost-model/index.js";
+import { isWireGuardAvailable, getInterfaceStatus, pingPeer, getFederationStatus, generateConfig } from "../wireguard/index.js";
+
 const ORACLE_DIR = join(homedir(), ".oracle");
 const MEMORY_DIR = join(ORACLE_DIR, "memory");
 const JOURNAL_DIR = join(MEMORY_DIR, "journal");
@@ -1176,6 +1188,275 @@ export function workflow(args: string, ctx: CommandContext): CommandResult {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// 10 NEW FEATURE COMMANDS
+// ═══════════════════════════════════════════════════════════════════
+
+// ─── /mailbox — Tier 2 agent-to-agent messaging ─────────────────────────
+
+export function mailbox(args: string, ctx: CommandContext): CommandResult {
+  const parts = args?.trim().split(/\s+/) || [];
+  const action = parts[0] || "status";
+  const rest = parts.slice(1).join(" ") || "";
+
+  switch (action) {
+    case "send": {
+      const pipeParts = rest.split("|").map(s => s.trim());
+      if (pipeParts.length < 3) return { status: "ok", message: "📬 ใช้: /mailbox send <team> <agent> <message>" };
+      const [team, agent, message] = pipeParts;
+      sendMessage(team, "cli-user", agent, message, { priority: "normal" });
+      return { status: "ok", message: `📬 ส่งให้ ${agent} (${team}) แล้ว: "${message.slice(0, 80)}"` };
+    }
+    case "read": {
+      const pipeParts = rest.split("|").map(s => s.trim());
+      const team = pipeParts[0] || "";
+      const agent = pipeParts[1] || "";
+      if (!team || !agent) return { status: "ok", message: "📬 ใช้: /mailbox read <team> <agent>" };
+      const messages = readInbox(team, agent, { limit: 10, unreadOnly: true });
+      if (messages.length === 0) return { status: "ok", message: `📬 ${agent} (${team}) — ไม่มีข้อความใหม่` };
+      return {
+        status: "ok",
+        message: `📬 ${agent} (${team}) — ${messages.length} ข้อความใหม่:\n\n` +
+          messages.map((m: any, i: number) => `${i + 1}. [${m.from}] ${m.body?.slice(0, 100)}`).join("\n"),
+      };
+    }
+    case "broadcast": {
+      const pipeParts = rest.split("|").map(s => s.trim());
+      if (pipeParts.length < 2) return { status: "ok", message: "📬 ใช้: /mailbox broadcast <team> <message>" };
+      const [team, message] = pipeParts;
+      mailBroadcast(team, "broadcast-source", message);
+      return { status: "ok", message: `📢 Broadcast ส่งไปทุก agent ใน ${team} แล้ว` };
+    }
+    case "teams": {
+      const teams = listTeams();
+      return { status: "ok", message: `📬 Teams: ${teams.join(", ") || "ไม่มี"}` };
+    }
+    case "status": {
+      const pipeParts = rest.split("|").map(s => s.trim());
+      if (pipeParts.length >= 2) {
+        const agents = getTeamStatus(pipeParts[0]);
+        return { status: "ok", message: `📬 Status: ${JSON.stringify(agents)}` };
+      }
+      return { status: "ok", message: "📬 **Mailbox**\n\n/mailbox send <team> <agent> <msg>\n/mailbox read <team> <agent>\n/mailbox broadcast <team> <msg>\n/mailbox teams" };
+    }
+    default:
+      return { status: "ok", message: "📬 **Mailbox Commands**\n\n/mailbox send <team> | <agent> | <msg>\n/mailbox read <team> | <agent>\n/mailbox broadcast <team> | <msg>\n/mailbox teams" };
+  }
+}
+
+// ─── /lineage — Agent lineage tracking (Yeast Model) ────────────────────
+
+export function lineage(args: string, ctx: CommandContext): CommandResult {
+  const parts = args?.trim().split(/\s+/) || [];
+  const action = parts[0] || "tree";
+  const rest = parts.slice(1).join(" ") || "";
+
+  switch (action) {
+    case "register": {
+      const pipeParts = rest.split("|").map(s => s.trim());
+      if (pipeParts.length < 2) return { status: "ok", message: "🧬 ใช้: /lineage register <name> <role>" };
+      const agent = lineageRegister(pipeParts[0], pipeParts[1]);
+      return { status: "ok", message: `🧬 ลงทะเบียน ${agent.name} (${agent.role}) แล้ว — gen:${agent.generation}` };
+    }
+    case "bud": {
+      const pipeParts = rest.split("|").map(s => s.trim());
+      if (pipeParts.length < 3) return { status: "ok", message: "🧬 ใช้: /lineage bud <parent-id> <name> <role>" };
+      const child = budFrom(pipeParts[0], pipeParts[1], pipeParts[2]);
+      return child
+        ? { status: "ok", message: `🧬 ${child.name} เกิดจาก ${pipeParts[0]} — gen:${child.generation}` }
+        : { status: "error", message: "🧬 Parent not found" };
+    }
+    case "find": {
+      if (!rest) return { status: "ok", message: "🧬 ใช้: /lineage find <id-or-name>" };
+      const agent = lineageFind(rest);
+      return agent
+        ? { status: "ok", message: `🧬 ${agent.name} (${agent.role}) — gen:${agent.generation}, status:${agent.status}` }
+        : { status: "ok", message: `🧬 ไม่พบ: ${rest}` };
+    }
+    case "tree":
+    default: {
+      const agents = lineageAll();
+      const stats = lineageStats();
+      const rootId = agents.find(a => a.parentId === null)?.id || "";
+      return {
+        status: "ok",
+        message: `🧬 **Lineage Tree**\n\nTotal: ${stats.total} | Alive: ${stats.alive} | Max Gen: ${stats.maxGeneration}\n\n` +
+          (agents.length > 0 ? formatTree(rootId) : "ไม่มี agent — ใช้ /lineage register"),
+      };
+    }
+  }
+}
+
+// ─── /archive — Session-end archival ─────────────────────────────────────
+
+export function archive(args: string, ctx: CommandContext): CommandResult {
+  const parts = args?.trim().split(/\s+/) || [];
+  const action = parts[0] || "stats";
+  const rest = parts.slice(1).join(" ") || "";
+
+  switch (action) {
+    case "save": {
+      const pipeParts = rest.split("|").map(s => s.trim());
+      if (pipeParts.length < 2) return { status: "ok", message: "💾 ใช้: /archive save <agent> <role> [reason]" };
+      const entry = archiveSession(pipeParts[0], pipeParts[1], (pipeParts[2] as any) || "manual");
+      return { status: "ok", message: `💾 Archived ${pipeParts[0]} — ${entry.files.length} files saved` };
+    }
+    case "list": {
+      if (!rest) return { status: "ok", message: "💾 ใช้: /archive list <agent>" };
+      const archives = listArchives(rest);
+      return {
+        status: "ok",
+        message: `💾 Archives for ${rest}: ${archives.length}\n\n` +
+          archives.map((a: any) => `- ${a.id}: ${a.reason} (${a.files?.length || 0} files)`).join("\n"),
+      };
+    }
+    case "stats":
+    default: {
+      const stats = getArchiveStats();
+      return { status: "ok", message: `💾 **Archive Stats**\n\nAgents: ${stats.agents}\nTotal Archives: ${stats.totalArchives}\nTotal Files: ${stats.totalFiles}` };
+    }
+  }
+}
+
+// ─── /swarm — Research swarm orchestration ───────────────────────────────
+
+export function swarm(args: string, ctx: CommandContext): CommandResult {
+  const parts = args?.trim().split(/\s+/) || [];
+  const action = parts[0] || "help";
+  const rest = parts.slice(1).join(" ") || "";
+
+  switch (action) {
+    case "create": {
+      const pipeParts = rest.split("|").map(s => s.trim());
+      if (pipeParts.length < 2) return { status: "ok", message: "🐝 ใช้: /swarm create <topic> <prompt1> <prompt2>..." };
+      const topic = pipeParts[0];
+      const prompts = pipeParts.slice(1);
+      const task = createSwarmTask(topic, prompts, prompts.map(() => "researcher"));
+      return { status: "ok", message: `🐝 Swarm created: "${topic}" — ${prompts.length} prompts` };
+    }
+    case "fan-out": {
+      const pipeParts = rest.split("|").map(s => s.trim());
+      if (pipeParts.length < 2) return { status: "ok", message: "🐝 ใช้: /swarm fan-out <topic> <angle1> <angle2>..." };
+      const task = fanOutResearch(pipeParts[0], pipeParts.slice(1));
+      return { status: "ok", message: `🐝 Fan-out: "${pipeParts[0]}" — ${task.prompts.length} sub-prompts` };
+    }
+    case "review": {
+      if (!rest) return { status: "ok", message: "🐝 ใช้: /swarm review <code-or-desc>" };
+      const task = createReviewTrio(rest, "Code review via CLI");
+      return { status: "ok", message: `🐝 Review trio created — ${task.prompts.length} agents will review` };
+    }
+    case "help":
+    default:
+      return { status: "ok", message: "🐝 **Swarm Commands**\n\n/swarm create <topic> | <prompt1> | <prompt2>...\n/swarm fan-out <topic> | <angle1> | <angle2>...\n/swarm review <code>" };
+  }
+}
+
+// ─── /fleet-scan — Fleet oracle discovery ────────────────────────────────
+
+export function fleetScan(args: string, ctx: CommandContext): CommandResult {
+  const node = args?.trim() || undefined;
+  const report = scanFleet(node);
+  return {
+    status: "ok",
+    message: formatFleetReport(report),
+    data: report,
+  };
+}
+
+// ─── /cost — Cost model by tier ──────────────────────────────────────────
+
+export function costCmd(args: string, ctx: CommandContext): CommandResult {
+  const parts = args?.trim().split(/\s+/) || [];
+  const action = parts[0] || "help";
+
+  switch (action) {
+    case "calc": {
+      const model = parts[1] || "gemini-2.0-flash";
+      const input = parseInt(parts[2]) || 1000;
+      const output = parseInt(parts[3]) || 1000;
+      const cost = calculateCost(model, input, output);
+      return { status: "ok", message: `💰 ${model}: ${input}+${output} tokens = $${cost.toFixed(6)}` };
+    }
+    case "log": {
+      const agent = parts[1] || "unknown";
+      const tier = (parts[2] as any) || "in-process";
+      const model = parts[3] || "gemini-2.0-flash";
+      const entry = logCost(agent, tier, model, parseInt(parts[4]) || 1000, parseInt(parts[5]) || 500);
+      return { status: "ok", message: `💰 Logged: ${agent} @ ${tier} = $${entry.costUsd.toFixed(6)}` };
+    }
+    case "help":
+    default:
+      return { status: "ok", message: "💰 **Cost Commands**\n\n/cost calc <model> <input> <output>\n/cost log <agent> <tier> <model> <input> <output>" };
+  }
+}
+
+// ─── /standing-orders — Persistent agent context ─────────────────────────
+
+export function standingOrdersCmd(args: string, ctx: CommandContext): CommandResult {
+  const parts = args?.trim().split(/\s+/) || [];
+  const action = parts[0] || "list";
+  const rest = parts.slice(1).join(" ") || "";
+
+  switch (action) {
+    case "add": {
+      const pipeParts = rest.split("|").map(s => s.trim());
+      if (pipeParts.length < 2) return { status: "ok", message: "📋 ใช้: /so add <agent> <order> [| priority] [| category]" };
+      const order = addOrder(pipeParts[0], pipeParts[1], {
+        priority: (pipeParts[2] as any) || "normal",
+        category: (pipeParts[3] as any) || "behavior",
+      });
+      return { status: "ok", message: `📋 Standing order added for ${pipeParts[0]}: "${pipeParts[1]}"` };
+    }
+    case "list": {
+      const agent = rest || undefined;
+      if (agent) {
+        const orders = getOrders(agent);
+        if (orders.length === 0) return { status: "ok", message: `📋 ${agent} — ไม่มี standing orders` };
+        return {
+          status: "ok",
+          message: `📋 ${agent} — ${orders.length} orders:\n\n` +
+            orders.map((o: any) => `[${o.priority}] ${o.order} (${o.category})`).join("\n"),
+        };
+      }
+      const agents = listAgentsWithOrders();
+      return { status: "ok", message: `📋 **Standing Orders**\n\nAgents: ${agents.join(", ") || "ไม่มี"}` };
+    }
+    case "prompt": {
+      if (!rest) return { status: "ok", message: "📋 ใช้: /so prompt <agent>" };
+      const prompt = getOrdersAsPrompt(rest);
+      return { status: "ok", message: `📋 Orders prompt for ${rest}:\n\n${prompt}` };
+    }
+    default:
+      return { status: "ok", message: "📋 **Standing Orders**\n\n/so add <agent> | <order> [| priority] [| category]\n/so list [agent]\n/so prompt <agent>" };
+  }
+}
+
+// ─── /search — Hybrid search (FTS5 + Vector) ────────────────────────────
+
+export function searchCmd(args: string, ctx: CommandContext): CommandResult {
+  if (!args || args.trim().length === 0) {
+    return { status: "ok", message: "🔍 ใช้: /search <query>\nHybrid search: FTS5 + semantic similarity" };
+  }
+  const query = args.trim();
+  try {
+    const docs = loadOracleDocuments();
+    const docMap = new Map(docs.map(d => [d.id, d]));
+    const index = buildIndex(docs);
+    const results = searchFTS(query, index, docMap);
+    if (results.length === 0) {
+      return { status: "ok", message: `🔍 ไม่พบผลลัพธ์สำหรับ: "${query}"` };
+    }
+    return {
+      status: "ok",
+      message: `🔍 พบ ${results.length} ผลลัพธ์:\n\n` +
+        results.slice(0, 10).map((r: any, i: number) => `${i + 1}. [${r.source}] ${r.content?.slice(0, 100)} (score: ${r.score?.toFixed(2)})`).join("\n"),
+      data: results.slice(0, 10),
+    };
+  } catch (e: any) {
+    return { status: "error", message: `🔍 Search error: ${e.message}` };
+  }
+}
+
 const COMMANDS: Record<string, CommandHandler> = {
   awaken,
   recap,
@@ -1210,6 +1491,16 @@ const COMMANDS: Record<string, CommandHandler> = {
   bud,
   ls: lsCmd,
   restart,
+  // 10 New Features
+  mailbox,
+  lineage,
+  archive,
+  swarm,
+  "fleet-scan": fleetScan,
+  cost: costCmd,
+  so: standingOrdersCmd,
+  "standing-orders": standingOrdersCmd,
+  search: searchCmd,
 };
 
 export function listCommands(): { name: string; description: string }[] {
@@ -1247,6 +1538,15 @@ export function listCommands(): { name: string; description: string }[] {
     { name: "bud", description: "🌱 Create new oracle from parent" },
     { name: "ls", description: "📋 List all agents" },
     { name: "restart", description: "🔄 Restart agent" },
+    // 10 New Features
+    { name: "mailbox", description: "📬 Tier 2 agent-to-agent messaging (send/read/broadcast)" },
+    { name: "lineage", description: "🧬 Agent lineage tree — register/bud/find (Yeast Model)" },
+    { name: "archive", description: "💾 Session-end archival — save/restore agent state" },
+    { name: "swarm", description: "🐝 Research swarm — parallel agent investigation" },
+    { name: "fleet-scan", description: "🚢 Fleet oracle scan — auto-discover agents" },
+    { name: "cost", description: "💰 Cost model by tier — calculate/log/report" },
+    { name: "so", description: "📋 Standing orders — persistent agent context (/so add/list)" },
+    { name: "search", description: "🔍 Hybrid search — FTS5 + semantic (replaces linear scan)" },
   ];
 }
 
@@ -1284,9 +1584,37 @@ Available commands:
 /soul-sync — sync ψ/ and ~/.oracle/
 /contacts — list oracle contacts
 
+**10 NEW FEATURES (Autonomous Multi-Agent System):**
+/mailbox send <team> | <agent> | <msg> — send message via Tier 2 transport (file-based, no tmux needed)
+/mailbox read <team> | <agent> — read inbox messages from other agents
+/mailbox broadcast <team> | <msg> — broadcast to all agents in a team
+/lineage register <name> <role> — register agent in lineage tree (Yeast Model)
+/lineage bud <parent-id> | <name> | <role> — spawn child agent with inherited knowledge
+/lineage tree — view full agent lineage tree
+/archive save <agent> | <role> — archive agent state before session ends
+/archive list <agent> — list archived sessions
+/swarm create <topic> | <prompt1> | <prompt2> — create research swarm (parallel investigation)
+/swarm fan-out <topic> | <angle1> | <angle2> — fan-out research across multiple angles
+/swarm review <code> — review trio (coder + qa + critic)
+/fleet-scan — auto-discover all agents across tmux, files, peers
+/cost calc <model> <input> <output> — calculate token cost
+/cost log <agent> <tier> <model> <input> <output> — log cost entry
+/so add <agent> | <order> | priority | category — add standing order (persistent context)
+/so list [agent] — list standing orders
+/so prompt <agent> — get orders as system prompt
+/search <query> — hybrid search (FTS5 + semantic, replaces linear scan)
+
+**Communication patterns (use mailbox instead of API for Tier 2):**
+- To communicate between agents, use /mailbox send instead of /hey for reliable delivery
+- Use /swarm for parallel research instead of sequential agent delegation
+- Use /so for rules that persist across sessions (e.g., "always be concise")
+- Use /search instead of /find for better relevance (BM25 + vector)
+
 When user says "สร้าง retrospective" or similar, execute /rrr directly.
 When user says "จำไว้" or "save this", execute /fyi with the content.
 When user says "สรุป" or "recap", execute /recap.
+When user says "ส่งข้อความหา" or "message", use /mailbox send.
+When user says "วิจัย" or "research", use /swarm fan-out.
 Always execute the command, don't just explain how to use it.`;
 }
 

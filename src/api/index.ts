@@ -40,6 +40,15 @@ import { skillsApi } from "./skills.js";
 import { vaultApi } from "./vault.js";
 import { workflowsApi } from "./workflows.js";
 import { oracleV2Api } from "./oracle-v2-bridge.js";
+import { mailboxApi } from "./mailbox-api.js";
+import { lineageApi } from "./lineage-api.js";
+import { archiveApi } from "./archive-api.js";
+import { swarmApi } from "./swarm-api.js";
+import { fleetScanApi } from "./fleet-scan-api.js";
+import { costModelApi } from "./cost-model-api.js";
+import { standingOrdersApi } from "./standing-orders-api.js";
+import { hybridSearchApi } from "./hybrid-search-api.js";
+import { wireguardApi } from "./wireguard-api.js";
 
 export const api = new Hono();
 
@@ -80,3 +89,12 @@ api.route("/", skillsApi);
 api.route("/", vaultApi);
 api.route("/", workflowsApi);
 api.route("/", oracleV2Api);
+api.route("/", mailboxApi);
+api.route("/", lineageApi);
+api.route("/", archiveApi);
+api.route("/", swarmApi);
+api.route("/", fleetScanApi);
+api.route("/", costModelApi);
+api.route("/", standingOrdersApi);
+api.route("/", hybridSearchApi);
+api.route("/", wireguardApi);

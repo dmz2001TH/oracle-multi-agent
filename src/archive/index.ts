@@ -3,7 +3,7 @@
  * Auto-archives agent state when session ends or context is about to fill.
  * Based on: Agents That Remember Chapter 6 — Session-End Archival
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFileSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, copyFileSync, appendFileSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 

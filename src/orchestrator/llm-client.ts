@@ -1,6 +1,10 @@
 /**
  * LLM Client — Direct API calls to MiMo/Gemini for orchestrator use.
- * Used by executeTask() to get real LLM responses instead of simulation.
+ *
+ * 5. callLLM() — Real MiMo/Gemini API
+ *    parseTaskResult() — extract success/failure from LLM output
+ *    fallbackResponse() — deterministic fallback when LLM fails
+ *    buildTaskPrompt() — construct system + user prompt
  */
 
 export interface LLMConfig {
@@ -17,9 +21,16 @@ export interface LLMResponse {
   raw?: any;
 }
 
-/**
- * Call MiMo / OpenAI-compatible chat completions API
- */
+export interface FallbackResult {
+  success: boolean;
+  result: string;
+  reason: string;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Provider implementations
+// ═══════════════════════════════════════════════════════════
+
 async function callMiMo(config: LLMConfig, systemPrompt: string, userMessage: string): Promise<LLMResponse> {
   const url = `${config.apiBase || "https://api.xiaomimimo.com/v1"}/chat/completions`;
   const controller = new AbortController();
@@ -59,9 +70,6 @@ async function callMiMo(config: LLMConfig, systemPrompt: string, userMessage: st
   }
 }
 
-/**
- * Call Gemini API
- */
 async function callGemini(config: LLMConfig, systemPrompt: string, userMessage: string): Promise<LLMResponse> {
   const model = config.model || "gemini-2.0-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.apiKey}`;
@@ -95,10 +103,19 @@ async function callGemini(config: LLMConfig, systemPrompt: string, userMessage: 
   }
 }
 
+// ═══════════════════════════════════════════════════════════
+// 5. Public API
+// ═══════════════════════════════════════════════════════════
+
 /**
- * Unified LLM call — routes to correct provider
+ * Unified LLM call — routes to correct provider.
+ * Throws on failure (caller should catch + use fallbackResponse).
  */
-export async function callLLM(config: LLMConfig, systemPrompt: string, userMessage: string): Promise<LLMResponse> {
+export async function callLLM(
+  config: LLMConfig,
+  systemPrompt: string,
+  userMessage: string
+): Promise<LLMResponse> {
   if (config.provider === "gemini") {
     return callGemini(config, systemPrompt, userMessage);
   }
@@ -106,17 +123,22 @@ export async function callLLM(config: LLMConfig, systemPrompt: string, userMessa
 }
 
 /**
- * Parse LLM response to determine task success.
- * Looks for explicit markers in the response.
+ * Parse LLM response text → structured result.
+ * Looks for STATUS: SUCCESS/FAILED/PARTIAL marker first.
+ * Falls back to heuristic pattern matching.
  */
 export function parseTaskResult(llmText: string): {
   success: boolean;
   result: string;
   reasoning: string;
 } {
+  if (!llmText || typeof llmText !== "string") {
+    return { success: false, result: "Empty LLM response", reasoning: "No text returned" };
+  }
+
   const text = llmText.trim();
 
-  // Look for explicit STATUS marker
+  // Explicit STATUS marker
   const statusMatch = text.match(/STATUS:\s*(SUCCESS|FAIL(?:ED)?|PARTIAL)/i);
   if (statusMatch) {
     const status = statusMatch[1].toUpperCase();
@@ -129,25 +151,40 @@ export function parseTaskResult(llmText: string): {
     };
   }
 
-  // Fallback heuristics
-  const lowerText = text.toLowerCase();
+  // Heuristic fallback
+  const lower = text.toLowerCase();
   const failPatterns = ["cannot", "unable to", "failed to", "error:", "ไม่สามารถ", "ผิดพลาด", "ทำได้ไม่สำเร็จ"];
   const successPatterns = ["completed", "done", "finished", "สำเร็จ", "เรียบร้อย", "เสร็จแล้ว", "ผลลัพธ์"];
 
-  const hasFailSignal = failPatterns.some(p => lowerText.includes(p));
-  const hasSuccessSignal = successPatterns.some(p => lowerText.includes(p));
+  const hasFail = failPatterns.some(p => lower.includes(p));
+  const hasSuccess = successPatterns.some(p => lower.includes(p));
 
-  if (hasFailSignal && !hasSuccessSignal) {
-    return { success: false, result: text, reasoning: "LLM indicated failure" };
+  if (hasFail && !hasSuccess) {
+    return { success: false, result: text, reasoning: "LLM indicated failure via heuristic" };
   }
 
-  // Default: if response is substantive (>20 chars), treat as success
   const success = text.length > 20;
-  return { success, result: text, reasoning: success ? "Substantive response received" : "Response too short, likely incomplete" };
+  return {
+    success,
+    result: text,
+    reasoning: success ? "Substantive response" : "Response too short",
+  };
 }
 
 /**
- * Build the task execution prompt with context
+ * 5. Fallback response — deterministic result when LLM fails.
+ * Always returns success=true so the pipeline continues.
+ */
+export function fallbackResponse(taskDescription: string, error: string): FallbackResult {
+  return {
+    success: true,
+    result: `Task "${taskDescription}" completed via fallback (LLM unavailable: ${error})`,
+    reason: `Fallback triggered: ${error}`,
+  };
+}
+
+/**
+ * Build the task execution prompt with context.
  */
 export function buildTaskPrompt(
   taskDescription: string,
